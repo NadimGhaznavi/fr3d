@@ -22,6 +22,7 @@ SOURCE_DIRECTORIES = (
     "constants",
     "fr3dnet",
     "kb_tool",
+    "journal_tool",
     "server",
     "weather_tool",
 )
@@ -119,6 +120,26 @@ def recreate_installation() -> None:
             shutil.copy2(source, prefix / filename)
 
     shutil.chown(prefix, user="root", group=DFr3d.SERVICE_GROUP)
+    configure_journal_permissions()
+
+
+def configure_journal_permissions() -> None:
+    journal_directory = DFr3d.INSTALL_ROOT / "fr3dnet" / "journal"
+    journal_index = journal_directory / "index.md"
+    journal_directory.mkdir(parents=True, exist_ok=True, mode=0o770)
+    journal_directory.chmod(0o770)
+    shutil.chown(
+        journal_directory,
+        user=DFr3d.SERVICE_USER,
+        group=DFr3d.SERVICE_GROUP,
+    )
+    if journal_index.is_file():
+        journal_index.chmod(0o660)
+        shutil.chown(
+            journal_index,
+            user=DFr3d.SERVICE_USER,
+            group=DFr3d.SERVICE_GROUP,
+        )
 
 
 def install_environment() -> None:
