@@ -3,6 +3,10 @@
     "kb": {
       "command": "/opt/fr3d/.venv/bin/python",
       "args": ["-m", "kb_tool"]
+    },
+    "weather": {
+      "command": "/opt/fr3d/.venv/bin/python",
+      "args": ["-m", "weather_tool"]
     }
   }
 }
