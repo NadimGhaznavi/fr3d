@@ -18,7 +18,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from constants.DFr3d import DFr3d  # noqa: E402
 
 SYSTEMD_DIRECTORY = Path("/etc/systemd/system")
-SOURCE_DIRECTORIES = ("constants", "server")
+SOURCE_DIRECTORIES = ("constants", "fr3dnet", "kb_tool", "server")
 ROOT_FILES = ("requirements.txt", "pyproject.toml")
 OBSOLETE_SERVICE_NAMES = (DFr3d.SCHEDULER_SERVICE_NAME,)
 
