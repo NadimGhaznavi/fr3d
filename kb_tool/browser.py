@@ -8,7 +8,7 @@ from pathlib import Path
 DOCUMENT_ROOT = Path(__file__).resolve().parent.parent / "fr3dnet"
 MAX_URL_LENGTH = 256
 MAX_PAGE_BYTES = 16_384
-URL_SEGMENT = re.compile(r"^[a-z0-9][a-z0-9-]*$")
+URL_SEGMENT = re.compile(r"^[a-z0-9][a-z0-9_:-]*$")
 MARKDOWN_LINK = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
 
 

@@ -15,6 +15,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectHome=true
 ProtectSystem=strict
+ReadWritePaths=/opt/fr3d/fr3dnet/journal
 
 [Install]
 WantedBy=multi-user.target
