@@ -1,0 +1,145 @@
+#!/usr/bin/env python3
+"""Install a fresh Fr3d deployment. Run as root."""
+
+from __future__ import annotations
+
+import grp
+import os
+import pwd
+import shutil
+import subprocess
+import sys
+import venv
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
+
+from constants.DFr3d import DFr3d  # noqa: E402
+
+SYSTEMD_DIRECTORY = Path("/etc/systemd/system")
+SOURCE_DIRECTORIES = ("constants", "server", "scheduler")
+ROOT_FILES = ("requirements.txt", "pyproject.toml")
+
+
+def run(*command: str | Path, check: bool = True) -> None:
+    subprocess.run([str(part) for part in command], check=check)
+
+
+def require_root() -> None:
+    if os.geteuid() != 0:
+        raise PermissionError("Fr3d installation must be run as root")
+
+
+def validate_paths() -> None:
+    prefix = DFr3d.INSTALL_ROOT
+    if not prefix.is_absolute() or len(prefix.parts) < 3:
+        raise ValueError(f"unsafe installation root: {prefix}")
+    if prefix.resolve(strict=False) == PROJECT_ROOT.resolve():
+        raise ValueError("installation root cannot be the source checkout")
+    if prefix.is_symlink():
+        raise ValueError(f"refusing symlinked installation root: {prefix}")
+    if prefix.exists() and not prefix.is_dir():
+        raise ValueError(f"installation root is not a directory: {prefix}")
+
+    for service_name in DFr3d.SERVICE_NAMES:
+        source = PROJECT_ROOT / "systemd" / service_name
+        if not source.is_file():
+            raise FileNotFoundError(f"systemd unit not found: {source}")
+
+
+def stop_existing_services() -> None:
+    for service_name in reversed(DFr3d.SERVICE_NAMES):
+        run("systemctl", "disable", "--now", service_name, check=False)
+
+
+def ensure_service_account() -> None:
+    try:
+        grp.getgrnam(DFr3d.SERVICE_GROUP)
+    except KeyError:
+        run("groupadd", "--system", DFr3d.SERVICE_GROUP)
+
+    try:
+        pwd.getpwnam(DFr3d.SERVICE_USER)
+    except KeyError:
+        run(
+            "useradd",
+            "--system",
+            "--gid",
+            DFr3d.SERVICE_GROUP,
+            "--home-dir",
+            DFr3d.INSTALL_ROOT,
+            "--shell",
+            "/usr/sbin/nologin",
+            DFr3d.SERVICE_USER,
+        )
+
+
+def recreate_installation() -> None:
+    prefix = DFr3d.INSTALL_ROOT
+    if prefix.exists():
+        shutil.rmtree(prefix)
+    prefix.mkdir(parents=True, mode=0o755)
+
+    for directory_name in SOURCE_DIRECTORIES:
+        source = PROJECT_ROOT / directory_name
+        if source.is_dir():
+            shutil.copytree(
+                source,
+                prefix / directory_name,
+                ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+            )
+
+    scripts_directory = prefix / "scripts"
+    scripts_directory.mkdir(mode=0o755)
+    for script_name in ("install.py", "uninstall.py"):
+        destination = scripts_directory / script_name
+        shutil.copy2(PROJECT_ROOT / "scripts" / script_name, destination)
+        destination.chmod(0o755)
+
+    for filename in ROOT_FILES:
+        source = PROJECT_ROOT / filename
+        if source.is_file():
+            shutil.copy2(source, prefix / filename)
+
+    shutil.chown(prefix, user="root", group=DFr3d.SERVICE_GROUP)
+
+
+def install_environment() -> None:
+    environment = DFr3d.INSTALL_ROOT / DFr3d.VENV_DIRECTORY
+    venv.EnvBuilder(with_pip=True, upgrade_deps=False).create(environment)
+    requirements = DFr3d.INSTALL_ROOT / "requirements.txt"
+    if requirements.is_file():
+        run(environment / "bin" / "python", "-m", "pip", "install", "-r", requirements)
+
+
+def install_services() -> None:
+    for service_name in DFr3d.SERVICE_NAMES:
+        destination = SYSTEMD_DIRECTORY / service_name
+        shutil.copy2(PROJECT_ROOT / "systemd" / service_name, destination)
+        destination.chmod(0o644)
+    run("systemctl", "daemon-reload")
+    for service_name in DFr3d.SERVICE_NAMES:
+        run("systemctl", "enable", service_name)
+
+
+def main() -> int:
+    try:
+        require_root()
+        validate_paths()
+        stop_existing_services()
+        ensure_service_account()
+        recreate_installation()
+        install_environment()
+        install_services()
+    except (OSError, PermissionError, ValueError, subprocess.CalledProcessError) as error:
+        print(f"install.py: {error}", file=sys.stderr)
+        return 1
+
+    print(f"Fr3d {DFr3d.VERSION} installed in {DFr3d.INSTALL_ROOT}")
+    print(f"Start it with: systemctl start {' '.join(DFr3d.SERVICE_NAMES)}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

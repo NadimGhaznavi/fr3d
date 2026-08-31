@@ -1,0 +1,21 @@
+[Unit]
+Description=Fr3d Scheduler
+After=network.target fr3d.service
+Wants=fr3d.service
+
+[Service]
+Type=simple
+User=fr3d
+Group=fr3d
+WorkingDirectory=/opt/fr3d
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/fr3d/.venv/bin/python -m scheduler.SchedulerServer
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+
+[Install]
+WantedBy=multi-user.target
