@@ -4,6 +4,10 @@
       "command": "/opt/fr3d/.venv/bin/python",
       "args": ["-m", "kb_tool"]
     },
+    "journal": {
+      "command": "/opt/fr3d/.venv/bin/python",
+      "args": ["-m", "journal_tool"]
+    },
     "weather": {
       "command": "/opt/fr3d/.venv/bin/python",
       "args": ["-m", "weather_tool"]

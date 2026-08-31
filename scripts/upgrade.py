@@ -19,6 +19,7 @@ from scripts.install import (  # noqa: E402
     ROOT_FILES,
     SOURCE_DIRECTORIES,
     SYSTEMD_DIRECTORY,
+    configure_journal_permissions,
     validate_paths,
 )
 
@@ -78,7 +79,13 @@ def remove_path(path: Path) -> None:
 
 def remove_installed_runtime() -> None:
     for directory_name in SOURCE_DIRECTORIES:
-        remove_path(DFr3d.INSTALL_ROOT / directory_name)
+        destination = DFr3d.INSTALL_ROOT / directory_name
+        if directory_name == "fr3dnet" and destination.is_dir():
+            for child in destination.iterdir():
+                if child.name != "journal":
+                    remove_path(child)
+        else:
+            remove_path(destination)
     for filename in ROOT_FILES:
         remove_path(DFr3d.INSTALL_ROOT / filename)
     remove_path(DFr3d.INSTALL_ROOT / "scripts")
@@ -89,10 +96,20 @@ def copy_runtime() -> None:
     for directory_name in SOURCE_DIRECTORIES:
         source = PROJECT_ROOT / directory_name
         if source.is_dir():
+            destination = prefix / directory_name
+            preserve_journal = (
+                directory_name == "fr3dnet"
+                and (destination / "journal").is_dir()
+            )
             shutil.copytree(
                 source,
-                prefix / directory_name,
-                ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+                destination,
+                dirs_exist_ok=True,
+                ignore=shutil.ignore_patterns(
+                    "__pycache__",
+                    "*.pyc",
+                    *(("journal",) if preserve_journal else ()),
+                ),
             )
 
     scripts_directory = prefix / "scripts"
@@ -138,6 +155,7 @@ def main() -> int:
         stop_services()
         remove_installed_runtime()
         copy_runtime()
+        configure_journal_permissions()
         update_dependencies(environment_python, args.skip_dependencies)
         update_services()
     except (OSError, PermissionError, ValueError, subprocess.CalledProcessError) as error:
