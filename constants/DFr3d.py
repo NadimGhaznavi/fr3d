@@ -7,10 +7,7 @@ class DFr3d:
     VENV_DIRECTORY: Final[str] = ".venv"
     SERVICE_NAME: Final[str] = "fr3d.service"
     SCHEDULER_SERVICE_NAME: Final[str] = "fr3d-scheduler.service"
-    SERVICE_NAMES: Final[tuple[str, ...]] = (
-        SERVICE_NAME,
-        SCHEDULER_SERVICE_NAME,
-    )
+    SERVICE_NAMES: Final[tuple[str, ...]] = (SERVICE_NAME,)
     SERVICE_USER: Final[str] = "fr3d"
     SERVICE_GROUP: Final[str] = "fr3d"
     CONFIG_DIRECTORY: Final[Path] = Path("/etc/fr3d")
@@ -23,4 +20,4 @@ class DFr3d:
     REASONING_BUDGET: Final[int] = 2_048
     HOST: Final[str] = "0.0.0.0"
     PORT: Final[int] = 51970
-    VERSION: Final[str] = "0.0.1"
+    VERSION: Final[str] = "0.0.2"
