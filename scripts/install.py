@@ -18,8 +18,9 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from constants.DFr3d import DFr3d  # noqa: E402
 
 SYSTEMD_DIRECTORY = Path("/etc/systemd/system")
-SOURCE_DIRECTORIES = ("constants", "server", "scheduler")
+SOURCE_DIRECTORIES = ("constants", "server")
 ROOT_FILES = ("requirements.txt", "pyproject.toml")
+OBSOLETE_SERVICE_NAMES = (DFr3d.SCHEDULER_SERVICE_NAME,)
 
 
 def run(*command: str | Path, check: bool = True) -> None:
@@ -47,10 +48,19 @@ def validate_paths() -> None:
         if not source.is_file():
             raise FileNotFoundError(f"systemd unit not found: {source}")
 
+    entrypoint = PROJECT_ROOT / "server" / "Fr3dServer.py"
+    if not entrypoint.is_file():
+        raise FileNotFoundError(f"server entry point not found: {entrypoint}")
+
 
 def stop_existing_services() -> None:
-    for service_name in reversed(DFr3d.SERVICE_NAMES):
+    for service_name in reversed((*DFr3d.SERVICE_NAMES, *OBSOLETE_SERVICE_NAMES)):
         run("systemctl", "disable", "--now", service_name, check=False)
+
+    for service_name in OBSOLETE_SERVICE_NAMES:
+        obsolete_unit = SYSTEMD_DIRECTORY / service_name
+        if obsolete_unit.is_file() or obsolete_unit.is_symlink():
+            obsolete_unit.unlink()
 
 
 def ensure_service_account() -> None:

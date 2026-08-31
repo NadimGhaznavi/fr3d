@@ -17,6 +17,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from constants.DFr3d import DFr3d  # noqa: E402
 
 SYSTEMD_DIRECTORY = Path("/etc/systemd/system")
+OBSOLETE_SERVICE_NAMES = (DFr3d.SCHEDULER_SERVICE_NAME,)
 
 
 def run(*command: str | Path, check: bool = True) -> None:
@@ -38,7 +39,8 @@ def remove_directory(path: Path) -> None:
 
 
 def remove_services() -> None:
-    for service_name in reversed(DFr3d.SERVICE_NAMES):
+    service_names = (*DFr3d.SERVICE_NAMES, *OBSOLETE_SERVICE_NAMES)
+    for service_name in reversed(service_names):
         run("systemctl", "disable", "--now", service_name, check=False)
         unit = SYSTEMD_DIRECTORY / service_name
         if unit.is_file() or unit.is_symlink():
