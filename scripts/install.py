@@ -108,7 +108,7 @@ def recreate_installation() -> None:
 
     scripts_directory = prefix / "scripts"
     scripts_directory.mkdir(mode=0o755)
-    for script_name in ("install.py", "uninstall.py"):
+    for script_name in ("install.py", "uninstall.py", "upgrade.py", "upgrade.sh"):
         destination = scripts_directory / script_name
         shutil.copy2(PROJECT_ROOT / "scripts" / script_name, destination)
         destination.chmod(0o755)
