@@ -1,2 +1,3 @@
-# fr3d
-Another AI Project
+# Fr3d
+
+Another AI Project...
