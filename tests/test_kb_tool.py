@@ -1,11 +1,18 @@
 from __future__ import annotations
 
 import unittest
+import json
+from pathlib import Path
 
 from kb_tool.browser import DOCUMENT_ROOT, load_page, resolve_url
 
 
 class KnowledgeBaseBrowserTest(unittest.TestCase):
+    def test_mcp_namespace_produces_kb_tool_name(self) -> None:
+        config_path = Path(__file__).resolve().parent.parent / "server" / "mcp.json"
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        self.assertIn("kb", config["mcpServers"])
+
     def test_root_resolves_to_fr3dnet_index(self) -> None:
         self.assertEqual(resolve_url("/"), DOCUMENT_ROOT / "index.md")
 

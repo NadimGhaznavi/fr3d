@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "kb_tool": {
+    "kb": {
       "command": "/opt/fr3d/.venv/bin/python",
       "args": ["-m", "kb_tool"]
     }
