@@ -20,4 +20,4 @@ class DFr3d:
     REASONING_BUDGET: Final[int] = 2_048
     HOST: Final[str] = "0.0.0.0"
     PORT: Final[int] = 51970
-    VERSION: Final[str] = "0.0.2"
+    VERSION: Final[str] = "0.1.0"
