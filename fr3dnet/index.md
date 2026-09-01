@@ -4,11 +4,13 @@ Welcome to the Fr3d Knowledge Base.
 
 Fr3d is a locally run LLM based on the Qwen model.
 
+## About Fr3d
+
 - [Location](/location)
 - [Computing Environment](/computing-environment)
-- [Journal](/journal/)
+- [Fred;s Journal](/journal/)
 
-## Tools
+## Tools for Fred
 
 - [Knowledge Base Tool](/knowledge-base-tool)
 - [Weather Tool](/weather-tool)
