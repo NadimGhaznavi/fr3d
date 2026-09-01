@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
-"""Install a fresh Fr3d deployment. Run as root."""
+"""Install Fr3d and recreate its MariaDB database. Run as root."""
 
 from __future__ import annotations
 
 import grp
 import os
 import pwd
+import secrets
 import shutil
+import string
 import subprocess
 import sys
+import tempfile
 import venv
 from pathlib import Path
 
@@ -16,10 +19,12 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from constants.DFr3d import DFr3d  # noqa: E402
+from constants.DDatabase import DDatabase  # noqa: E402
 
 SYSTEMD_DIRECTORY = Path("/etc/systemd/system")
 SOURCE_DIRECTORIES = (
     "constants",
+    "database",
     "fr3dnet",
     "kb_tool",
     "journal_tool",
@@ -60,6 +65,15 @@ def validate_paths() -> None:
         raise FileNotFoundError(f"server entry point not found: {entrypoint}")
 
 
+def mariadb_client() -> str:
+    mariadb = shutil.which("mariadb")
+    if mariadb is None:
+        raise FileNotFoundError(
+            "MariaDB client not found; install MariaDB server and client first"
+        )
+    return mariadb
+
+
 def stop_existing_services() -> None:
     for service_name in reversed((*DFr3d.SERVICE_NAMES, *OBSOLETE_SERVICE_NAMES)):
         run("systemctl", "disable", "--now", service_name, check=False)
@@ -92,6 +106,88 @@ def ensure_service_account() -> None:
         )
 
 
+def write_database_environment(password: str) -> None:
+    DFr3d.CONFIG_DIRECTORY.mkdir(parents=True, exist_ok=True, mode=0o750)
+    DFr3d.CONFIG_DIRECTORY.chmod(0o750)
+    shutil.chown(
+        DFr3d.CONFIG_DIRECTORY,
+        user="root",
+        group=DFr3d.SERVICE_GROUP,
+    )
+    content = (
+        f"FR3D_DB_HOST={DDatabase.HOST}\n"
+        f"FR3D_DB_PORT={DDatabase.PORT}\n"
+        f"FR3D_DB_NAME={DDatabase.DB_NAME}\n"
+        f"FR3D_DB_USER={DDatabase.USERNAME}\n"
+        f"FR3D_DB_PASSWORD={password}\n"
+    )
+    with tempfile.NamedTemporaryFile(
+        mode="w",
+        encoding="utf-8",
+        dir=DFr3d.CONFIG_DIRECTORY,
+        prefix=".database.env.",
+        delete=False,
+    ) as temporary_file:
+        temporary_file.write(content)
+        temporary_path = Path(temporary_file.name)
+    temporary_path.chmod(0o640)
+    shutil.chown(
+        temporary_path,
+        user="root",
+        group=DFr3d.SERVICE_GROUP,
+    )
+    temporary_path.replace(DDatabase.ENV_FILE)
+
+
+def destroy_database() -> None:
+    if DFr3d.CONFIG_DIRECTORY.is_symlink():
+        raise ValueError(
+            f"refusing symlinked config directory: {DFr3d.CONFIG_DIRECTORY}"
+        )
+    sql = f"""
+DROP DATABASE IF EXISTS `{DDatabase.DB_NAME}`;
+DROP USER IF EXISTS '{DDatabase.USERNAME}'@'{DDatabase.HOST}';
+"""
+    subprocess.run(
+        [mariadb_client(), "--protocol=socket", "--batch"],
+        input=sql,
+        text=True,
+        check=True,
+    )
+    if DFr3d.CONFIG_DIRECTORY.is_dir():
+        shutil.rmtree(DFr3d.CONFIG_DIRECTORY)
+
+
+def provision_database() -> None:
+    alphabet = string.ascii_letters + string.digits
+    password = "".join(secrets.choice(alphabet) for _ in range(48))
+    sql = f"""
+CREATE DATABASE IF NOT EXISTS `{DDatabase.DB_NAME}`
+    CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER IF NOT EXISTS '{DDatabase.USERNAME}'@'{DDatabase.HOST}'
+    IDENTIFIED BY '{password}';
+ALTER USER '{DDatabase.USERNAME}'@'{DDatabase.HOST}'
+    IDENTIFIED BY '{password}';
+CREATE TABLE IF NOT EXISTS `{DDatabase.DB_NAME}`.`journal_entries` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `title` VARCHAR(120) NOT NULL,
+    `entry` TEXT NOT NULL,
+    `created_at` DATETIME(6) NOT NULL,
+    PRIMARY KEY (`id`),
+    INDEX `idx_journal_created` (`created_at`, `id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+GRANT SELECT, INSERT ON `{DDatabase.DB_NAME}`.*
+    TO '{DDatabase.USERNAME}'@'{DDatabase.HOST}';
+"""
+    subprocess.run(
+        [mariadb_client(), "--protocol=socket", "--batch"],
+        input=sql,
+        text=True,
+        check=True,
+    )
+    write_database_environment(password)
+
+
 def recreate_installation() -> None:
     prefix = DFr3d.INSTALL_ROOT
     if prefix.exists():
@@ -120,26 +216,6 @@ def recreate_installation() -> None:
             shutil.copy2(source, prefix / filename)
 
     shutil.chown(prefix, user="root", group=DFr3d.SERVICE_GROUP)
-    configure_journal_permissions()
-
-
-def configure_journal_permissions() -> None:
-    journal_directory = DFr3d.INSTALL_ROOT / "fr3dnet" / "journal"
-    journal_index = journal_directory / "index.md"
-    journal_directory.mkdir(parents=True, exist_ok=True, mode=0o770)
-    journal_directory.chmod(0o770)
-    shutil.chown(
-        journal_directory,
-        user=DFr3d.SERVICE_USER,
-        group=DFr3d.SERVICE_GROUP,
-    )
-    if journal_index.is_file():
-        journal_index.chmod(0o660)
-        shutil.chown(
-            journal_index,
-            user=DFr3d.SERVICE_USER,
-            group=DFr3d.SERVICE_GROUP,
-        )
 
 
 def install_environment() -> None:
@@ -164,8 +240,11 @@ def main() -> int:
     try:
         require_root()
         validate_paths()
+        mariadb_client()
         stop_existing_services()
+        destroy_database()
         ensure_service_account()
+        provision_database()
         recreate_installation()
         install_environment()
         install_services()

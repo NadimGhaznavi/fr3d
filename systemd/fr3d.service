@@ -1,6 +1,7 @@
 [Unit]
 Description=Fr3d LLM Server
-After=network.target
+After=network.target mariadb.service
+Wants=mariadb.service
 
 [Service]
 Type=simple
@@ -8,6 +9,7 @@ User=fr3d
 Group=fr3d
 WorkingDirectory=/opt/fr3d
 Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=/etc/fr3d/database.env
 ExecStart=/opt/fr3d/.venv/bin/python -m server.Fr3dServer
 Restart=on-failure
 RestartSec=3
@@ -15,7 +17,6 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectHome=true
 ProtectSystem=strict
-ReadWritePaths=/opt/fr3d/fr3dnet/journal
 
 [Install]
 WantedBy=multi-user.target
