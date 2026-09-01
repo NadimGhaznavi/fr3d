@@ -1,21 +1,17 @@
-"""Create bounded, timestamped entries in the Fr3d journal."""
+"""Validate journal operations and render their results as Markdown."""
 
 from __future__ import annotations
 
-import fcntl
-import os
 import re
-import tempfile
-from datetime import datetime
-from pathlib import Path
+from datetime import UTC, datetime
 
-from kb_tool.browser import DOCUMENT_ROOT, validate_markdown
+from journal_tool.repository import JournalEntry, JournalRepository
 
-JOURNAL_DIRECTORY = DOCUMENT_ROOT / "journal"
-JOURNAL_INDEX = JOURNAL_DIRECTORY / "index.md"
 MAX_TITLE_LENGTH = 120
 MAX_PARAGRAPHS = 5
 MAX_ENTRY_LENGTH = 8_000
+MAX_LIST_ENTRIES = 20
+OPERATIONS = ("new_entry", "list_entries")
 
 
 def validate_title(title: str) -> str:
@@ -31,7 +27,7 @@ def validate_title(title: str) -> str:
     return normalized
 
 
-def validate_entry(entry: str) -> list[str]:
+def validate_entry(entry: str) -> str:
     if not isinstance(entry, str):
         raise TypeError("journal entry must be a string")
     if not entry.strip() or len(entry) > MAX_ENTRY_LENGTH:
@@ -47,77 +43,71 @@ def validate_entry(entry: str) -> list[str]:
         raise ValueError(
             f"journal entry must contain no more than {MAX_PARAGRAPHS} paragraphs"
         )
-    return paragraphs
+    return "\n\n".join(paragraphs)
 
 
-def _write_temporary(directory: Path, content: str) -> Path:
-    with tempfile.NamedTemporaryFile(
-        mode="w",
-        encoding="utf-8",
-        dir=directory,
-        prefix=".journal.",
-        delete=False,
-    ) as temporary_file:
-        temporary_file.write(content)
-        temporary_path = Path(temporary_file.name)
-    temporary_path.chmod(0o640)
-    return temporary_path
+def validate_limit(limit: int) -> int:
+    if isinstance(limit, bool) or not isinstance(limit, int):
+        raise TypeError("journal list limit must be an integer")
+    if not 1 <= limit <= MAX_LIST_ENTRIES:
+        raise ValueError(f"journal list limit must be between 1 and {MAX_LIST_ENTRIES}")
+    return limit
 
 
-def create_journal_entry(
+def _timestamp(created_at: datetime) -> str:
+    if created_at.tzinfo is None:
+        created_at = created_at.replace(tzinfo=UTC)
+    return created_at.astimezone().isoformat(timespec="minutes")
+
+
+def _entry_markdown(entry: JournalEntry, heading: str = "##") -> str:
+    return (
+        f"{heading} {entry.title}\n\n"
+        f"Created: {_timestamp(entry.created_at)}\n\n"
+        f"{entry.entry}"
+    )
+
+
+def new_entry(
     title: str,
     entry: str,
-    *,
-    now: datetime | None = None,
-    journal_directory: Path = JOURNAL_DIRECTORY,
+    repository: JournalRepository | None = None,
 ) -> str:
-    """Create one journal page and link it from the journal index."""
+    """Create a validated entry and return a Markdown confirmation page."""
     normalized_title = validate_title(title)
-    paragraphs = validate_entry(entry)
-    timestamp = now.astimezone() if now is not None else datetime.now().astimezone()
-    filename = timestamp.strftime("%Y-%m-%d_%H:%M_journal-entry.md")
-    journal_directory = journal_directory.resolve()
-    index_path = journal_directory / "index.md"
-    destination = journal_directory / filename
-    url = f"/journal/{filename.removesuffix('.md')}"
-    timestamp_text = timestamp.isoformat(timespec="minutes")
-    content = (
-        f"# {normalized_title}\n\n"
-        f"Created: {timestamp_text}\n\n"
-        + "\n\n".join(paragraphs)
-        + "\n\n- [Return to the Journal](/journal/)\n"
-    )
-    validate_markdown(content, destination)
+    normalized_entry = validate_entry(entry)
+    repository = repository or JournalRepository()
+    created = repository.create(normalized_title, normalized_entry)
+    return "# Journal Entry Created\n\n" + _entry_markdown(created)
 
-    journal_directory.mkdir(parents=True, exist_ok=True)
-    lock_path = journal_directory / ".journal.lock"
-    with lock_path.open("a", encoding="utf-8") as lock_file:
-        fcntl.flock(lock_file, fcntl.LOCK_EX)
-        if destination.exists():
-            raise FileExistsError(
-                "a journal entry already exists for the current minute"
-            )
-        if not index_path.is_file():
-            raise FileNotFoundError(f"journal index not found: {index_path}")
 
-        index_content = index_path.read_text(encoding="utf-8")
-        if index_content and not index_content.endswith("\n"):
-            index_content += "\n"
-        index_content += f"- [{normalized_title}]({url})\n"
+def list_entries(
+    limit: int = 20,
+    repository: JournalRepository | None = None,
+) -> str:
+    """Return recent journal entries as one Markdown page."""
+    repository = repository or JournalRepository()
+    entries = repository.list(validate_limit(limit))
+    if not entries:
+        return "# Journal\n\nNo journal entries found."
+    rendered = "\n\n".join(_entry_markdown(entry) for entry in entries)
+    return f"# Journal\n\n{rendered}"
 
-        entry_temporary = _write_temporary(journal_directory, content)
-        index_temporary: Path | None = None
-        try:
-            entry_temporary.replace(destination)
-            validate_markdown(index_content, index_path)
-            index_temporary = _write_temporary(journal_directory, index_content)
-            index_temporary.chmod(0o660)
-            index_temporary.replace(index_path)
-        except Exception:
-            destination.unlink(missing_ok=True)
-            entry_temporary.unlink(missing_ok=True)
-            if index_temporary is not None:
-                index_temporary.unlink(missing_ok=True)
-            raise
 
-    return f"Created journal entry: {url}"
+def run_operation(
+    op: str,
+    title: str | None = None,
+    entry: str | None = None,
+    limit: int = 20,
+    repository: JournalRepository | None = None,
+) -> str:
+    """Dispatch one supported journal operation."""
+    if not isinstance(op, str) or op not in OPERATIONS:
+        raise ValueError(f"op must be one of: {', '.join(OPERATIONS)}")
+    if op == "new_entry":
+        if title is None or entry is None:
+            raise ValueError("new_entry requires title and entry")
+        return new_entry(title, entry, repository)
+    if title is not None or entry is not None:
+        raise ValueError("list_entries accepts only op and limit")
+    return list_entries(limit, repository)

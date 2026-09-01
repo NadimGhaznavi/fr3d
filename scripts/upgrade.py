@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Upgrade Fr3d while preserving its environment and service account."""
+"""Upgrade Fr3d while preserving its database, environment, and account."""
 
 from __future__ import annotations
 
@@ -14,12 +14,14 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from constants.DFr3d import DFr3d  # noqa: E402
+from constants.DDatabase import DDatabase  # noqa: E402
 from scripts.install import (  # noqa: E402
     OBSOLETE_SERVICE_NAMES,
     ROOT_FILES,
     SOURCE_DIRECTORIES,
     SYSTEMD_DIRECTORY,
-    configure_journal_permissions,
+    mariadb_client,
+    provision_database,
     validate_paths,
 )
 
@@ -30,7 +32,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Upgrade Fr3d code and services while preserving its virtual "
-            "environment, configuration, and service account."
+            "environment, database, configuration, and service account."
         )
     )
     parser.add_argument(
@@ -61,7 +63,19 @@ def validate_installation() -> Path:
         raise FileNotFoundError(
             f"virtual environment not found: {environment_python}"
         )
+    if DDatabase.ENV_FILE.is_symlink():
+        raise FileNotFoundError(
+            f"refusing symlinked database credentials: {DDatabase.ENV_FILE}"
+        )
     return environment_python
+
+
+def ensure_database_configuration() -> None:
+    """Bootstrap MariaDB when upgrading a pre-database Fr3d installation."""
+    if DDatabase.ENV_FILE.is_file():
+        return
+    mariadb_client()
+    provision_database()
 
 
 def stop_services() -> None:
@@ -152,10 +166,10 @@ def main() -> int:
     try:
         validate_paths()
         environment_python = validate_installation()
+        ensure_database_configuration()
         stop_services()
         remove_installed_runtime()
         copy_runtime()
-        configure_journal_permissions()
         update_dependencies(environment_python, args.skip_dependencies)
         update_services()
     except (OSError, PermissionError, ValueError, subprocess.CalledProcessError) as error:

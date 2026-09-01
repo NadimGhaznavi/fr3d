@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Uninstall Fr3d and its system account. Run as root."""
+"""Uninstall Fr3d, its MariaDB database, and its account. Run as root."""
 
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from constants.DFr3d import DFr3d  # noqa: E402
+from scripts.install import destroy_database, mariadb_client  # noqa: E402
 
 SYSTEMD_DIRECTORY = Path("/etc/systemd/system")
 OBSOLETE_SERVICE_NAMES = (DFr3d.SCHEDULER_SERVICE_NAME,)
@@ -67,9 +68,10 @@ def remove_service_account() -> None:
 def main() -> int:
     try:
         require_root()
+        mariadb_client()
         remove_services()
+        destroy_database()
         remove_directory(DFr3d.INSTALL_ROOT)
-        remove_directory(DFr3d.CONFIG_DIRECTORY)
         remove_service_account()
     except (OSError, PermissionError, ValueError, subprocess.CalledProcessError) as error:
         print(f"uninstall.py: {error}", file=sys.stderr)
