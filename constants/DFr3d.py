@@ -16,7 +16,7 @@ class DFr3d:
         "/opt/dev/models/quantized/Qwen3.5-4B-Q4_K_M.gguf"
     )
     MCP_SERVERS_CONFIG: Final[Path] = INSTALL_ROOT / "server" / "mcp.json"
-    CONTEXT_SIZE: Final[int] = 65_536
+    CONTEXT_SIZE: Final[int] = 8_192
     REASONING_BUDGET: Final[int] = 2_048
     HOST: Final[str] = "0.0.0.0"
     PORT: Final[int] = 51970
