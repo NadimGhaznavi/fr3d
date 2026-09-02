@@ -195,6 +195,7 @@ def recreate_installation() -> None:
     if prefix.exists():
         shutil.rmtree(prefix)
     prefix.mkdir(parents=True, mode=0o755)
+    DFr3d.WATCHDOG_LOG.parent.mkdir(mode=0o755)
 
     for directory_name in SOURCE_DIRECTORIES:
         source = PROJECT_ROOT / directory_name
