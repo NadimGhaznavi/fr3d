@@ -17,6 +17,7 @@ from constants.DFr3d import DFr3d  # noqa: E402
 from constants.DDatabase import DDatabase  # noqa: E402
 from scripts.install import (  # noqa: E402
     OBSOLETE_SERVICE_NAMES,
+    OBSOLETE_SOURCE_DIRECTORIES,
     ROOT_FILES,
     SOURCE_DIRECTORIES,
     SYSTEMD_DIRECTORY,
@@ -92,7 +93,7 @@ def remove_path(path: Path) -> None:
 
 
 def remove_installed_runtime() -> None:
-    for directory_name in SOURCE_DIRECTORIES:
+    for directory_name in (*SOURCE_DIRECTORIES, *OBSOLETE_SOURCE_DIRECTORIES):
         destination = DFr3d.INSTALL_ROOT / directory_name
         if directory_name == "fr3dnet" and destination.is_dir():
             for child in destination.iterdir():
