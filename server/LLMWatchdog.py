@@ -16,6 +16,7 @@ from constants.DModule import DModule
 from constants.DMyLog import DMyLogDef
 from utils.MyLog import MyLog
 
+from time import sleep
 
 HEALTH_URL = f"http://127.0.0.1:{DFr3d.PORT}/health"
 
@@ -47,6 +48,9 @@ def main() -> int:
         to_console=True,
     )
     log.info("LLMWatchdog: Monitoring LLM server health...")
+
+    sleep(DFr3d.HEALTH_CHECK_INTERVAL)  # Initial delay to allow server to start
+    
     while True:
         if not is_healthy():
             msg = (
