@@ -31,7 +31,10 @@ SOURCE_DIRECTORIES = (
 )
 OBSOLETE_SOURCE_DIRECTORIES = ("kb_tool", "journal_tool", "weather_tool")
 ROOT_FILES = ("requirements.txt", "pyproject.toml")
-OBSOLETE_SERVICE_NAMES = (DFr3d.SCHEDULER_SERVICE_NAME,)
+OBSOLETE_SERVICE_NAMES = (
+    "fr3d.service",
+    DFr3d.SCHEDULER_SERVICE_NAME,
+)
 
 
 def run(*command: str | Path, check: bool = True) -> None:
@@ -59,7 +62,7 @@ def validate_paths() -> None:
         if not source.is_file():
             raise FileNotFoundError(f"systemd unit not found: {source}")
 
-    entrypoint = PROJECT_ROOT / "server" / "Fr3dServer.py"
+    entrypoint = PROJECT_ROOT / "server" / "LLMServer.py"
     if not entrypoint.is_file():
         raise FileNotFoundError(f"server entry point not found: {entrypoint}")
 

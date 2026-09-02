@@ -22,16 +22,16 @@ minimal_mistakes_skin: "dark"
 # Site Settings
 locale: "en-US"
 rtl: # true, false (default) # turns direction of the page into right to left for RTL languages
-title: "Akbar"
+title: "Fr3d"
 title_separator: "-"
 subtitle: # site tagline that appears below site title in masthead
 name: "A local LLM project"
-description: "Akbar is an AI agent backed by a locally hosted LLM."
-url: "https://akbar.osoyalce.com" # the base hostname & protocol for your site e.g. "https://mmistakes.github.io"
+description: "Fr3d is an AI agent backed by a locally hosted LLM."
+url: "https://fr3d.osoyalce.com" # the base hostname & protocol for your site e.g. "https://mmistakes.github.io"
 baseurl: "" # the subpath of your site, e.g. "/blog"
-repository: NadimGhaznavi/akbar # GitHub username/repo-name e.g. "mmistakes/minimal-mistakes"
+repository: NadimGhaznavi/fr3d # GitHub username/repo-name e.g. "mmistakes/minimal-mistakes"
 teaser: # path of fallback teaser image, e.g. "/assets/images/500x300.png"
-logo: "/pages/images/akbar.png"
+logo: "/pages/images/fr3d.png"
 masthead_title: # overrides the website title displayed in the masthead, use " " for no title
 breadcrumbs: # true, false (default)
 words_per_minute: 200
