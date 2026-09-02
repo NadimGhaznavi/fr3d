@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-02 @ 14:17
+
 ### Added
 
 - Added `MyLog`, a centralized console and file logging utility that creates
