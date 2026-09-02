@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added `MyLog`, a centralized console and file logging utility that creates
+  missing log directories and fails immediately when logging cannot be
+  initialized.
+- Added `llm-watchdog.service` and `server.LLMWatchdog`, which check the LLM
+  server's `/health` endpoint every minute and restart the server when it does
+  not return `{"status":"ok"}`.
+- Added Fr3d website branding and logo assets.
+
+### Changed
+
+- Renamed `server.Fr3dServer` to `server.LLMServer` and the systemd unit from
+  `fr3d.service` to `llm-server.service` to distinguish the inference server
+  from the wider Fr3d project.
+- Renamed the `ops.uptime` target from `qwen-service` to `llm-server` so the
+  operations interface is independent of the currently configured model.
+- Updated the installer and uninstaller to manage both the LLM server and its
+  watchdog.
+- This release requires an uninstall and fresh install; upgrading across these
+  systemd unit changes with `upgrade.sh` is not supported.
+
 ## [0.4.0] - 2026-09-02 @ 05:24
 
 - Moved the journal, knowledge-base, and weather MCP tools into `mcp-tools/` and updated runtime, installation, upgrade, and test paths.

@@ -83,13 +83,13 @@ def get_uptime(
     """Return JSON uptime data for the OS or the parent llama-server process."""
     if target == DOps.OS:
         seconds = _read_uptime_seconds(proc_root)
-    elif target == DOps.QWEN:
+    elif target == DOps.LLM:
         seconds = _qwen_uptime_seconds(
             proc_root,
             os.getppid() if process_pid is None else process_pid,
         )
     else:
-        raise ValueError(f"target must be {DOps.QWEN!r} or {DOps.OS!r}")
+        raise ValueError(f"target must be {DOps.LLM!r} or {DOps.OS!r}")
 
     rounded_seconds = int(seconds)
     return json.dumps(

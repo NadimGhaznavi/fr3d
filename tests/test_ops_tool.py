@@ -32,7 +32,7 @@ class OpsUptimeTest(unittest.TestCase):
             "uptime": "1d 1h 1m 1s",
         })
 
-    def test_qwen_service_uptime_uses_llama_server_ancestor(self) -> None:
+    def test_llm_server_uptime_uses_llama_server_ancestor(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             proc_root = Path(directory)
             (proc_root / "uptime").write_text("1000.00 0.00\n", encoding="ascii")
@@ -40,7 +40,7 @@ class OpsUptimeTest(unittest.TestCase):
             write_process(proc_root, 20, "llama-server", 1, 75_000)
             with patch("ops_tool.ops.os.sysconf", return_value=100):
                 result = json.loads(
-                    get_uptime("qwen-service", proc_root=proc_root, process_pid=30)
+                    get_uptime("llm-server", proc_root=proc_root, process_pid=30)
                 )
 
         self.assertEqual(result["uptime_seconds"], 250)
@@ -56,7 +56,7 @@ class OpsUptimeTest(unittest.TestCase):
             (proc_root / "uptime").write_text("1000.00 0.00\n", encoding="ascii")
             write_process(proc_root, 30, "python", 0, 90_000)
             with self.assertRaises(OpsError):
-                get_uptime("qwen-service", proc_root=proc_root, process_pid=30)
+                get_uptime("llm-server", proc_root=proc_root, process_pid=30)
 
 
 if __name__ == "__main__":

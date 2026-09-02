@@ -18,7 +18,10 @@ from constants.DFr3d import DFr3d  # noqa: E402
 from scripts.install import destroy_database, mariadb_client  # noqa: E402
 
 SYSTEMD_DIRECTORY = Path("/etc/systemd/system")
-OBSOLETE_SERVICE_NAMES = (DFr3d.SCHEDULER_SERVICE_NAME,)
+OBSOLETE_SERVICE_NAMES = (
+    "fr3d.service",
+    DFr3d.SCHEDULER_SERVICE_NAME,
+)
 
 
 def run(*command: str | Path, check: bool = True) -> None:
