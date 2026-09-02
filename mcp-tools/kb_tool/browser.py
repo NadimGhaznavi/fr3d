@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-DOCUMENT_ROOT = Path(__file__).resolve().parent.parent / "fr3dnet"
+DOCUMENT_ROOT = Path(__file__).resolve().parent.parent.parent / "fr3dnet"
 MAX_URL_LENGTH = 256
 MAX_PAGE_BYTES = 16_384
 URL_SEGMENT = re.compile(r"^[a-z0-9][a-z0-9_:-]*$")
