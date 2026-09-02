@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Moved the journal, knowledge-base, and weather MCP tools into `mcp-tools/` and updated runtime, installation, upgrade, and test paths.
+- Added the `ops.uptime` MCP tool for llama-server and operating-system uptime.
+
 ## [0.3.2] - 2026-09-01 @ 18:17
 
 ## [0.3.1] - 2026-09-01 @ 05:31
@@ -28,5 +31,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.0.1] - 2026-08-31 @ 18:11
 
 ### Added
-
-

@@ -2,15 +2,23 @@
   "mcpServers": {
     "kb": {
       "command": "/opt/fr3d/.venv/bin/python",
-      "args": ["-m", "kb_tool"]
+      "args": ["-m", "kb_tool"],
+      "env": {"PYTHONPATH": "/opt/fr3d/mcp-tools"}
     },
     "journal": {
       "command": "/opt/fr3d/.venv/bin/python",
-      "args": ["-m", "journal_tool"]
+      "args": ["-m", "journal_tool"],
+      "env": {"PYTHONPATH": "/opt/fr3d/mcp-tools"}
+    },
+    "ops": {
+      "command": "/opt/fr3d/.venv/bin/python",
+      "args": ["-m", "ops_tool"],
+      "env": {"PYTHONPATH": "/opt/fr3d/mcp-tools:/opt/fr3d"}
     },
     "weather": {
       "command": "/opt/fr3d/.venv/bin/python",
-      "args": ["-m", "weather_tool"]
+      "args": ["-m", "weather_tool"],
+      "env": {"PYTHONPATH": "/opt/fr3d/mcp-tools"}
     }
   }
 }
