@@ -10,6 +10,6 @@ mcp = MCPServer("ops")
 
 
 @mcp.tool()
-def uptime(target: Literal["qwen-service", "os"]) -> str:
-    """Get the uptime of llama-server (qwen-service) or the operating system."""
+def uptime(target: Literal["llm-server", "os"]) -> str:
+    """Get the uptime of the LLM server or the operating system."""
     return get_uptime(target)

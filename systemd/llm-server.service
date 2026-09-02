@@ -10,7 +10,7 @@ Group=fr3d
 WorkingDirectory=/opt/fr3d
 Environment=PYTHONUNBUFFERED=1
 EnvironmentFile=/etc/fr3d/database.env
-ExecStart=/opt/fr3d/.venv/bin/python -m server.Fr3dServer
+ExecStart=/opt/fr3d/.venv/bin/python -m server.LLMServer
 Restart=on-failure
 RestartSec=3
 NoNewPrivileges=true

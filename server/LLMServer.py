@@ -50,7 +50,7 @@ def main() -> int:
         command = build_command()
         os.execv(command[0], command)
     except (FileNotFoundError, PermissionError, OSError) as error:
-        print(f"Fr3dServer: {error}", file=sys.stderr)
+        print(f"LLMServer: {error}", file=sys.stderr)
         return 1
 
     return 0
