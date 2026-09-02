@@ -9,7 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-09-02 @ 14:31
+
 ## [0.5.1] - 2026-09-02 @ 14:28
+
+### Fixed
+
+- Updated the installer to deploy the `utils` package and create
+  `/opt/fr3d/logs`, allowing `LLMWatchdog` to import `MyLog` and initialize its
+  log file after a fresh installation.
 
 ## [0.5.0] - 2026-09-02 @ 14:17
 
