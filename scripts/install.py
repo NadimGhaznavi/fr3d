@@ -28,6 +28,7 @@ SOURCE_DIRECTORIES = (
     "fr3dnet",
     "mcp-tools",
     "server",
+    "utils",
 )
 OBSOLETE_SOURCE_DIRECTORIES = ("kb_tool", "journal_tool", "weather_tool")
 ROOT_FILES = ("requirements.txt", "pyproject.toml")
