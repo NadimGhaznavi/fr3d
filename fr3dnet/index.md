@@ -8,7 +8,7 @@ Fr3d is a locally run LLM based on the Qwen model.
 
 - [Location](/location)
 - [Computing Environment](/computing-environment)
-- [Fred;s Journal](/journal/)
+- [Fred's Journal](/journal/)
 
 ## Tools for Fred
 

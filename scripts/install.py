@@ -191,12 +191,19 @@ GRANT SELECT, INSERT ON `{DDatabase.DB_NAME}`.*
     write_database_environment(password)
 
 
+def ensure_agent_log_directory() -> None:
+    directory = DFr3d.FRED_SERVER_LOG.parent
+    directory.mkdir(parents=True, exist_ok=True, mode=0o755)
+    shutil.chown(directory, user=DFr3d.SERVICE_USER, group=DFr3d.SERVICE_GROUP)
+
+
 def recreate_installation() -> None:
     prefix = DFr3d.INSTALL_ROOT
     if prefix.exists():
         shutil.rmtree(prefix)
     prefix.mkdir(parents=True, mode=0o755)
     DFr3d.WATCHDOG_LOG.parent.mkdir(mode=0o755)
+    ensure_agent_log_directory()
 
     for directory_name in SOURCE_DIRECTORIES:
         source = PROJECT_ROOT / directory_name
