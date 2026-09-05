@@ -11,6 +11,23 @@ from scripts import install, upgrade
 
 
 class DatabaseLifecycleTest(unittest.TestCase):
+    def test_agent_log_directory_is_owned_by_service_account(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            log_file = Path(temporary_directory) / "logs" / "fr3d.log"
+            with (
+                patch.object(DFr3d, "FRED_SERVER_LOG", log_file),
+                patch("scripts.install.shutil.chown") as chown,
+            ):
+                install.ensure_agent_log_directory()
+                install.ensure_agent_log_directory()
+
+            self.assertTrue(log_file.parent.is_dir())
+            chown.assert_called_with(
+                log_file.parent,
+                user=DFr3d.SERVICE_USER,
+                group=DFr3d.SERVICE_GROUP,
+            )
+
     def test_provision_creates_schema_user_table_and_credentials(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             config_directory = Path(temporary_directory) / "fr3d"
