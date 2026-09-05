@@ -7,6 +7,8 @@ import time
 import uuid
 
 import zmq
+import zmq.asyncio
+
 
 
 from constants.DFr3d import DFr3d
