@@ -8,3 +8,4 @@ class DDatabase:
     PORT: Final[int] = 3306
     DB_NAME: Final[str] = "fr3d"
     USERNAME: Final[str] = "fr3d"
+    SNAKE_LAB_DB_NAME: Final[str] = "snakelab"

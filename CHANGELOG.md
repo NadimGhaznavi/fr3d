@@ -9,6 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added `python -m dialogue.poke_fr3d` to generate a learning-rate experiment
+  prompt from completed SnakeLab runs using `templates/learning-rate.md`,
+  printing populated Markdown to stdout without database writes, LLM requests,
+  or simulation submissions.
+- Added per-run mean, median, and high scores, cumulative high-score milestones,
+  and mean and final training losses calculated from stored episode data.
+  Comparisons require complete episode data and matching project versions and
+  configurations except for `training.learning_rate`.
+- Added standalone options for selecting run IDs, templates, database credential
+  files, and local MariaDB sockets, plus usage documentation and tests for
+  statistics, validation, read-only queries, credentials, and CLI output.
+
+### Changed
+
+- Updated installation and upgrades to grant `DDatabase.USERNAME` database-wide
+  `SELECT` access to `DDatabase.SNAKE_LAB_DB_NAME` (`snakelab`). Existing
+  installations reapply the grant without recreating databases or changing
+  credentials.
+- Extended the shared database connection helper with optional database-name
+  and Unix-socket overrides while preserving existing connection defaults.
+
 ## [0.6.0] - 2026-09-05 @ 09:40
 
 ### Added

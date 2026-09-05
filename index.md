@@ -10,6 +10,13 @@ layout: single
 
 At the center of this project is **Fr3d**, a locally run LLM based on the Qwen3.5 model.
 
+# Development Style
+
+- Only the data and behavior that slice actually needs.
+- No fallback parsing, silent defaults, repair prompts, or retries for contract violations.
+- Validate at the boundary; if the contract is broken, raise a clear error and fix the cause.
+- Keep the code lean and clean
+
 # Links
 
 Qwen3.5 is an Open Source model created by the Alibaba group out of China.
