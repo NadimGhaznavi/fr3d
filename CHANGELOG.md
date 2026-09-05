@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-09-05 @ 09:40
+
 ### Added
 
 - Implemented the `server.Fr3dServer` agent loop to query SnakeLab's

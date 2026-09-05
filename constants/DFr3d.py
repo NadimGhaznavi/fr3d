@@ -32,6 +32,6 @@ class DFr3d:
     )
     SERVICE_USER: Final[str] = "fr3d"
     VENV_DIRECTORY: Final[str] = ".venv"
-    VERSION: Final[str] = "0.5.5"
+    VERSION: Final[str] = "0.6.0"
     WATCHDOG_LOG: Final[Path] = Path("/opt/fr3d/logs/llm-watchdog.log")
     FRED_SERVER_LOG: Final[Path] = Path("/opt/fr3d/logs/fr3d.log")
