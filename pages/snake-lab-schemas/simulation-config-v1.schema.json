@@ -1,0 +1,272 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://snake-lab.local/schemas/simulation-config-v1.schema.json",
+  "title": "SnakeLab simulation configuration",
+  "description": "Configuration for one serial SnakeLab simulation run.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "epochs": {
+      "title": "Number of epochs",
+      "description": "Number of complete Snake episodes to execute.",
+      "type": "integer",
+      "default": 100,
+      "minimum": 50,
+      "maximum": 5000,
+      "x-snakelab-unit": "episodes",
+      "x-snakelab-sweepable": true
+    },
+    "seed": {
+      "title": "Simulation seed",
+      "description": "Master seed used to derive independent model, exploration, replay, and episode seeds.",
+      "type": "integer",
+      "default": 1970,
+      "minimum": 0,
+      "maximum": 9223372036854775807,
+      "x-snakelab-sweepable": true
+    },
+    "game": {
+      "title": "Game environment",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "board_width": {
+          "type": "integer",
+          "default": 20,
+          "minimum": 2,
+          "maximum": 100,
+          "x-snakelab-unit": "cells",
+          "x-snakelab-sweepable": true
+        },
+        "board_height": {
+          "type": "integer",
+          "default": 20,
+          "minimum": 1,
+          "maximum": 100,
+          "x-snakelab-unit": "cells",
+          "x-snakelab-sweepable": true
+        },
+        "initial_snake_length": {
+          "type": "integer",
+          "default": 3,
+          "minimum": 1,
+          "maximum": 100,
+          "x-snakelab-unit": "cells",
+          "x-snakelab-sweepable": true
+        },
+        "max_moves_multiplier": {
+          "description": "An episode ends when moves exceed this value times the current snake length.",
+          "type": "integer",
+          "default": 100,
+          "minimum": 1,
+          "maximum": 10000,
+          "x-snakelab-sweepable": true
+        },
+        "rewards": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "food": {
+              "type": "number",
+              "default": 10.0,
+              "minimum": -1000.0,
+              "maximum": 1000.0,
+              "x-snakelab-sweepable": true
+            },
+            "wall": {
+              "type": "number",
+              "default": -10.0,
+              "minimum": -1000.0,
+              "maximum": 1000.0,
+              "x-snakelab-sweepable": true
+            },
+            "snake": {
+              "type": "number",
+              "default": -10.0,
+              "minimum": -1000.0,
+              "maximum": 1000.0,
+              "x-snakelab-sweepable": true
+            },
+            "max_moves": {
+              "type": "number",
+              "default": -10.0,
+              "minimum": -1000.0,
+              "maximum": 1000.0,
+              "x-snakelab-sweepable": true
+            },
+            "empty": {
+              "type": "number",
+              "default": 0.0,
+              "minimum": -1000.0,
+              "maximum": 1000.0,
+              "x-snakelab-sweepable": true
+            },
+            "closer_to_food": {
+              "type": "number",
+              "default": 0.1,
+              "minimum": -1000.0,
+              "maximum": 1000.0,
+              "x-snakelab-sweepable": true
+            },
+            "further_from_food": {
+              "type": "number",
+              "default": -0.1,
+              "minimum": -1000.0,
+              "maximum": 1000.0,
+              "x-snakelab-sweepable": true
+            }
+          },
+          "required": [
+            "food",
+            "wall",
+            "snake",
+            "max_moves",
+            "empty",
+            "closer_to_food",
+            "further_from_food"
+          ]
+        }
+      },
+      "required": [
+        "board_width",
+        "board_height",
+        "initial_snake_length",
+        "max_moves_multiplier",
+        "rewards"
+      ]
+    },
+    "model": {
+      "title": "Recurrent model",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "hidden_size": {
+          "type": "integer",
+          "default": 192,
+          "minimum": 1,
+          "maximum": 4096,
+          "x-snakelab-unit": "neurons",
+          "x-snakelab-sweepable": true
+        },
+        "layers": {
+          "type": "integer",
+          "default": 3,
+          "minimum": 1,
+          "maximum": 16,
+          "x-snakelab-sweepable": true
+        },
+        "dropout": {
+          "type": "number",
+          "default": 0.1,
+          "minimum": 0.0,
+          "exclusiveMaximum": 1.0,
+          "x-snakelab-unit": "probability",
+          "x-snakelab-sweepable": true
+        }
+      },
+      "required": ["hidden_size", "layers", "dropout"]
+    },
+    "training": {
+      "title": "Replay and training",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sequence_length": {
+          "type": "integer",
+          "default": 4,
+          "minimum": 1,
+          "maximum": 256,
+          "x-snakelab-unit": "frames",
+          "x-snakelab-sweepable": true
+        },
+        "batch_size": {
+          "type": "integer",
+          "default": 64,
+          "minimum": 1,
+          "maximum": 4096,
+          "x-snakelab-unit": "sequences",
+          "x-snakelab-sweepable": true
+        },
+        "replay_max_frames": {
+          "type": "integer",
+          "default": 150000,
+          "minimum": 1,
+          "maximum": 10000000,
+          "x-snakelab-unit": "frames",
+          "x-snakelab-sweepable": true
+        },
+        "learning_rate": {
+          "type": "number",
+          "default": 0.002,
+          "exclusiveMinimum": 0.0,
+          "maximum": 1.0,
+          "x-snakelab-sweepable": true
+        },
+        "gamma": {
+          "type": "number",
+          "default": 0.96,
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "x-snakelab-sweepable": true
+        },
+        "tau": {
+          "type": "number",
+          "default": 0.001,
+          "exclusiveMinimum": 0.0,
+          "maximum": 1.0,
+          "x-snakelab-sweepable": true
+        },
+        "max_gradient_norm": {
+          "type": "number",
+          "default": 1.0,
+          "exclusiveMinimum": 0.0,
+          "maximum": 1000.0,
+          "x-snakelab-sweepable": true
+        }
+      },
+      "required": [
+        "sequence_length",
+        "batch_size",
+        "replay_max_frames",
+        "learning_rate",
+        "gamma",
+        "tau",
+        "max_gradient_norm"
+      ]
+    },
+    "epsilon": {
+      "title": "Epsilon-greedy exploration",
+      "description": "Episode-based epsilon-greedy exploration schedule.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "initial": {
+          "type": "number",
+          "default": 0.96,
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "x-snakelab-unit": "probability",
+          "x-snakelab-sweepable": true
+        },
+        "minimum": {
+          "type": "number",
+          "default": 0.0,
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "x-snakelab-unit": "probability",
+          "x-snakelab-sweepable": true
+        },
+        "decay": {
+          "type": "number",
+          "default": 0.97,
+          "exclusiveMinimum": 0.0,
+          "maximum": 1.0,
+          "x-snakelab-unit": "multiplier-per-episode",
+          "x-snakelab-sweepable": true
+        }
+      },
+      "required": ["initial", "minimum", "decay"]
+    }
+  },
+  "required": ["epochs", "seed", "game", "model", "training", "epsilon"]
+}

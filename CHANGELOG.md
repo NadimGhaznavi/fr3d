@@ -9,13 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.5.5] - 2026-09-03 @ 04:46
+### Added
 
-## [0.5.4] - 2026-09-02 @ 14:44
+- Implemented the `server.Fr3dServer` agent loop to query SnakeLab's
+  `simulation.active` endpoint over ZeroMQ, waiting while a simulation is
+  running, paused, cancelling, or queued.
+- Added configurable SnakeLab connection settings and a five-second polling
+  interval in `DFr3d`. Idle iterations log a placeholder for future LLM queries
+  through `MyLog`, using the `FR3D` identity and `FRED_SERVER_LOG`.
+- Added response validation and timeout handling so failed status queries are
+  logged and retried rather than treated as an idle server. All iterations
+  sleep between polls to avoid busy loops.
+- Added the `pyzmq` dependency and tests for polling, response validation,
+  retries, logging, and log-directory ownership.
 
-## [0.5.3] - 2026-09-02 @ 14:36
+### Fixed
 
-## [0.5.2] - 2026-09-02 @ 14:31
+- Allowed `fr3d-server.service` to write to `/opt/fr3d/logs` under systemd's
+  filesystem restrictions, and updated installation and upgrade steps to
+  ensure the agent's log directory is owned by the service account.
 
 ## [0.5.1] - 2026-09-02 @ 14:28
 

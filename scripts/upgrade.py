@@ -21,6 +21,7 @@ from scripts.install import (  # noqa: E402
     ROOT_FILES,
     SOURCE_DIRECTORIES,
     SYSTEMD_DIRECTORY,
+    ensure_agent_log_directory,
     mariadb_client,
     provision_database,
     validate_paths,
@@ -171,6 +172,7 @@ def main() -> int:
         stop_services()
         remove_installed_runtime()
         copy_runtime()
+        ensure_agent_log_directory()
         update_dependencies(environment_python, args.skip_dependencies)
         update_services()
     except (OSError, PermissionError, ValueError, subprocess.CalledProcessError) as error:
