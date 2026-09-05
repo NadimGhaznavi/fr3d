@@ -161,6 +161,19 @@ DROP USER IF EXISTS '{DDatabase.USERNAME}'@'{DDatabase.HOST}';
         shutil.rmtree(DFr3d.CONFIG_DIRECTORY)
 
 
+def ensure_snake_lab_read_access() -> None:
+    sql = f"""
+GRANT SELECT ON `{DDatabase.SNAKE_LAB_DB_NAME}`.*
+    TO '{DDatabase.USERNAME}'@'{DDatabase.HOST}';
+"""
+    subprocess.run(
+        [mariadb_client(), "--protocol=socket", "--batch"],
+        input=sql,
+        text=True,
+        check=True,
+    )
+
+
 def provision_database() -> None:
     alphabet = string.ascii_letters + string.digits
     password = "".join(secrets.choice(alphabet) for _ in range(48))
@@ -188,6 +201,7 @@ GRANT SELECT, INSERT ON `{DDatabase.DB_NAME}`.*
         text=True,
         check=True,
     )
+    ensure_snake_lab_read_access()
     write_database_environment(password)
 
 

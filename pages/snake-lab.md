@@ -4,6 +4,12 @@ author_profile: true
 layout: single
 ---
 
+## Introduction
+
+The Snake Lab is a standalone systemd service that accepts a configuration and runs a simulation. It's control plane is over a ZeroMQ socket. Telemetry information is published on a ZMQ PUB/SUB socket. The simulation data is stored in MariaDb.
+
+## ZMQ Support
+
 External services submit simulations through a ZeroMQ `REQ` socket connected to
 `tcp://wintermute:41970`. Messages are JSON objects using protocol version 1.
 

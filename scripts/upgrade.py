@@ -22,6 +22,7 @@ from scripts.install import (  # noqa: E402
     SOURCE_DIRECTORIES,
     SYSTEMD_DIRECTORY,
     ensure_agent_log_directory,
+    ensure_snake_lab_read_access,
     mariadb_client,
     provision_database,
     validate_paths,
@@ -73,8 +74,9 @@ def validate_installation() -> Path:
 
 
 def ensure_database_configuration() -> None:
-    """Bootstrap MariaDB when upgrading a pre-database Fr3d installation."""
+    """Ensure database access, bootstrapping pre-database Fr3d installations."""
     if DDatabase.ENV_FILE.is_file():
+        ensure_snake_lab_read_access()
         return
     mariadb_client()
     provision_database()
