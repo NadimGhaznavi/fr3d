@@ -10,7 +10,7 @@ from pymysql.cursors import DictCursor
 
 from constants.DDatabase import DDatabase
 
-class DbManager:
+class DbMgr:
 
     def __init__(self) -> None:
         pass

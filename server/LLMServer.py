@@ -22,7 +22,7 @@ def build_command() -> list[str]:
         "--host",
         DFr3d.HOST,
         "--port",
-        str(DFr3d.PORT),
+        str(DFr3d.LLM_PORT),
         "--mcp-servers-config",
         str(DFr3d.MCP_SERVERS_CONFIG),
     ]
