@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-09-06 @ 10:07
+
 ### Added
 
 - Added a complete 500-epoch sample Snake Lab configuration with seed 1970 for
