@@ -17,7 +17,7 @@ class DDirDef:
     LLAMA_SERVER_BIN: Final[Path] = Path("/opt/dev/llama.cpp/build/bin")
 
     # Model directory
-    MODELS: Final[Path] = INSTALL_ROOT / FIELD.MODELS / FIELD.QUANTIZED
+    MODELS: Final[Path] = Path("/opt/dev/models") / FIELD.QUANTIZED
 
     # The MCP server config directory
     SERVER_CONFIG: Final[Path] = INSTALL_ROOT / FIELD.SERVER

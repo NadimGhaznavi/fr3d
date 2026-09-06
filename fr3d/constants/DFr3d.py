@@ -6,11 +6,12 @@ from fr3d.constants.DFile import DFileDef as DEFFILE
 
 class DFr3d:
     # Project version
-    VERSION: Final[str] = "0.7.2"
+    VERSION: Final[str] = "0.7.3"
 
     # Fr3d ZMQ network info
     HOST: Final[str] = "0.0.0.0"
-    PORT: Final[int] = 41970
+    # SnakeLab uses 41970 for control and 41971 for telemetry.
+    PORT: Final[int] = 41972
     # Fr3d server sleep interval
     FR3D_POLL_INTERVAL: Final[int] = 5
     ZMQ_TIMEOUT: Final[int] = 3
