@@ -6,7 +6,7 @@ from fr3d.constants.DFile import DFileDef as DEFFILE
 
 class DFr3d:
     # Project version
-    VERSION: Final[str] = "0.8.15"
+    VERSION: Final[str] = "0.9.0"
 
     # Fr3d ZMQ network info
     HOST: Final[str] = "0.0.0.0"
