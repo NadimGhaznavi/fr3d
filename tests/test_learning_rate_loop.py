@@ -11,7 +11,7 @@ import httpx
 
 from fr3d.app.LearningRateLLM import choose_learning_rate
 from fr3d.app.LearningRateLoop import LearningRateLoop
-from fr3d.app.LearningRateReport import Episode, Experiment, load_experiments
+from fr3d.app.LearningRateReport import Episode, Experiment, find_completed_experiment, load_experiments, render_markdown
 from fr3d.app.SnakeLabTool import LEARNING_RATE_TOOL, validate_learning_rate
 
 
@@ -40,6 +40,34 @@ class ReportSelectionTest(unittest.TestCase):
         self.assertIn("WHERE status = %s", sql)
         self.assertIn("ORDER BY id DESC LIMIT %s", sql)
         self.assertEqual(parameters, ("completed", 3))
+        connection.close.assert_called_once()
+
+    def test_duplicate_search_checks_history_and_loads_only_latest_match(self):
+        connection = MagicMock()
+        cursor = connection.cursor.return_value.__enter__.return_value
+        previous = experiments()[0]
+        different = deepcopy(previous.config)
+        different["seed"] = 42
+        cursor.fetchall.return_value = [
+            {"id": 20, "config": json.dumps(different)},
+            {"id": 7, "config": json.dumps(previous.config)},
+            {"id": 1, "config": json.dumps(previous.config)},
+        ]
+        factory = lambda: connection
+        with patch("fr3d.app.LearningRateReport.load_experiments", return_value=[previous]) as load:
+            self.assertEqual(find_completed_experiment(previous.config, "test", connection_factory=factory), previous)
+            load.assert_called_once_with((7,), connection_factory=factory)
+        sql, params = cursor.execute.call_args.args
+        self.assertIn("ORDER BY id DESC", sql)
+        self.assertNotIn("LIMIT", sql)
+        self.assertEqual(params, ("completed", "test"))
+        connection.close.assert_called_once()
+
+    def test_different_configuration_does_not_match(self):
+        connection = MagicMock()
+        cursor = connection.cursor.return_value.__enter__.return_value
+        cursor.fetchall.return_value = [{"id": 1, "config": json.dumps(experiments()[0].config)}]
+        self.assertIsNone(find_completed_experiment(experiments()[1].config, "test", connection_factory=lambda: connection))
         connection.close.assert_called_once()
 
     def test_invalid_tool_arguments(self):
@@ -89,9 +117,44 @@ class LLMTest(unittest.IsolatedAsyncioTestCase):
 class LoopTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.server = MagicMock()
+        self.server.snake_lab_version.return_value = "test"
         self.server.is_simulation_running.return_value = False
         self.server.submit_simulation.return_value = {"run_id": "next-run"}
+        initializer = patch("fr3d.app.LearningRateLoop.release_replays", return_value=[])
+        self.initialize = initializer.start()
+        self.addCleanup(initializer.stop)
         self.loop = LearningRateLoop(self.server)
+        self.loop.baseline = ("test", {})
+        finder = patch("fr3d.app.LearningRateLoop.find_completed_experiment", return_value=None)
+        self.find_previous = finder.start()
+        self.addCleanup(finder.stop)
+
+    async def test_release_initialization_queues_all_replays_without_llm(self):
+        configs = [run.config for run in experiments()]
+        self.initialize.return_value = configs
+        with patch("fr3d.app.LearningRateLoop.choose_learning_rate", new_callable=AsyncMock) as llm:
+            await self.loop.decide()
+        self.assertEqual([call.args[0] for call in self.server.submit_simulation.call_args_list], configs)
+        self.server.is_simulation_running.assert_not_called()
+        llm.assert_not_awaited()
+        self.server.log.warning.assert_not_called()
+
+    async def test_release_queue_timeout_stops_batch_and_reloads_history_next_time(self):
+        configs = [run.config for run in experiments()]
+        self.initialize.side_effect = [configs, configs[2:]]
+        self.server.submit_simulation.side_effect = [{"run_id": "one"}, TimeoutError(), {"run_id": "three"}]
+        await self.loop.decide()
+        self.assertEqual(self.server.submit_simulation.call_count, 2)
+        await self.loop.decide()
+        self.assertEqual(self.server.submit_simulation.call_count, 3)
+        self.assertEqual(self.server.submit_simulation.call_args.args[0], configs[2])
+
+    async def test_version_change_during_model_decision_prevents_submission(self):
+        self.loop.pending_config = experiments()[-1].config
+        self.server.snake_lab_version.return_value = "new"
+        with self.assertRaisesRegex(ValueError, "version changed"):
+            await self.loop.submit({"learning_rate": .003})
+        self.server.submit_simulation.assert_not_called()
 
     async def test_submission_preserves_every_other_parameter_and_consumes_proposal(self):
         config = experiments()[-1].config
@@ -106,6 +169,52 @@ class LoopTest(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("config", result)
         with self.assertRaisesRegex(ValueError, "No learning-rate decision"):
             await self.loop.submit({"learning_rate": .004})
+
+    async def test_duplicate_reuses_standard_report_and_keeps_proposal(self):
+        previous = experiments()[0]
+        self.find_previous.return_value = previous
+        self.loop.pending_config = deepcopy(experiments()[-1].config)
+        result = await self.loop.submit({"learning_rate": .001})
+        self.assertEqual(result["status"], "already_run")
+        self.assertEqual(result["report"], render_markdown([previous]))
+        self.assertEqual(result["message"], "This simulation has already been run. Here's your report.")
+        self.find_previous.assert_called_once_with(previous.config, "test")
+        self.server.submit_simulation.assert_not_called()
+        self.assertIsNotNone(self.loop.pending_config)
+        self.find_previous.return_value = None
+        self.assertEqual((await self.loop.submit({"learning_rate": .003}))["status"], "ok")
+        self.server.submit_simulation.assert_called_once()
+
+    async def test_duplicate_report_reaches_model_before_new_submission(self):
+        self.loop.baseline = None
+        previous = experiments()[0]
+        self.find_previous.side_effect = [previous, None]
+        async def submit(rate):
+            return json.dumps(await self.loop.submit({"learning_rate": rate}))
+        with patch("fr3d.app.LearningRateLoop.load_experiments", return_value=experiments()), patch(
+            "fr3d.app.LearningRateLoop.choose_learning_rate", side_effect=[.001, .003],
+        ) as choose, patch("fr3d.app.LearningRateLoop.SnakeLabTool") as tool:
+            tool.return_value.submit_learning_rate = AsyncMock(side_effect=submit)
+            await self.loop.decide()
+        self.assertEqual(choose.call_args_list[1].args[0],
+                         "This simulation has already been run. Here's your report.\n\n" + render_markdown([previous]))
+        self.server.submit_simulation.assert_called_once()
+        self.assertIsNone(self.loop.pending_config)
+        self.server.log.warning.assert_not_called()
+
+    async def test_repeated_duplicates_are_bounded(self):
+        self.loop.baseline = None
+        self.find_previous.return_value = experiments()[0]
+        async def submit(rate):
+            return json.dumps(await self.loop.submit({"learning_rate": rate}))
+        with patch("fr3d.app.LearningRateLoop.load_experiments", return_value=experiments()), patch(
+            "fr3d.app.LearningRateLoop.choose_learning_rate", return_value=.001,
+        ) as choose, patch("fr3d.app.LearningRateLoop.SnakeLabTool") as tool:
+            tool.return_value.submit_learning_rate = AsyncMock(side_effect=submit)
+            await self.loop.decide()
+        self.assertEqual(choose.call_count, 3)
+        self.server.submit_simulation.assert_not_called()
+        self.assertIsNone(self.loop.pending_config)
 
     async def test_busy_or_invalid_requests_do_not_submit(self):
         self.loop.pending_config = experiments()[-1].config
