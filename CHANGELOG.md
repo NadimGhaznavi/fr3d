@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.6] - 2026-09-06 @ 16:45
+
 ### Added
 
 - Additional LLM server logging (MCP tool use)
