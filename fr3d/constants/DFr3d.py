@@ -10,6 +10,7 @@ class DFr3d:
 
     # Fr3d ZMQ network info
     HOST: Final[str] = "0.0.0.0"
+    ZMQ_HOST: Final[str] = "127.0.0.1"
     # SnakeLab uses 41970 for control and 41971 for telemetry.
     PORT: Final[int] = 61970
     # Fr3d server sleep interval

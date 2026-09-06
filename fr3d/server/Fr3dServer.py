@@ -28,7 +28,7 @@ class Fr3dServer:
 
     def __init__(
         self,
-        address: str = FRED.HOST,
+        address: str = FRED.ZMQ_HOST,
         port: int = FRED.PORT,
         log_file: str | Path | None = FRED.FRED_SERVER_LOG,
         *,
