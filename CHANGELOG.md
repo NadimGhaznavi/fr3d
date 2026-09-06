@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added `JournalApp` validation and append-only journal persistence through
+  `JournalDb` and `DbMgr`, using the existing journal schema and UTC timestamps.
+- Enforced a journal-wide rolling 60-second insertion limit with a MariaDB
+  writer lock held through commit, including concurrent requests to an empty journal.
+- Added parameterized SQL execution, transaction rollback and connection cleanup,
+  and configurable database selection for future SnakeLab queries.
+
+### Changed
+
+- Run journal database operations outside the Fr3d event loop and return explicit
+  validation, rate-limit, and busy responses. Preserve supplied server handlers.
+
 ## [0.8.13] - 2026-09-06 @ 05:19
 
 ## [0.8.12] - 2026-09-06 @ 05:16
