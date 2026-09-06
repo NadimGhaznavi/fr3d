@@ -34,6 +34,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Updated `scripts/new-release.sh` to use `fr3d/constants/DFr3d.py` after the
+  package refactor, restoring version detection, preflight validation, and
+  version updates with Git staging.
 - Added deployment preflight checks for unsafe paths and invalid server syntax,
   corrected runtime and credential handling, and preserved staged model files
   when reinstalling without first removing the installation tree.

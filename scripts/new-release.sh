@@ -12,7 +12,7 @@ readonly DEV_BRANCH="dev"
 readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly PROJECT_DIR="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
 readonly CHANGELOG="${PROJECT_DIR}/CHANGELOG.md"
-readonly CONSTANTS_FILE="${PROJECT_DIR}/constants/DFr3d.py"
+readonly CONSTANTS_FILE="${PROJECT_DIR}/fr3d/constants/DFr3d.py"
 
 CURRENT_BRANCH=""
 NEW_VERSION=""
@@ -98,7 +98,7 @@ preflight() {
     [[ -f "${CHANGELOG}" ]] || die "CHANGELOG.md is required."
     grep -Fxq '## [Unreleased]' "${CHANGELOG}" ||
         die "CHANGELOG.md must contain an '## [Unreleased]' heading."
-    [[ -f "${CONSTANTS_FILE}" ]] || die "constants/DFr3d.py is required."
+    [[ -f "${CONSTANTS_FILE}" ]] || die "${CONSTANTS_FILE} is required."
     grep -Eq '^    VERSION: Final\[str\] = "[^"]+"$' "${CONSTANTS_FILE}" ||
         die "DFr3d.VERSION is missing or malformed."
     ref_exists "refs/heads/${MAIN_BRANCH}" || die "Local branch '${MAIN_BRANCH}' is missing."
@@ -170,7 +170,7 @@ update_changelog() {
 
 update_project_version() {
     local temp_file
-    temp_file=$(mktemp "${PROJECT_DIR}/constants/.DFr3d.py.XXXXXX")
+    temp_file=$(mktemp "${CONSTANTS_FILE}.XXXXXX")
 
     awk -v version="${NEW_VERSION}" '
         /^    VERSION: Final\[str\] = "[^"]+"$/ {
@@ -185,7 +185,7 @@ update_project_version() {
 
     chmod --reference="${CONSTANTS_FILE}" "${temp_file}"
     mv -- "${temp_file}" "${CONSTANTS_FILE}"
-    git add -- constants/DFr3d.py
+    git add -- "${CONSTANTS_FILE}"
 }
 
 merge_no_ff() {
