@@ -309,6 +309,69 @@ class LearningRateReport:
         lines.extend(["", "## Task", task.rstrip()])
         return "\n".join(lines) + "\n"
 
+    def render_report(self, experiments: Sequence[Experiment]) -> dict:
+        """Build the JSON-safe comparison used by the LLM and report tool."""
+        self.validate_experiments(experiments)
+        template = self.template_path.read_text(encoding="utf-8")
+        introduction, previous_heading, remainder = template.partition("## Previous Experiments\n")
+        _, task_heading, task = remainder.partition("## Task\n")
+        if not previous_heading or not task_heading:
+            raise ValueError("Template must contain Previous Experiments and Task headings")
+        report = {
+            "context": introduction.strip(),
+            "instructions": task.strip(),
+            "metadata": {
+                "runs": "Completed, comparable runs; run_id is simulation_runs.id. Only learning_rate varies.",
+                "highscores": "First epoch, each new cumulative high score, and final epoch once.",
+                "loss_change": "Current loss minus previous displayed row's loss within the same run. Negative means a decrease.",
+                "missing_values": "null means unavailable, not zero. First loss_change is null; either missing endpoint makes the change null.",
+                "loss_summary": "Mean loss excludes missing values; final loss is the final epoch's loss. Values use six significant digits.",
+                "duration": DURATION_NOTE.replace("N/A", "null"),
+            },
+            "runs": [],
+        }
+        for experiment in experiments:
+            scores = [episode.score for episode in experiment.episodes]
+            losses = [episode.loss for episode in experiment.episodes if episode.loss is not None]
+            milestones = []
+            high_score = -1
+            previous_loss = None
+            for episode in experiment.episodes:
+                is_record = episode.score > high_score
+                high_score = max(high_score, episode.score)
+                if is_record or episode == experiment.episodes[-1]:
+                    change = episode.loss - previous_loss if episode.loss is not None and previous_loss is not None else None
+                    milestones.append({
+                        "epoch": episode.epoch, "highscore": high_score,
+                        "loss": self.json_number(episode.loss), "loss_change": self.json_number(change),
+                    })
+                    previous_loss = episode.loss
+            duration = self.format_duration(experiment.started_at, experiment.completed_at)
+            report["runs"].append({
+                "run_id": experiment.id,
+                "project_version": experiment.project_version,
+                "epochs": len(experiment.episodes),
+                "learning_rate": experiment.config["training"]["learning_rate"],
+                "mean_score": self.json_number(mean(scores)),
+                "median_score": self.json_number(median(scores)),
+                "highscore": max(scores),
+                "highscores": milestones,
+                "mean_loss": self.json_number(mean(losses) if losses else None),
+                "final_loss": self.json_number(experiment.episodes[-1].loss),
+                "duration_s": None if duration == "N/A" else float(duration),
+            })
+        return report
+
+    @staticmethod
+    def json_number(value: float | int | None) -> float | None:
+        return None if value is None else float(LearningRateReport.format_number(value))
+
+    def generate_latest_report(self) -> dict:
+        experiments = self.load_experiments(limit=3)
+        if len(experiments) != 3:
+            raise ValueError("Three completed Snake Lab runs are required.")
+        return self.render_report(experiments)
+
     def generate_latest_markdown(self) -> str:
         """Preview the latest three completed runs without starting a decision."""
         experiments = self.load_experiments(limit=3)

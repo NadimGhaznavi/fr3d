@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.9] - 2026-09-06 @ 18:18
+
+### Changed
+
+- Added a JSON comparison report for the LLM, including initial decisions,
+  duplicate-run follow-ups, and `view_latest_report`. Preserve report data and
+  template instructions, with `null` for missing values. The web comparison
+  and standalone CLI retain their Markdown presentation.
+- Changed the best/worst report from Markdown to JSON, retaining its fields and
+  ranking rules. Tool responses contain a structured report object; the web
+  viewer displays formatted JSON. Missing values use `null` and empty rankings
+  use empty arrays.
+
 ## [0.12.8] - 2026-09-06 @ 18:03
 
 - Qwen 3.7 Plus suggested these tweaks to the LLM prompts

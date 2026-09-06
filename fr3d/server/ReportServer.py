@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from html import escape
 import logging
+import json
 import os
 from pathlib import Path
 from string import Template
@@ -17,7 +18,7 @@ import uvicorn
 
 from fr3d.app.LearningRateReport import LearningRateReport
 from fr3d.app.JournalApp import JournalApp, JournalValidationError
-from fr3d.app.BestWorstReport import generate_best_worst_markdown
+from fr3d.app.BestWorstReport import generate_best_worst_report
 
 
 LOG = logging.getLogger(__name__)
@@ -69,8 +70,8 @@ def latest_report(request):
 def best_worst_report(request):
     status = 200
     try:
-        markdown = generate_best_worst_markdown()
-        content = MarkdownIt("commonmark", {"html": False}).enable("table").render(markdown)
+        report = generate_best_worst_report()
+        content = "<pre>" + escape(json.dumps(report, indent=2, allow_nan=False)) + "</pre>"
         metadata = "Generated " + datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
     except Exception:
         LOG.exception("Could not generate best/worst report")

@@ -80,10 +80,12 @@ class ReportServerTest(unittest.TestCase):
             load.assert_not_called()
 
     def test_best_worst_page_refresh_and_failure(self):
-        with patch("fr3d.server.ReportServer.generate_best_worst_markdown", return_value="# Best and Worst\n\n| Run | Duration (s) |\n|---|---|\n| 1 | 60 |") as generate:
+        with patch("fr3d.server.ReportServer.generate_best_worst_report", return_value={"top_10": [{"run_id": 1, "duration_s": 60, "project_version": "<script>"}], "bottom_10": []}) as generate:
             response = self.client.get("/best-worst/")
             self.assertEqual(response.status_code, 200)
-            self.assertIn("<table>", response.text)
+            self.assertIn("<pre>", response.text)
+            self.assertIn("&quot;top_10&quot;", response.text)
+            self.assertNotIn("<script>", response.text)
             self.assertIn('href="/best-worst/">Refresh', response.text)
             self.assertEqual(response.headers["cache-control"], "no-store")
             self.assertEqual(self.client.post("/best-worst/").status_code, 405)

@@ -17,7 +17,7 @@ async def submit_learning_rate(learning_rate: Annotated[float, Field(strict=True
 @mcp.tool()
 async def view_latest_report() -> str:
     """View the latest Snake Lab learning-rate report during web chat. Takes no
-    arguments and returns Markdown from the latest three completed comparable
+    arguments and returns JSON data from the latest three completed comparable
     runs. Read-only: does not start a decision or simulation. The report's Task
     and Response Tool sections are part of the preview, not a request to submit
     a learning rate. No pending experiment decision is required.

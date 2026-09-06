@@ -4,7 +4,7 @@ import unittest
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock
 
-from fr3d.app.BestWorstReport import generate_best_worst_markdown
+from fr3d.app.BestWorstReport import generate_best_worst_report
 from dialogue.learning_rate import format_duration, load_experiments, render_markdown
 
 
@@ -32,11 +32,14 @@ class BestWorstReportTest(unittest.TestCase):
             cursor.fetchall.return_value = rows
 
         cursor.execute.side_effect = execute
-        report = generate_best_worst_markdown(connection_factory=lambda: connection)
+        report = generate_best_worst_report(connection_factory=lambda: connection)
         self.assertEqual(selected[0], [24, 25, 22, 23, 20, 21, 18, 19, 16, 17])
         self.assertEqual(selected[1], list(range(1, 11)))
-        self.assertIn("| 1 | 24 | v2 | 500 | 12 | 0.003 | N/A |", report)
-        self.assertIn("| 1 | 1 | v1 | 500 | 0 | 0.003 | N/A |", report)
+        self.assertEqual(report["top_10"][0], dict(rank=1, run_id=24, project_version="v2", epochs=500,
+                                                 highscore=12, learning_rate=.003, duration_s=None))
+        self.assertEqual(report["bottom_10"][0]["run_id"], 1)
+        self.assertEqual(report["bottom_10"][0]["highscore"], 0)
+        self.assertEqual(json.loads(json.dumps(report, allow_nan=False)), report)
         connection.close.assert_called_once()
         connection.commit.assert_not_called()
 
@@ -47,13 +50,17 @@ class BestWorstReportTest(unittest.TestCase):
         connection = MagicMock()
         cursor = connection.cursor.return_value.__enter__.return_value
         cursor.fetchall.return_value = [row]
-        report = generate_best_worst_markdown(connection_factory=lambda: connection)
-        self.assertEqual(report.count("| 1 | 1 | v1 | 2 | 0 | N/A | 65.125 |"), 2)
+        report = generate_best_worst_report(connection_factory=lambda: connection)
+        self.assertEqual(report["top_10"], report["bottom_10"])
+        self.assertEqual(report["top_10"][0]["duration_s"], 65.125)
+        self.assertIsNone(report["top_10"][0]["learning_rate"])
         cursor.fetchall.return_value = []
-        self.assertIn("No completed simulations", generate_best_worst_markdown(connection_factory=lambda: connection))
+        empty = generate_best_worst_report(connection_factory=lambda: connection)
+        self.assertEqual(empty["top_10"], [])
+        self.assertEqual(empty["bottom_10"], [])
         cursor.execute.side_effect = RuntimeError("database unavailable")
         with self.assertRaises(RuntimeError):
-            generate_best_worst_markdown(connection_factory=lambda: connection)
+            generate_best_worst_report(connection_factory=lambda: connection)
         self.assertEqual(connection.close.call_count, 3)
 
     def test_comparison_loads_timestamps_and_renders_duration(self):
