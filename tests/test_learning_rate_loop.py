@@ -67,6 +67,8 @@ class LLMTest(unittest.IsolatedAsyncioTestCase):
     async def test_report_and_single_numeric_tool_are_the_entire_model_input(self):
         self.assertEqual(await self.request(self.response()), 0.003)
         self.assertEqual(self.payload["messages"], [{"role": "user", "content": "REPORT ONLY"}])
+        self.assertEqual(self.payload["tool_choice"], "required")
+        self.assertEqual(len(self.payload["tools"]), 1)
         schema = self.payload["tools"][0]["function"]["parameters"]
         self.assertEqual(list(schema["properties"]), ["learning_rate"])
         self.assertEqual(schema["required"], ["learning_rate"])

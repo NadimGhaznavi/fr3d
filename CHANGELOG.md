@@ -9,11 +9,65 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-09-06 @ 10:07
+
+### Added
+
+- Added a complete 500-epoch sample Snake Lab configuration with seed 1970 for
+  preparing comparable initial runs by varying only the learning rate.
+
+### Fixed
+
+- Send `tool_choice: "required"` to the local llama-server instead of the
+  named-function object it rejects. Only `submit_learning_rate` is offered;
+  returned tool calls and arguments remain validated.
+
 ## [0.10.0] - 2026-09-06 @ 09:46
+
+### Added
+
+- Added continuous learning-rate experimentation: poll Snake Lab every five
+  seconds, generate a report from the latest three completed runs when idle,
+  ask the local LLM for a learning rate, and submit the next simulation.
+- Added the `snakelab_tool` MCP server and `submit_learning_rate` function with
+  one required numeric argument. Fr3d receives the rate over ZMQ, validates
+  `0 < learning_rate <= 1`, and changes only that field in its internal baseline
+  configuration. The model sees the report, not the full configuration.
+- Require three completed runs with complete episode data, matching project
+  versions, and identical settings except for learning rate. Preserve the seed
+  and other settings throughout the automated experiment.
+- Keep one decision in flight while polling and journal requests continue;
+  recheck Snake Lab's status before submitting and cancel the decision on
+  shutdown. Failed submissions do not automatically replay the same proposal.
+- Added `scripts/ask_qwen.py`, a configurable standard-library command-line
+  client for local chat completions, with optional raw JSON output.
+
+### Changed
+
+- Moved the shared report builder and template into the installed `fr3d/app`
+  package and corrected the standalone report command's database imports.
+- Added cancellable HTTP requests through `httpx`, MCP registration, runtime
+  documentation, and tests covering report selection, tool validation, polling,
+  shutdown, and the submission flow through a fake Snake Lab ZMQ service.
 
 ## [0.9.1] - 2026-09-06 @ 07:44
 
+### Added
+
+- Added a conversational Easter egg to the Snake Lab tool's knowledge-base
+  page, inviting Fr3d to ask Nadim about the tool during web chat.
+
 ## [0.9.0] - 2026-09-06 @ 07:39
+
+### Added
+
+- Expanded Fr3dNet with pages about Snake Lab, the project goal, web chat,
+  Nadim, and the planned Snake Lab submission tool.
+
+### Changed
+
+- Reorganized knowledge-base navigation, refreshed computing and location
+  information, and removed the obsolete static journal index.
 
 ## [0.8.15] - 2026-09-06 @ 05:58
 
@@ -43,7 +97,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.8.13] - 2026-09-06 @ 05:19
 
+### Fixed
+
+- Passed the supplied journal title and entry from the ZMQ message into
+  `JournalDb.add_entry()` instead of using hard-coded placeholder values.
+
 ## [0.8.12] - 2026-09-06 @ 05:16
+
+### Changed
+
+- Typed the journal handler input as `ZMQMsg` and logged its payload rather
+  than the whole message. Journal writes still used placeholder values.
 
 ## [0.8.11] - 2026-09-06 @ 05:06
 
@@ -55,7 +119,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.8.10] - 2026-09-06 @ 04:59
 
+### Fixed
+
+- Passed `--cors-origins` and `*` as separate llama-server command arguments,
+  correcting the combined argument used by the preceding CORS releases.
+
 ## [0.8.9] - 2026-09-06 @ 04:55
+
+### Changed
+
+- Restored quotes around the wildcard in the combined CORS argument. The
+  argument-format problem remained until 0.8.10.
 
 ## [0.8.8] - 2026-09-06 @ 04:53
 
@@ -66,9 +140,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.8.7] - 2026-09-06 @ 04:27
 
+### Changed
+
+- Removed quotes around the wildcard in the combined CORS argument. The
+  argument-format problem remained until 0.8.10.
+
 ## [0.8.6] - 2026-09-06 @ 04:25
 
+### Changed
+
+- Replaced the explicit localhost and wintermute CORS origins with a quoted
+  wildcard. The option and value still occupied one command argument;
+  0.8.10 corrected that format.
+
 ## [0.8.5] - 2026-09-06 @ 04:23
+
+### Added
+
+- Added a CORS argument listing localhost and wintermute on port 51970.
+  The option and value were supplied as one command argument; 0.8.10 later
+  corrected the argument format.
 
 ## [0.8.4] - 2026-09-06 @ 04:19
 
@@ -79,9 +170,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.8.3] - 2026-09-06 @ 04:12
 
+### Changed
+
+- Changed the requested CORS origin from wintermute to a wildcard. The option
+  and value still occupied one command argument; 0.8.10 later corrected that
+  format.
+
 ## [0.8.2] - 2026-09-06 @ 04:10
 
+### Added
+
+- Added a CORS argument for `http://wintermute:51970`. The option and value
+  were supplied as one command argument; 0.8.10 later corrected that format.
+
 ## [0.8.1] - 2026-09-06 @ 04:04
+
+### Added
+
+- Registered the `add_journal_entry` Fr3d method and connected its initial
+  handler to `JournalDb`, using placeholder title and entry values while
+  journal integration was under development.
 
 ## [0.8.0] - 2026-09-06 @ 03:52
 
@@ -96,6 +204,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to `ZMQClient`, retaining SnakeLab response validation in the server.
 
 ## [0.7.4] - 2026-09-06 @ 03:22
+
+### Fixed
+
+- Moved Fr3d's ZMQ listener from port `41972` to `61970` to resolve the
+  remaining port conflict.
 
 ## [0.7.3] - 2026-09-06 @ 03:13
 
@@ -143,6 +256,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   serialization, and validated incoming message fields before dispatch.
 
 ## [0.7.1] - 2026-09-05 @ 13:39
+
+### Changed
+
+- Began restructuring journal persistence: simplified the MCP interface to
+  title and entry, replaced journal operations with a temporary acknowledgement
+  stub, and moved the database connection helper into `DbManager`.
+- Moved the learning-rate prompt template from `templates/` to `notes/`.
+  The report command's stale template reference was corrected in 0.10.0.
 
 ## [0.7.0] - 2026-09-05 @ 11:26
 
@@ -230,20 +351,85 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.3.2] - 2026-09-01 @ 18:17
 
+### Added
+
+- Added the public site's Jekyll configuration, homepage, and custom domain.
+
+### Changed
+
+- Reduced the default LLM context window from 65,536 to 8,192 tokens.
+
 ## [0.3.1] - 2026-09-01 @ 05:31
+
+### Added
+
+- Added MariaDB-backed journal storage with create and list operations,
+  parameterized database access, and Markdown results.
+- Added database provisioning, service credentials, and lifecycle tests.
+  Upgrades preserve journal data; uninstall removes the Fr3d database.
 
 ## [0.3.0] - 2026-08-31 @ 19:34
 
+### Added
+
+- Added the journal MCP tool for validated, titled Markdown entries of up to
+  five paragraphs, with a browsable journal index in Fr3dNet.
+- Added knowledge-base guides for the journal, weather, and browser tools.
+
+### Changed
+
+- Updated installation, upgrades, and service write access for journal files,
+  preserving journal content across upgrades.
+
 ## [0.2.1] - 2026-08-31 @ 19:15
+
+### Added
+
+- Added `scripts/upgrade.py` and `scripts/upgrade.sh` to refresh deployed code
+  and services while preserving the virtual environment and service account.
 
 ## [0.2.0] - 2026-08-31 @ 19:13
 
+### Added
+
+- Added the weather MCP tool for current conditions and a three-day forecast
+  by city or postal code, using Open-Meteo with input and response validation.
+- Added location information to Fr3dNet and included the weather tool in
+  deployment and MCP configuration.
+
 ## [0.1.1] - 2026-08-31 @ 18:47
+
+### Fixed
+
+- Renamed the knowledge-base MCP server to `kb` and its function to `tool`,
+  removing the duplicated `kb_tool` naming in the exposed interface.
 
 ## [0.1.0] - 2026-08-31 @ 18:42
 
+### Added
+
+- Added the Fr3dNet Markdown knowledge base and an MCP browser for navigating
+  its pages, starting at `/`.
+- Added computing-environment documentation, browser tests, and MCP runtime
+  dependencies and deployment configuration.
+
 ## [0.0.2] - 2026-08-31 @ 18:18
+
+### Added
+
+- Added the initial llama-server launcher with model, context, reasoning,
+  network, and MCP configuration, plus startup validation and tests.
+
+### Changed
+
+- Removed the unused scheduler service and updated installation and cleanup
+  for the initial LLM server deployment.
 
 ## [0.0.1] - 2026-08-31 @ 18:11
 
 ### Added
+
+- Added the initial project scaffold, configuration constants, systemd units,
+  and installation and uninstallation scripts for a dedicated Fr3d account.
+- Added the release script for version updates, changelog headings, branch
+  merges, annotated tags, and publication.
