@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.3] - 2026-09-06 @ 13:48
+
 ### Added
 
 - Added Ackbar's journal browser to `fr3d-report.service` at `/journal/`, with
