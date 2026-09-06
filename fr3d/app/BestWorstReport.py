@@ -3,14 +3,14 @@
 import json
 import math
 
-from fr3d.app.LearningRateReport import connect_snake_lab, DURATION_NOTE, format_duration
+from fr3d.app.LearningRateReport import LearningRateReport, DURATION_NOTE
 
 
 def markdown_cell(value):
     return str(value).replace("\\", "\\\\").replace("|", "\\|").replace("\n", " ").replace("\r", " ").replace("<", "&lt;").replace(">", "&gt;")
 
 
-def generate_best_worst_markdown(*, connection_factory=connect_snake_lab) -> str:
+def generate_best_worst_markdown(*, connection_factory=LearningRateReport.connect_snake_lab) -> str:
     connection = connection_factory()
     try:
         with connection.cursor() as cursor:
@@ -49,7 +49,7 @@ def generate_best_worst_markdown(*, connection_factory=connect_snake_lab) -> str
                     rate = "N/A"
             except (ValueError, KeyError, TypeError):
                 rate = "N/A"
-            duration = format_duration(row["started_at"], row["completed_at"])
+            duration = LearningRateReport.format_duration(row["started_at"], row["completed_at"])
             lines.append(
                 f"| {rank} | {row['id']} | {markdown_cell(row['project_version'])} | "
                 f"{row['episode_count'] if row['episode_count'] is not None else 'N/A'} | "

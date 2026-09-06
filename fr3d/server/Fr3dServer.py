@@ -23,7 +23,7 @@ from fr3d.zmq.ZMQMsg import ZMQMsg
 from fr3d.app.JournalApp import JournalApp, JournalValidationError, JournalRateLimitError
 from fr3d.database.JournalDb import JournalBusyError
 from fr3d.app.LearningRateLoop import LearningRateLoop
-from fr3d.app.LearningRateReport import generate_latest_markdown
+from fr3d.app.LearningRateReport import LearningRateReport
 from fr3d.app.BestWorstReport import generate_best_worst_markdown
 
 
@@ -58,6 +58,7 @@ class Fr3dServer:
             srv_methods=srv_methods,
         )
         self.log = self.zmq_server.log
+        self.report = LearningRateReport()
         self.endpoint = self.zmq_server.endpoint
         self._stop_event = asyncio.Event()
         self._running = False
@@ -72,7 +73,7 @@ class Fr3dServer:
             return {"status": "error", "error": {"code": "invalid_request", "message": str(error)}}
 
     async def view_latest_report(self, msg: ZMQMsg):
-        return await self._view_report(msg, generate_latest_markdown)
+        return await self._view_report(msg, self.report.generate_latest_markdown)
 
     async def view_best_worst_report(self, msg: ZMQMsg):
         return await self._view_report(msg, generate_best_worst_markdown)

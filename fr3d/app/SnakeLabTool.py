@@ -3,11 +3,16 @@
 import asyncio
 import json
 import math
+from pathlib import Path
 
 from fr3d.constants.DFr3d import DFr3d
 from fr3d.constants.DMethod import DMethod
+from fr3d.constants.DDir import DDirDef as DEFDIR
+from fr3d.constants.DFile import DFileDef as DEFFILE
+from fr3d.constants.DModule import DModule as MODULE
 from fr3d.zmq.ZMQClient import ZMQClient
 from fr3d.zmq.ZMQMsg import ZMQMsg
+from fr3d.utils.MyLog import MyLog
 
 
 LEARNING_RATE_TOOL = {
@@ -55,6 +60,8 @@ class SnakeLabTool:
     def __init__(self, endpoint: str | None = None) -> None:
         # Allow time for Fr3d's status check and submission, each with a 3s timeout.
         self.client = ZMQClient(endpoint or f"tcp://127.0.0.1:{DFr3d.PORT}", timeout=15)
+        server_log = Path(DEFDIR.SERVER_LOGS / DEFFILE.LLM_SERVER_LOG)
+        self.log = MyLog(client_id=MODULE.SNAKE_LAB_TOOL, log_file=server_log, to_console=False)
 
     async def submit_learning_rate(self, learning_rate: float) -> str:
         response = await asyncio.to_thread(
@@ -68,9 +75,11 @@ class SnakeLabTool:
         return json.dumps(response.payload)
 
     async def view_latest_report(self) -> str:
+        self.log.info("view_latest_report()")
         return await self._view_report(DMethod.VIEW_LATEST_REPORT)
 
     async def view_best_worst_report(self) -> str:
+        self.log.info("view_best_worst_report()")
         return await self._view_report(DMethod.VIEW_BEST_WORST_REPORT)
 
     async def _view_report(self, method: str) -> str:

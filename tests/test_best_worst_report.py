@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from unittest.mock import MagicMock
 
 from fr3d.app.BestWorstReport import generate_best_worst_markdown
-from fr3d.app.LearningRateReport import format_duration, load_experiments, render_markdown
+from dialogue.learning_rate import format_duration, load_experiments, render_markdown
 
 
 class BestWorstReportTest(unittest.TestCase):
