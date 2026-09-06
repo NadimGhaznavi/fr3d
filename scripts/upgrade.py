@@ -13,22 +13,20 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from constants.DFr3d import DFr3d  # noqa: E402
-from constants.DDatabase import DDatabase  # noqa: E402
+from fr3d.constants.DFr3d import DFr3d  # noqa: E402
+from fr3d.constants.DDatabase import DDatabase  # noqa: E402
+from fr3d.constants.DDir import DDirDef as DEFDIR  # noqa: E402
 from scripts.install import (  # noqa: E402
-    OBSOLETE_SERVICE_NAMES,
-    OBSOLETE_SOURCE_DIRECTORIES,
     ROOT_FILES,
+    SCRIPT_FILES,
     SOURCE_DIRECTORIES,
     SYSTEMD_DIRECTORY,
+    copy_server_configuration,
     ensure_agent_log_directory,
     ensure_snake_lab_read_access,
-    mariadb_client,
-    provision_database,
+    validate_database_environment,
     validate_paths,
 )
-
-SCRIPT_FILES = ("install.py", "uninstall.py", "upgrade.py", "upgrade.sh")
 
 
 def parse_args() -> argparse.Namespace:
@@ -53,38 +51,36 @@ def run(*command: str | Path, check: bool = True) -> None:
 def validate_installation() -> Path:
     if os.geteuid() != 0:
         raise PermissionError("Fr3d upgrade must be run as root")
-    if PROJECT_ROOT.resolve() == DFr3d.INSTALL_ROOT.resolve():
+    if PROJECT_ROOT.resolve() == DEFDIR.INSTALL_ROOT.resolve():
         raise ValueError("run upgrade.sh from an updated source checkout")
-    if DFr3d.INSTALL_ROOT.is_symlink() or not DFr3d.INSTALL_ROOT.is_dir():
+    if DEFDIR.INSTALL_ROOT.is_symlink() or not DEFDIR.INSTALL_ROOT.is_dir():
         raise FileNotFoundError(
-            f"Fr3d is not safely installed in {DFr3d.INSTALL_ROOT}"
+            f"Fr3d is not safely installed in {DEFDIR.INSTALL_ROOT}"
         )
+    if not (DEFDIR.INSTALL_ROOT / "fr3d").is_dir():
+        raise ValueError("installation layout has changed; uninstall and reinstall this release")
     environment_python = (
-        DFr3d.INSTALL_ROOT / DFr3d.VENV_DIRECTORY / "bin" / "python"
+        DEFDIR.INSTALL_ROOT / DEFDIR.VENV / "bin" / "python"
     )
     if not environment_python.is_file():
         raise FileNotFoundError(
             f"virtual environment not found: {environment_python}"
         )
-    if DDatabase.ENV_FILE.is_symlink():
-        raise FileNotFoundError(
-            f"refusing symlinked database credentials: {DDatabase.ENV_FILE}"
-        )
+    validate_database_environment()
     return environment_python
 
 
 def ensure_database_configuration() -> None:
-    """Ensure database access, bootstrapping pre-database Fr3d installations."""
-    if DDatabase.ENV_FILE.is_file():
-        ensure_snake_lab_read_access()
-        return
-    mariadb_client()
-    provision_database()
+    """Refresh read access without recreating accounts or credentials."""
+    if not DDatabase.ENV_FILE.is_file():
+        raise FileNotFoundError(
+            f"database credentials not found: {DDatabase.ENV_FILE}; reinstall Fr3d"
+        )
+    ensure_snake_lab_read_access()
 
 
 def stop_services() -> None:
-    service_names = (*DFr3d.SERVICE_NAMES, *OBSOLETE_SERVICE_NAMES)
-    for service_name in reversed(service_names):
+    for service_name in reversed(DFr3d.SERVICE_NAMES):
         run("systemctl", "stop", service_name, check=False)
 
 
@@ -96,21 +92,21 @@ def remove_path(path: Path) -> None:
 
 
 def remove_installed_runtime() -> None:
-    for directory_name in (*SOURCE_DIRECTORIES, *OBSOLETE_SOURCE_DIRECTORIES):
-        destination = DFr3d.INSTALL_ROOT / directory_name
-        if directory_name == "fr3dnet" and destination.is_dir():
+    for directory_name in SOURCE_DIRECTORIES:
+        destination = DEFDIR.INSTALL_ROOT / directory_name
+        if directory_name == "fr3dnet" and destination.is_dir() and not destination.is_symlink():
             for child in destination.iterdir():
                 if child.name != "journal":
                     remove_path(child)
         else:
             remove_path(destination)
     for filename in ROOT_FILES:
-        remove_path(DFr3d.INSTALL_ROOT / filename)
-    remove_path(DFr3d.INSTALL_ROOT / "scripts")
+        remove_path(DEFDIR.INSTALL_ROOT / filename)
+    remove_path(DEFDIR.INSTALL_ROOT / "scripts")
 
 
 def copy_runtime() -> None:
-    prefix = DFr3d.INSTALL_ROOT
+    prefix = DEFDIR.INSTALL_ROOT
     for directory_name in SOURCE_DIRECTORIES:
         source = PROJECT_ROOT / directory_name
         if source.is_dir():
@@ -141,20 +137,16 @@ def copy_runtime() -> None:
         source = PROJECT_ROOT / filename
         if source.is_file():
             shutil.copy2(source, prefix / filename)
+    copy_server_configuration()
 
 
 def update_dependencies(environment_python: Path, skip: bool) -> None:
-    requirements = DFr3d.INSTALL_ROOT / "requirements.txt"
+    requirements = DEFDIR.INSTALL_ROOT / "requirements.txt"
     if not skip and requirements.is_file():
         run(environment_python, "-m", "pip", "install", "-r", requirements)
 
 
 def update_services() -> None:
-    for service_name in OBSOLETE_SERVICE_NAMES:
-        obsolete_unit = SYSTEMD_DIRECTORY / service_name
-        if obsolete_unit.is_file() or obsolete_unit.is_symlink():
-            obsolete_unit.unlink()
-
     for service_name in DFr3d.SERVICE_NAMES:
         source = PROJECT_ROOT / "systemd" / service_name
         destination = SYSTEMD_DIRECTORY / service_name

@@ -6,7 +6,7 @@ import json
 import os
 from pathlib import Path
 
-from constants.DOps import DOps
+from fr3d.constants.DOps import DOps
 
 
 class OpsError(RuntimeError):
