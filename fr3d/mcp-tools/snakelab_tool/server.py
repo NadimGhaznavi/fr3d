@@ -23,3 +23,13 @@ async def view_latest_report() -> str:
     a learning rate. No pending experiment decision is required.
     """
     return await SnakeLabTool().view_latest_report()
+
+
+@mcp.tool()
+async def view_best_worst_report() -> str:
+    """View the top 10 and bottom 10 completed Snake Lab simulations by high score,
+    with learning rates, versions, epoch counts, and elapsed durations in seconds.
+    Covers all versions; ties use lower run IDs first. Takes no arguments.
+    Read-only, available during web chat, and does not start an experiment.
+    """
+    return await SnakeLabTool().view_best_worst_report()

@@ -66,12 +66,30 @@ a missing endpoint are N/A. The first row's change is N/A.
 | 102 | ... | ... |
 | 103 | ... | ... |
 
+### Duration
+
+Duration is elapsed seconds from start to completion, excluding queue time and including pauses.
+N/A means timestamps are missing or completion precedes start.
+
+| Run | Duration (s) |
+|---|---:|
+| 101 | ... |
+| 102 | ... |
+| 103 | ... |
+
 ## Task
 
 Choose the learning rate for the next experiment.
 
 Use the experimental results above as evidence, prioritizing high scores and
 their progression across epochs.
+
+## Optional Historical Report
+
+Before choosing, you may call `view_best_worst_report` with no arguments once
+to inspect the top and bottom ten completed simulations, including learning rates
+and durations. Historical runs may have different versions and settings; use
+them as context alongside the comparable runs above. Then submit your learning rate.
 
 ## Response Tool
 

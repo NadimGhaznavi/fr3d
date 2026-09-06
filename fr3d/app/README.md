@@ -1,5 +1,24 @@
 # Nadim-facing report viewer
 
+The **Best / worst** navigation link opens `/best-worst/`, showing up to ten
+highest-scoring and ten lowest-scoring completed simulations. Fr3d can retrieve
+the same Markdown through `view_best_worst_report` on `snakelab_tool` with no
+arguments. It follows the same read-only MCP → ZMQ → Fr3d path as the latest
+report and does not require a pending decision.
+
+Rankings use `simulation_runs.high_score`, the final high score persisted by
+Snake Lab, excluding incomplete statuses and missing scores. Two ordered,
+limited queries retrieve run summaries without loading episode histories.
+Ties use ascending numeric run ID. Rankings span all versions and configurations,
+so rows include version and completed epoch count alongside learning rate.
+Each table shows up to ten rows and can overlap with the other table.
+
+Both ranking and comparison reports show duration in seconds (three decimal
+places), calculated from `completed_at - started_at`. This excludes queue time
+and includes pauses. Missing timestamps or completion before start display
+`N/A`, not zero. No database migration is needed. Deploy and restart the report,
+Fr3d agent, and LLM services to load the updated pages, handlers, and MCP tool.
+
 The same `fr3d-report.service` also serves Ackbar's journal at `/journal/`.
 Use the navigation links to switch between the report and journal. Entries are
 listed newest first, ten per page, with UTC timestamps and previous/next links.
@@ -128,7 +147,9 @@ negative means a decrease). The first row's change is `N/A`, as is any change wi
 a missing endpoint loss. The final epoch always appears once, even when it does
 not set a new high score. No seed or full configuration is sent to the model.
 `LearningRateLLM` sends this report as the sole message to the local
-`/v1/chat/completions` endpoint, with one function tool:
+`/v1/chat/completions` endpoint, with `submit_learning_rate` and the optional
+read-only `view_best_worst_report` function. The report template explains when
+to use the historical ranking. Submission takes:
 
 ```json
 {"learning_rate": 0.003}
@@ -140,7 +161,12 @@ disables parallel tool calls, and rejects text-only, malformed, multiple, or
 truncated calls. The local model/server must support Chat Completions function
 calling. `LLAMA_URL`, `LLAMA_MODEL`, and optional `LLAMA_API_KEY` override the
 same defaults as `scripts/ask_qwen.py`. Requests use temperature 0.2, at most
-4096 generated tokens, and a cancellable 240-second deadline.
+4096 generated tokens per response, and a cancellable 240-second deadline for
+the entire exchange. The model may request the historical report once per
+proposal. Fr3d runs the shared ranking generator in a worker thread, appends
+the assistant tool call and matching tool result to the conversation, and
+then offers only `submit_learning_rate`. Lookup failure returns an error to
+the model so it can use the original comparison. Repeated lookups are rejected.
 
 The response handler executes the shared `SnakeLabTool` bridge. It is also exposed
 as `snakelab_tool` in the MCP server configuration. The bridge sends only the rate

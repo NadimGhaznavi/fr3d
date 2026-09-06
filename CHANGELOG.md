@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added a best/worst simulation report at `/best-worst/` and through the read-only
+  `view_best_worst_report` MCP tool. Rank the top ten and bottom ten completed
+  runs by final high score, showing run ID, version, epoch count, learning rate,
+  and duration. Include all versions and break ties by ascending run ID.
+
+### Changed
+
+- Referenced `view_best_worst_report` in the learning-rate prompt and made it
+  callable during automated decisions. Allow one optional historical lookup
+  per proposal, return its result to the model, then require rate submission
+  within the existing overall deadline.
+- Added elapsed simulation duration to the shared three-run comparison report.
+  Both reports use completion minus start time in seconds, excluding queue time
+  and including pauses; missing or reversed timestamps show `N/A`.
+
 ## [0.11.3] - 2026-09-06 @ 13:48
 
 ### Added

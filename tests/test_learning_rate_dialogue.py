@@ -46,6 +46,7 @@ class LearningRateDialogueTest(unittest.TestCase):
         self.assertNotIn("| 3 | 5 |", markdown)
         self.assertIn("High score is the measure of success", markdown)
         self.assertIn("`submit_learning_rate`", markdown)
+        self.assertIn("`view_best_worst_report`", markdown)
         self.assertIn("Respond through the tool", markdown)
         self.assertNotIn("...", markdown)
         self.assertNotIn("Run 101", markdown)

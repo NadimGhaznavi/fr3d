@@ -88,7 +88,7 @@ class LearningRateZMQTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_mcp_exposes_and_forwards_only_learning_rate(self):
         tools = await mcp.list_tools()
-        self.assertEqual({tool.name for tool in tools}, {"submit_learning_rate", "view_latest_report"})
+        self.assertEqual({tool.name for tool in tools}, {"submit_learning_rate", "view_latest_report", "view_best_worst_report"})
         tool = next(tool for tool in tools if tool.name == "submit_learning_rate")
         self.assertEqual(tool.name, "submit_learning_rate")
         self.assertEqual(tool.input_schema["required"], ["learning_rate"])
@@ -155,6 +155,32 @@ class LearningRateZMQTest(unittest.IsolatedAsyncioTestCase):
             result = await server.view_latest_report(ZMQMsg("test", "view_latest_report", payload={}))
             self.assertEqual(result, {"status": "ok", "report": "report"})
             self.assertIs(server.learning_rate_loop.pending_config, pending)
+
+    async def test_best_worst_report_mcp_to_zmq_is_read_only(self):
+        with patch("fr3d.zmq.ZMQServer.MyLog"):
+            server = Fr3dServer(port=0, log_file=None, learning_rate_enabled=False)
+        with patch("fr3d.server.Fr3dServer.generate_best_worst_markdown", return_value="# Rankings") as generate, patch(
+            "snakelab_tool.server.SnakeLabTool", return_value=SnakeLabTool(server.endpoint),
+        ), patch.object(server, "snake_lab_request") as snake_request:
+            task = asyncio.create_task(server.run())
+            try:
+                tools = await mcp.list_tools()
+                tool = next(tool for tool in tools if tool.name == "view_best_worst_report")
+                self.assertEqual(tool.input_schema.get("properties", {}), {})
+                result = await mcp.call_tool("view_best_worst_report", {})
+                self.assertFalse(result.is_error)
+                self.assertEqual(json.loads(result.content[0].text), {"status": "ok", "report": "# Rankings"})
+                generate.assert_called_once_with()
+                invalid = await server.view_best_worst_report(ZMQMsg("test", "view_best_worst_report", payload={"limit": 2}))
+                self.assertEqual(invalid["error"]["code"], "invalid_request")
+                generate.side_effect = RuntimeError("private detail")
+                result = json.loads(await SnakeLabTool(server.endpoint).view_best_worst_report())
+                self.assertEqual(result["error"]["code"], "report_unavailable")
+                self.assertNotIn("private detail", json.dumps(result))
+                snake_request.assert_not_called()
+            finally:
+                server.stop()
+                await task
 
     async def test_server_rejects_extra_arguments_over_zmq(self):
         with patch("fr3d.zmq.ZMQServer.MyLog"):
