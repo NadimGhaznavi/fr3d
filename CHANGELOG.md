@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.7] - 2026-09-06 @ 17:06
+
 ### Added
 
 - Log knowledge-base page requests to the LLM server log using the `KbBrowser`
