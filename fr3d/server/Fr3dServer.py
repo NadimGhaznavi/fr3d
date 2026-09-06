@@ -144,6 +144,13 @@ class Fr3dServer:
             raise ValueError("invalid SnakeLab active simulation state")
         return True
 
+    def snake_lab_version(self) -> str:
+        payload = self.snake_lab_request("health", {})
+        version = payload.get("project_version")
+        if not isinstance(version, str) or not version:
+            raise ValueError("Snake Lab health response lacks project_version; upgrade Snake Lab first")
+        return version
+
     def submit_simulation(self, config: dict) -> dict:
         payload = self.snake_lab_request("simulation.submit", {"config": config})
         if payload.get("state") != "queued" or not isinstance(payload.get("run_id"), str) or not payload["run_id"]:

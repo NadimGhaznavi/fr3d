@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Initialize new SnakeLab releases by queueing the previous three completed
+  configurations on the running version before learning-rate decisions resume.
+  Recover partial initialization from database history and check the live version
+  before submitting model proposals. Requires SnakeLab's versioned health response.
+
+### Fixed
+
+- Prevent repeated Snake Lab configurations from launching another simulation.
+  Search completed history for the same configuration and project version and
+  return the standard learning-rate report for the latest matching run with
+  "This simulation has already been run. Here's your report." The model can
+  choose again, with at most three proposals per decision.
+
 ## [0.10.1] - 2026-09-06 @ 10:07
 
 ### Added

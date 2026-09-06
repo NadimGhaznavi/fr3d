@@ -107,6 +107,31 @@ def load_experiments(
         connection.close()
 
 
+def find_completed_experiment(
+    config: dict[str, Any], project_version: str, *,
+    connection_factory: Callable[[], Any] = connect_snake_lab,
+) -> Experiment | None:
+    """Find the latest exact match across completed history, loading only its episodes."""
+    connection = connection_factory()
+    matching_id = None
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT id, config FROM simulation_runs "
+                "WHERE status = %s AND project_version = %s ORDER BY id DESC",
+                ("completed", project_version),
+            )
+            for row in cursor.fetchall():
+                if json.loads(row["config"]) == config:
+                    matching_id = row["id"]
+                    break
+    finally:
+        connection.close()
+    if matching_id is None:
+        return None
+    return load_experiments((matching_id,), connection_factory=connection_factory)[0]
+
+
 def validate_experiments(experiments: Sequence[Experiment]) -> None:
     if not experiments:
         raise ValueError("No completed Snake Lab runs found")
