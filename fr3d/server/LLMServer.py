@@ -29,6 +29,7 @@ def build_command() -> list[str]:
         str(DFr3d.LLM_PORT),
         "--mcp-servers-config",
         Path(DEFDIR.SERVER_CONFIG / DEFFILE.MCP_SERVERS_CONFIG),
+        "--cors-origins http://localhost:51970,http://wintermute:51970",
     ]
 
 
