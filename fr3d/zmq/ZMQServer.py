@@ -31,7 +31,7 @@ class ZMQServer:
         port: int = FR3D.PORT,
         srv_methods: dict[str, MsgHandler] | None = None,
         *,
-        address: str = FR3D.HOST,
+        address: str = FR3D.ZMQ_HOST,
     ) -> None:
         self.log = MyLog(
             client_id=identity,

@@ -12,7 +12,7 @@ Use `request()` to exchange Fr3d `ZMQMsg` messages:
 from fr3d.zmq.ZMQClient import ZMQClient
 from fr3d.zmq.ZMQMsg import ZMQMsg
 
-client = ZMQClient("tcp://127.0.0.1:41972")
+client = ZMQClient("tcp://127.0.0.1:61970")
 response = client.request(ZMQMsg("mcp", "echo", payload={"value": 42}))
 print(response.payload)
 ```
@@ -45,7 +45,7 @@ from fr3d.zmq.ZMQServer import ZMQServer
 async def main():
     server = ZMQServer(
         address="127.0.0.1",
-        port=41972,
+        port=61970,
         srv_methods={"echo": lambda request: request.payload},
     )
     await server.run()
@@ -81,6 +81,11 @@ Each `ZMQMsg` contains `protocol_version`, `sender`, `target`, `method`, and
 strings, target is an optional string, and payload is a JSON object.
 
 ## Fr3d server integration
+
+The default listener is `tcp://127.0.0.1:61970`, configured by
+`DFr3d.ZMQ_HOST` and `DFr3d.PORT`. It accepts connections from the local machine.
+Pass `address=` explicitly to bind another interface. The llama-server HTTP
+bind address and CORS policy are configured separately.
 
 `Fr3dServer` owns a `ZMQServer` and delegates socket binding, message validation,
 method dispatch, and replies to it. Supply the server-side handlers at construction:
