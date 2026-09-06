@@ -1,0 +1,24 @@
+[Unit]
+Description=Fr3d Report Viewer
+After=network.target mariadb.service
+Wants=mariadb.service
+
+[Service]
+Type=simple
+User=fr3d
+Group=fr3d
+WorkingDirectory=/opt/fr3d
+Environment=PYTHONUNBUFFERED=1
+Environment=FR3D_REPORT_HOST=127.0.0.1
+Environment=FR3D_REPORT_PORT=61980
+EnvironmentFile=/etc/fr3d/database.env
+ExecStart=/opt/fr3d/.venv/bin/python -m fr3d.server.ReportServer
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+
+[Install]
+WantedBy=multi-user.target

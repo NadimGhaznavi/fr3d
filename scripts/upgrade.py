@@ -14,6 +14,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from fr3d.constants.DFr3d import DFr3d  # noqa: E402
+from fr3d.constants.DFile import DFileDef as DEFFILE  # noqa: E402
 from fr3d.constants.DDatabase import DDatabase  # noqa: E402
 from fr3d.constants.DDir import DDirDef as DEFDIR  # noqa: E402
 from scripts.install import (  # noqa: E402
@@ -154,6 +155,8 @@ def update_services() -> None:
         destination.chmod(0o644)
     run("systemctl", "daemon-reload")
     for service_name in DFr3d.SERVICE_NAMES:
+        if service_name == DEFFILE.FR3D_REPORT_SERVICE:
+            run("systemctl", "enable", service_name)
         run("systemctl", "restart", service_name)
 
 

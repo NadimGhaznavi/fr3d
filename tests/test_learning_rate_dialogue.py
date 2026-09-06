@@ -42,7 +42,7 @@ class LearningRateDialogueTest(unittest.TestCase):
         self.assertIn("| 1 | 0.002 |", markdown)
         self.assertIn("| 1 | 3.25 | 3.5 | 5 |", markdown)
         self.assertIn("| 1 | 0.45 | N/A |", markdown)
-        self.assertIn("| 1 | 1 |\n| 2 | 5 |\n| 4 | 5 |", markdown)
+        self.assertIn("| 1 | 1 | N/A | N/A |\n| 2 | 5 | 0.6 | N/A |\n| 4 | 5 | N/A | N/A |", markdown)
         self.assertNotIn("| 3 | 5 |", markdown)
         self.assertIn("High score is the measure of success", markdown)
         self.assertIn("`submit_learning_rate`", markdown)
@@ -69,7 +69,39 @@ class LearningRateDialogueTest(unittest.TestCase):
         markdown = render_markdown([experiment])
         self.assertIn("| 1 | 0 | 0 | 0 |", markdown)
         self.assertIn("| 1 | 0 | 0 |", markdown)
-        self.assertEqual(markdown.count("| 1 | 0 |\n"), 1)
+        self.assertEqual(markdown.count("| 1 | 0 | 0 | N/A |\n"), 1)
+
+    def test_loss_change_uses_previous_displayed_row_and_includes_final_epoch(self) -> None:
+        experiment = replace(
+            make_experiment(),
+            config={**make_experiment().config, "epochs": 5},
+            episodes=(
+                Episode(1, 1, 0.8),
+                Episode(2, 1, 0.7),
+                Episode(3, 5, 0.5),
+                Episode(4, 2, 0.1),
+                Episode(5, 3, 0.6),
+            ),
+        )
+        markdown = render_markdown([experiment, replace(experiment, id=2)])
+        rows = "| 1 | 1 | 0.8 | N/A |\n| 3 | 5 | 0.5 | -0.3 |\n| 5 | 5 | 0.6 | 0.1 |"
+        self.assertEqual(markdown.count(rows), 2)
+        self.assertNotIn("| 2 | 1 | 0.7 |", markdown)
+        self.assertNotIn("| 4 | 5 | 0.1 |", markdown)
+
+    def test_loss_change_does_not_bridge_missing_displayed_losses(self) -> None:
+        experiment = replace(
+            make_experiment(),
+            episodes=(
+                Episode(1, 1, 0.5),
+                Episode(2, 2, None),
+                Episode(3, 3, 0.0),
+                Episode(4, 4, 0.0),
+            ),
+        )
+        markdown = render_markdown([experiment])
+        self.assertIn("| 1 | 1 | 0.5 | N/A |\n| 2 | 2 | N/A | N/A |\n| 3 | 3 | 0 | N/A |\n| 4 | 4 | 0 | 0 |", markdown)
+        self.assertEqual(markdown.count("| 4 | 4 | 0 | 0 |\n"), 1)
 
     def test_only_learning_rate_may_differ(self) -> None:
         experiment = make_experiment()

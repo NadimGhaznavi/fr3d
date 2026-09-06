@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.1] - 2026-09-06 @ 12:55
+
+### Added
+
+- Added a Nadim-facing Python report viewer with its own `fr3d-report.service`,
+  independent of the agent and llama-server. Each visit or refresh renders the
+  existing learning-rate report from the latest three completed, comparable
+  Snake Lab runs, with source run IDs, a UTC timestamp, and explanatory errors.
+  The listener defaults to `127.0.0.1:61980` with configurable host and port.
+- Included the report viewer, HTML template, and dependencies in installation
+  and upgrade, and its service in uninstall. Upgrade enables and starts the
+  new service.
+
+### Changed
+
+- Added recorded loss and loss change to each displayed high-score row in the
+  shared LLM and web report. Change is current loss minus the previous displayed
+  row's loss within the same run; negative values indicate a decrease. The
+  first change and changes with either loss missing show `N/A`. Preserve the
+  final-epoch row exactly once, even when it does not set a new high score.
+
 ## [0.11.0] - 2026-09-06 @ 11:21
 
 ### Added

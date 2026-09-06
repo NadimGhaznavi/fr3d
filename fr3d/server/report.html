@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Learning-rate report · Fr3d</title>
+  <style>
+    :root { color-scheme: light; font-family: system-ui, sans-serif; color: #243137; background: #f3f5f4; }
+    body { margin: 0; line-height: 1.65; }
+    main { max-width: 960px; margin: 0 auto; padding: 32px 20px 64px; }
+    header { margin-bottom: 24px; }
+    .brand { color: #326b59; font-weight: 700; letter-spacing: .08em; }
+    h1, h2, h3, h4 { line-height: 1.25; }
+    header h1 { margin: 8px 0; }
+    .metadata, .description { color: #52635b; }
+    .refresh { display: inline-block; padding: 8px 18px; border-radius: 6px; background: #265c49; color: white; text-decoration: none; }
+    a:focus-visible { outline: 3px solid #b36d00; outline-offset: 3px; }
+    article { padding: 24px 32px; background: white; border: 1px solid #dbe2de; border-radius: 10px; overflow-wrap: anywhere; }
+    article h2 { border-top: 1px solid #dbe2de; padding-top: 24px; margin-top: 32px; }
+    table { display: block; overflow-x: auto; border-collapse: collapse; margin: 16px 0 24px; font-variant-numeric: tabular-nums; }
+    th, td { padding: 9px 14px; border: 1px solid #dbe2de; white-space: nowrap; }
+    th { background: #edf3ef; }
+    code { background: #edf3ef; padding: 2px 4px; border-radius: 3px; }
+    @media (max-width: 600px) { main { padding: 20px 12px; } article { padding: 16px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div class="brand">FR3D</div>
+      <h1>Learning-rate report</h1>
+      <p class="description">The current report from the latest three completed Snake Lab runs.</p>
+      <p class="metadata">$metadata</p>
+      <a class="refresh" href="/">Refresh report</a>
+    </header>
+    <article aria-label="Learning-rate report">$content</article>
+  </main>
+</body>
+</html>

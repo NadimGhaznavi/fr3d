@@ -1,3 +1,46 @@
+# Nadim-facing report viewer
+
+`fr3d-report.service` runs a separate Python web application at
+`http://127.0.0.1:61980/`. Each visit or refresh reads the latest three completed
+Snake Lab runs and renders the existing learning-rate Markdown report, including
+tables, source run IDs, and a UTC generation timestamp. The same completeness
+and comparability validation used by the report generator applies. Missing or
+incompatible results produce an explanatory page; database and unexpected
+failures produce a retry message and details in the service journal.
+
+This is a current preview, not a saved record of the last model request. Viewing
+it does not call Qwen, submit simulations, or require Fr3d's agent service to be
+running. It uses the existing database credentials and Snake Lab read access.
+
+Install and upgrade include the viewer, its HTML template, and dependencies.
+Upgrade enables and starts the new service; fresh installation enables services
+and leaves starting them to the operator. To start only the installed viewer:
+
+```sh
+sudo systemctl start fr3d-report.service
+journalctl -u fr3d-report.service -n 50
+```
+
+For development, install `requirements.txt`, supply the normal `FR3D_DB_*`
+environment variables (including `FR3D_DB_PASSWORD`), and run:
+
+```sh
+venv/bin/python -m fr3d.server.ReportServer
+```
+
+The default listener is local. For access from another machine, forward port
+61980 over SSH, or set `FR3D_REPORT_HOST` and `FR3D_REPORT_PORT` in a systemd
+override using `systemctl edit fr3d-report.service`:
+
+```ini
+[Service]
+Environment=FR3D_REPORT_HOST=0.0.0.0
+Environment=FR3D_REPORT_PORT=61980
+```
+
+Restart the service after editing. The viewer has no authentication or TLS;
+use a trusted private network or SSH tunnel for this first pass.
+
 # Journal persistence
 
 The request flow is MCP → ZMQ → `Fr3dServer` → `JournalApp` → `JournalDb` →
@@ -55,7 +98,11 @@ baseline for the lifetime of this server process.
 
 The report template is packaged at `fr3d/app/learning-rate.md`, based on
 `notes/learning-rate.md`. It includes rates, score statistics, cumulative high-score
-progression, and loss summaries. No seed or full configuration is sent to the model.
+progression, and loss summaries. Each high-score table includes the recorded loss
+and its change from the previous displayed row in that run (current minus previous;
+negative means a decrease). The first row's change is `N/A`, as is any change with
+a missing endpoint loss. The final epoch always appears once, even when it does
+not set a new high score. No seed or full configuration is sent to the model.
 `LearningRateLLM` sends this report as the sole message to the local
 `/v1/chat/completions` endpoint, with one function tool:
 

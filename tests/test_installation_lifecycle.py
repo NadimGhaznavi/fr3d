@@ -32,6 +32,7 @@ class DeploymentConfigurationTest(unittest.TestCase):
     def test_service_paths_match_refactored_layout(self) -> None:
         for filename, module in (
             (DEFFILE.FR3D_SERVER_SERVICE, "fr3d.server.Fr3dServer"),
+            (DEFFILE.FR3D_REPORT_SERVICE, "fr3d.server.ReportServer"),
             (DEFFILE.LLM_SERVER_SERVICE, "fr3d.server.LLMServer"),
             (DEFFILE.LLM_WATCHDOG_SERVICE, "fr3d.server.LLMWatchdog"),
         ):
@@ -113,6 +114,8 @@ class InstallationLifecycleTest(unittest.TestCase):
         self.assertTrue((self.prefix / "fr3d/mcp-tools/snakelab_tool/__main__.py").is_file())
         self.assertTrue((self.prefix / "fr3d/app/LearningRateLoop.py").is_file())
         self.assertTrue((self.prefix / "fr3d/app/learning-rate.md").is_file())
+        self.assertTrue((self.prefix / "fr3d/server/ReportServer.py").is_file())
+        self.assertTrue((self.prefix / "fr3d/server/report.html").is_file())
         self.assertTrue((self.prefix / "fr3dnet/index.md").is_file())
         self.assertTrue((DEFDIR.SERVER_CONFIG / DEFFILE.MCP_SERVERS_CONFIG).is_file())
         self.assertTrue(DFr3d.FRED_SERVER_LOG.parent.is_dir())
@@ -164,6 +167,13 @@ class InstallationLifecycleTest(unittest.TestCase):
         with patch("scripts.upgrade.os.geteuid", return_value=0):
             with self.assertRaisesRegex(ValueError, "uninstall and reinstall"):
                 upgrade.validate_installation()
+
+    def test_upgrade_installs_enables_and_restarts_report_service(self) -> None:
+        with patch("scripts.upgrade.run") as run:
+            upgrade.update_services()
+        self.assertTrue((self.units / DEFFILE.FR3D_REPORT_SERVICE).is_file())
+        run.assert_any_call("systemctl", "enable", DEFFILE.FR3D_REPORT_SERVICE)
+        run.assert_any_call("systemctl", "restart", DEFFILE.FR3D_REPORT_SERVICE)
 
     def test_uninstall_removes_installation_and_credentials_not_other_config(self) -> None:
         install.recreate_installation()

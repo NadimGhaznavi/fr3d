@@ -6,7 +6,7 @@ from fr3d.constants.DFile import DFileDef as DEFFILE
 
 class DFr3d:
     # Project version
-    VERSION: Final[str] = "0.11.0"
+    VERSION: Final[str] = "0.11.1"
 
     # Fr3d ZMQ network info
     HOST: Final[str] = "0.0.0.0"
@@ -33,6 +33,7 @@ class DFr3d:
         DEFFILE.FR3D_SERVER_SERVICE,
         DEFFILE.LLM_SERVER_SERVICE,
         DEFFILE.LLM_WATCHDOG_SERVICE,
+        DEFFILE.FR3D_REPORT_SERVICE,
     )
     SERVICE_USER: Final[str] = "fr3d"
     FRED_SERVER_LOG: Final[Path] = Path(DEFDIR.SERVER_LOGS / DEFFILE.FRED_SERVER_LOG)

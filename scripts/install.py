@@ -86,7 +86,7 @@ def validate_paths() -> None:
     for filename in SCRIPT_FILES:
         if not (PROJECT_ROOT / "scripts" / filename).is_file():
             raise FileNotFoundError(f"installation script not found: {filename}")
-    for filename in ("Fr3dServer.py", "LLMServer.py", "LLMWatchdog.py"):
+    for filename in ("Fr3dServer.py", "LLMServer.py", "LLMWatchdog.py", "ReportServer.py"):
         entrypoint = PROJECT_ROOT / "fr3d" / "server" / filename
         if not entrypoint.is_file():
             raise FileNotFoundError(f"server entry point not found: {entrypoint}")
@@ -96,6 +96,9 @@ def validate_paths() -> None:
             raise ValueError(
                 f"invalid server entry point: {entrypoint}:{error.lineno}: {error.msg}"
             ) from error
+    report_page = PROJECT_ROOT / "fr3d" / "server" / "report.html"
+    if not report_page.is_file():
+        raise FileNotFoundError(f"report page not found: {report_page}")
     mcp_config = PROJECT_ROOT / "fr3d" / "server" / DEFFILE.MCP_SERVERS_CONFIG
     if not mcp_config.is_file():
         raise FileNotFoundError(f"MCP server configuration not found: {mcp_config}")
