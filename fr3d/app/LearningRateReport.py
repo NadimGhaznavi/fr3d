@@ -227,18 +227,31 @@ def render_markdown(
         "", "### Highscores", "",
         "Epoch is the stored episode number. Tables show the first epoch, each new",
         "cumulative high score, and the final epoch; unchanged intermediate epochs are omitted.",
+        "Loss is the recorded loss at that epoch; N/A means no recorded loss, not zero.",
+        "Loss Change is current loss minus the previous displayed row's loss within the same run.",
+        "A negative change means loss decreased. Change is N/A for the first row or if either loss is missing.",
     ])
     for experiment in experiments:
         lines.extend([
             "", f"#### Run {experiment.id}", "",
-            "| Epoch | Highscore |", "|---:|---:|",
+            "| Epoch | Highscore | Loss | Loss Change |", "|---:|---:|---:|---:|",
         ])
         high_score = -1
+        previous_loss = None
         for episode in experiment.episodes:
             is_record = episode.score > high_score
             high_score = max(high_score, episode.score)
             if is_record or episode == experiment.episodes[-1]:
-                lines.append(f"| {episode.epoch} | {high_score} |")
+                loss_change = (
+                    episode.loss - previous_loss
+                    if episode.loss is not None and previous_loss is not None
+                    else None
+                )
+                lines.append(
+                    f"| {episode.epoch} | {high_score} | {format_number(episode.loss)} | "
+                    f"{format_number(loss_change)} |"
+                )
+                previous_loss = episode.loss
     lines.extend([
         "", "### Training", "",
         "Mean loss excludes NULL values. Final loss is the final epoch's loss;",

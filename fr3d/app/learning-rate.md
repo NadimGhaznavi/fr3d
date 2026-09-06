@@ -34,25 +34,29 @@ All other configuration parameters, including the seed, are fixed.
 
 ### Highscores
 
-Each run's table shows how its highscore progressed across epochs.
+Each run's table shows the first epoch, each new cumulative high score, and the
+final epoch (once, even if it sets a new high score). Loss is the recorded loss at
+that epoch. Loss Change is current loss minus the previous displayed row's loss
+within the same run; negative means a decrease. Missing losses and changes with
+a missing endpoint are N/A. The first row's change is N/A.
 
 #### Run 101
 
-| Epoch | Highscore |
-|---:|---:|
-| ... | ... |
+| Epoch | Highscore | Loss | Loss Change |
+|---:|---:|---:|---:|
+| ... | ... | ... | ... |
 
 #### Run 102
 
-| Epoch | Highscore |
-|---:|---:|
-| ... | ... |
+| Epoch | Highscore | Loss | Loss Change |
+|---:|---:|---:|---:|
+| ... | ... | ... | ... |
 
 #### Run 103
 
-| Epoch | Highscore |
-|---:|---:|
-| ... | ... |
+| Epoch | Highscore | Loss | Loss Change |
+|---:|---:|---:|---:|
+| ... | ... | ... | ... |
 
 ### Training
 
