@@ -3,22 +3,22 @@
     "kb": {
       "command": "/opt/fr3d/.venv/bin/python",
       "args": ["-m", "kb_tool"],
-      "env": {"PYTHONPATH": "/opt/fr3d/mcp-tools"}
+      "env": {"PYTHONPATH": "/opt/fr3d/fr3d/mcp-tools:/opt/fr3d"}
     },
     "journal": {
       "command": "/opt/fr3d/.venv/bin/python",
       "args": ["-m", "journal_tool"],
-      "env": {"PYTHONPATH": "/opt/fr3d/mcp-tools"}
+      "env": {"PYTHONPATH": "/opt/fr3d/fr3d/mcp-tools:/opt/fr3d"}
     },
     "ops": {
       "command": "/opt/fr3d/.venv/bin/python",
       "args": ["-m", "ops_tool"],
-      "env": {"PYTHONPATH": "/opt/fr3d/mcp-tools:/opt/fr3d"}
+      "env": {"PYTHONPATH": "/opt/fr3d/fr3d/mcp-tools:/opt/fr3d"}
     },
     "weather": {
       "command": "/opt/fr3d/.venv/bin/python",
       "args": ["-m", "weather_tool"],
-      "env": {"PYTHONPATH": "/opt/fr3d/mcp-tools"}
+      "env": {"PYTHONPATH": "/opt/fr3d/fr3d/mcp-tools:/opt/fr3d"}
     }
   }
 }

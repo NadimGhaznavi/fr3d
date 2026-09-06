@@ -8,9 +8,9 @@ import pymysql
 from pymysql.connections import Connection
 from pymysql.cursors import DictCursor
 
-from constants.DDatabase import DDatabase
+from fr3d.constants.DDatabase import DDatabase
 
-class DbManager:
+class DbMgr:
 
     def __init__(self) -> None:
         pass

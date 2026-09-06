@@ -18,24 +18,18 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from constants.DFr3d import DFr3d  # noqa: E402
-from constants.DDatabase import DDatabase  # noqa: E402
+from fr3d.constants.DFr3d import DFr3d  # noqa: E402
+from fr3d.constants.DDatabase import DDatabase  # noqa: E402
+from fr3d.constants.DDir import DDirDef as DEFDIR  # noqa: E402
+from fr3d.constants.DFile import DFileDef as DEFFILE  # noqa: E402
 
 SYSTEMD_DIRECTORY = Path("/etc/systemd/system")
 SOURCE_DIRECTORIES = (
-    "constants",
-    "database",
+    "fr3d",
     "fr3dnet",
-    "mcp-tools",
-    "server",
-    "utils",
 )
-OBSOLETE_SOURCE_DIRECTORIES = ("kb_tool", "journal_tool", "weather_tool")
 ROOT_FILES = ("requirements.txt", "pyproject.toml")
-OBSOLETE_SERVICE_NAMES = (
-    "fr3d.service",
-    DFr3d.SCHEDULER_SERVICE_NAME,
-)
+SCRIPT_FILES = ("install.py", "uninstall.py", "upgrade.py", "upgrade.sh")
 
 
 def run(*command: str | Path, check: bool = True) -> None:
@@ -47,25 +41,64 @@ def require_root() -> None:
         raise PermissionError("Fr3d installation must be run as root")
 
 
-def validate_paths() -> None:
-    prefix = DFr3d.INSTALL_ROOT
+def validate_installation_root(*, allow_installed_script: bool = False) -> None:
+    prefix = DEFDIR.INSTALL_ROOT
     if not prefix.is_absolute() or len(prefix.parts) < 3:
         raise ValueError(f"unsafe installation root: {prefix}")
-    if prefix.resolve(strict=False) == PROJECT_ROOT.resolve():
-        raise ValueError("installation root cannot be the source checkout")
+    resolved_prefix = prefix.resolve(strict=False)
+    source_root = PROJECT_ROOT.resolve()
+    if resolved_prefix == source_root:
+        if not allow_installed_script:
+            raise ValueError("installation root cannot be the source checkout")
+    elif resolved_prefix in source_root.parents or source_root in resolved_prefix.parents:
+        raise ValueError("installation root cannot overlap the source checkout")
     if prefix.is_symlink():
         raise ValueError(f"refusing symlinked installation root: {prefix}")
     if prefix.exists() and not prefix.is_dir():
         raise ValueError(f"installation root is not a directory: {prefix}")
 
+
+def validate_database_environment() -> None:
+    directory = DDatabase.ENV_FILE.parent
+    if not directory.is_absolute() or len(directory.parts) < 3:
+        raise ValueError(f"unsafe database config directory: {directory}")
+    if directory.is_symlink():
+        raise ValueError(f"refusing symlinked config directory: {directory}")
+    if directory.exists() and not directory.is_dir():
+        raise ValueError(f"database config path is not a directory: {directory}")
+    if DDatabase.ENV_FILE.is_symlink():
+        raise ValueError(f"refusing symlinked database credentials: {DDatabase.ENV_FILE}")
+    if DDatabase.ENV_FILE.exists() and not DDatabase.ENV_FILE.is_file():
+        raise ValueError(f"database credentials are not a file: {DDatabase.ENV_FILE}")
+
+
+def validate_paths() -> None:
+    validate_installation_root()
+    validate_database_environment()
     for service_name in DFr3d.SERVICE_NAMES:
         source = PROJECT_ROOT / "systemd" / service_name
         if not source.is_file():
             raise FileNotFoundError(f"systemd unit not found: {source}")
 
-    entrypoint = PROJECT_ROOT / "server" / "LLMServer.py"
-    if not entrypoint.is_file():
-        raise FileNotFoundError(f"server entry point not found: {entrypoint}")
+    for directory_name in SOURCE_DIRECTORIES:
+        if not (PROJECT_ROOT / directory_name).is_dir():
+            raise FileNotFoundError(f"runtime directory not found: {directory_name}")
+    for filename in SCRIPT_FILES:
+        if not (PROJECT_ROOT / "scripts" / filename).is_file():
+            raise FileNotFoundError(f"installation script not found: {filename}")
+    for filename in ("Fr3dServer.py", "LLMServer.py", "LLMWatchdog.py"):
+        entrypoint = PROJECT_ROOT / "fr3d" / "server" / filename
+        if not entrypoint.is_file():
+            raise FileNotFoundError(f"server entry point not found: {entrypoint}")
+        try:
+            compile(entrypoint.read_text(encoding="utf-8"), str(entrypoint), "exec")
+        except SyntaxError as error:
+            raise ValueError(
+                f"invalid server entry point: {entrypoint}:{error.lineno}: {error.msg}"
+            ) from error
+    mcp_config = PROJECT_ROOT / "fr3d" / "server" / DEFFILE.MCP_SERVERS_CONFIG
+    if not mcp_config.is_file():
+        raise FileNotFoundError(f"MCP server configuration not found: {mcp_config}")
 
 
 def mariadb_client() -> str:
@@ -78,13 +111,8 @@ def mariadb_client() -> str:
 
 
 def stop_existing_services() -> None:
-    for service_name in reversed((*DFr3d.SERVICE_NAMES, *OBSOLETE_SERVICE_NAMES)):
+    for service_name in reversed(DFr3d.SERVICE_NAMES):
         run("systemctl", "disable", "--now", service_name, check=False)
-
-    for service_name in OBSOLETE_SERVICE_NAMES:
-        obsolete_unit = SYSTEMD_DIRECTORY / service_name
-        if obsolete_unit.is_file() or obsolete_unit.is_symlink():
-            obsolete_unit.unlink()
 
 
 def ensure_service_account() -> None:
@@ -102,7 +130,7 @@ def ensure_service_account() -> None:
             "--gid",
             DFr3d.SERVICE_GROUP,
             "--home-dir",
-            DFr3d.INSTALL_ROOT,
+            DEFDIR.INSTALL_ROOT,
             "--shell",
             "/usr/sbin/nologin",
             DFr3d.SERVICE_USER,
@@ -110,10 +138,12 @@ def ensure_service_account() -> None:
 
 
 def write_database_environment(password: str) -> None:
-    DFr3d.CONFIG_DIRECTORY.mkdir(parents=True, exist_ok=True, mode=0o750)
-    DFr3d.CONFIG_DIRECTORY.chmod(0o750)
+    validate_database_environment()
+    directory = DDatabase.ENV_FILE.parent
+    directory.mkdir(parents=True, exist_ok=True, mode=0o750)
+    directory.chmod(0o750)
     shutil.chown(
-        DFr3d.CONFIG_DIRECTORY,
+        directory,
         user="root",
         group=DFr3d.SERVICE_GROUP,
     )
@@ -127,7 +157,7 @@ def write_database_environment(password: str) -> None:
     with tempfile.NamedTemporaryFile(
         mode="w",
         encoding="utf-8",
-        dir=DFr3d.CONFIG_DIRECTORY,
+        dir=directory,
         prefix=".database.env.",
         delete=False,
     ) as temporary_file:
@@ -143,10 +173,7 @@ def write_database_environment(password: str) -> None:
 
 
 def destroy_database() -> None:
-    if DFr3d.CONFIG_DIRECTORY.is_symlink():
-        raise ValueError(
-            f"refusing symlinked config directory: {DFr3d.CONFIG_DIRECTORY}"
-        )
+    validate_database_environment()
     sql = f"""
 DROP DATABASE IF EXISTS `{DDatabase.DB_NAME}`;
 DROP USER IF EXISTS '{DDatabase.USERNAME}'@'{DDatabase.HOST}';
@@ -157,8 +184,7 @@ DROP USER IF EXISTS '{DDatabase.USERNAME}'@'{DDatabase.HOST}';
         text=True,
         check=True,
     )
-    if DFr3d.CONFIG_DIRECTORY.is_dir():
-        shutil.rmtree(DFr3d.CONFIG_DIRECTORY)
+    DDatabase.ENV_FILE.unlink(missing_ok=True)
 
 
 def ensure_snake_lab_read_access() -> None:
@@ -211,12 +237,39 @@ def ensure_agent_log_directory() -> None:
     shutil.chown(directory, user=DFr3d.SERVICE_USER, group=DFr3d.SERVICE_GROUP)
 
 
+def copy_server_configuration() -> None:
+    directory = DEFDIR.SERVER_CONFIG
+    if directory.is_symlink():
+        raise ValueError(f"refusing symlinked server config directory: {directory}")
+    directory.mkdir(parents=True, exist_ok=True, mode=0o750)
+    directory.chmod(0o750)
+    shutil.chown(directory, user="root", group=DFr3d.SERVICE_GROUP)
+    destination = directory / DEFFILE.MCP_SERVERS_CONFIG
+    if destination.is_symlink():
+        raise ValueError(f"refusing symlinked MCP server configuration: {destination}")
+    shutil.copy2(
+        PROJECT_ROOT / "fr3d" / "server" / DEFFILE.MCP_SERVERS_CONFIG,
+        destination,
+    )
+    destination.chmod(0o644)
+
+
 def recreate_installation() -> None:
-    prefix = DFr3d.INSTALL_ROOT
+    prefix = DEFDIR.INSTALL_ROOT
+    model_directory = None
+    if DEFDIR.MODELS.is_relative_to(prefix):
+        model_directory = prefix / DEFDIR.MODELS.relative_to(prefix).parts[0]
     if prefix.exists():
-        shutil.rmtree(prefix)
-    prefix.mkdir(parents=True, mode=0o755)
-    DFr3d.WATCHDOG_LOG.parent.mkdir(mode=0o755)
+        for child in prefix.iterdir():
+            if child == model_directory:
+                continue
+            if child.is_dir() and not child.is_symlink():
+                shutil.rmtree(child)
+            else:
+                child.unlink()
+    prefix.mkdir(parents=True, exist_ok=True, mode=0o755)
+    prefix.chmod(0o755)
+    DFr3d.WATCHDOG_LOG.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
     ensure_agent_log_directory()
 
     for directory_name in SOURCE_DIRECTORIES:
@@ -230,7 +283,7 @@ def recreate_installation() -> None:
 
     scripts_directory = prefix / "scripts"
     scripts_directory.mkdir(mode=0o755)
-    for script_name in ("install.py", "uninstall.py", "upgrade.py", "upgrade.sh"):
+    for script_name in SCRIPT_FILES:
         destination = scripts_directory / script_name
         shutil.copy2(PROJECT_ROOT / "scripts" / script_name, destination)
         destination.chmod(0o755)
@@ -241,12 +294,13 @@ def recreate_installation() -> None:
             shutil.copy2(source, prefix / filename)
 
     shutil.chown(prefix, user="root", group=DFr3d.SERVICE_GROUP)
+    copy_server_configuration()
 
 
 def install_environment() -> None:
-    environment = DFr3d.INSTALL_ROOT / DFr3d.VENV_DIRECTORY
+    environment = DEFDIR.INSTALL_ROOT / DEFDIR.VENV
     venv.EnvBuilder(with_pip=True, upgrade_deps=False).create(environment)
-    requirements = DFr3d.INSTALL_ROOT / "requirements.txt"
+    requirements = DEFDIR.INSTALL_ROOT / "requirements.txt"
     if requirements.is_file():
         run(environment / "bin" / "python", "-m", "pip", "install", "-r", requirements)
 
@@ -269,15 +323,15 @@ def main() -> int:
         stop_existing_services()
         destroy_database()
         ensure_service_account()
-        provision_database()
         recreate_installation()
+        provision_database()
         install_environment()
         install_services()
     except (OSError, PermissionError, ValueError, subprocess.CalledProcessError) as error:
         print(f"install.py: {error}", file=sys.stderr)
         return 1
 
-    print(f"Fr3d {DFr3d.VERSION} installed in {DFr3d.INSTALL_ROOT}")
+    print(f"Fr3d {DFr3d.VERSION} installed in {DEFDIR.INSTALL_ROOT}")
     print(f"Start it with: systemctl start {' '.join(DFr3d.SERVICE_NAMES)}")
     return 0
 

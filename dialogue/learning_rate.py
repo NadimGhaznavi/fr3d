@@ -10,7 +10,7 @@ from pathlib import Path
 from statistics import mean, median
 from typing import Any
 
-from constants.DDatabase import DDatabase
+from fr3d.constants.DDatabase import DDatabase
 
 
 DEFAULT_TEMPLATE = Path(__file__).resolve().parent.parent / "templates" / "learning-rate.md"
