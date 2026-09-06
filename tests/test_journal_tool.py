@@ -1,160 +1,106 @@
 from __future__ import annotations
 
 import unittest
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
+from unittest.mock import MagicMock, patch
 
-from journal_tool.journal import run_operation
-from journal_tool.repository import JournalEntry, JournalRepository
-
-
-class FakeRepository:
-    def __init__(self) -> None:
-        self.entries: list[JournalEntry] = []
-        self.requested_limit: int | None = None
-
-    def create(self, title: str, entry: str) -> JournalEntry:
-        created = JournalEntry(
-            1,
-            title,
-            entry,
-            datetime(2026, 9, 1, 14, 30),
-        )
-        self.entries.append(created)
-        return created
-
-    def list(self, limit: int) -> list[JournalEntry]:
-        self.requested_limit = limit
-        return self.entries[:limit]
+from fr3d.app.JournalApp import JournalApp, JournalRateLimitError, JournalValidationError
+from fr3d.database.DbMgr import DbMgr
+from fr3d.database.JournalDb import JournalDb, JournalBusyError
 
 
-class JournalToolTest(unittest.TestCase):
-    def test_new_entry_returns_markdown(self) -> None:
-        repository = FakeRepository()
-        result = run_operation(
-            "new_entry",
-            "A Useful Afternoon",
-            "First paragraph.\n\nSecond paragraph.",
-            repository=repository,
-        )
+class JournalPersistenceTest(unittest.TestCase):
+    def setUp(self):
+        self.connection = MagicMock()
+        self.cursor = self.connection.cursor.return_value.__enter__.return_value
+        self.cursor.lastrowid = 42
+        self.cursor.fetchall.side_effect = [[{'acquired': 1}], []]
+        self.enterContext(patch.object(DbMgr, 'connect', return_value=self.connection))
+        self.now = datetime(2026, 9, 6, 12, 0, tzinfo=timezone.utc)
+        self.app = JournalApp(clock=lambda: self.now)
 
-        self.assertTrue(result.startswith("# Journal Entry Created\n"))
-        self.assertIn("## A Useful Afternoon", result)
-        self.assertIn("Created: 2026-09-01T10:30-04:00", result)
-        self.assertIn("First paragraph.\n\nSecond paragraph.", result)
-        self.assertEqual(len(repository.entries), 1)
+    def test_insert_is_parameterized_and_committed_before_success(self):
+        title = "A 'quoted' title"
+        entry = "Markdown\n'); DROP TABLE journal_entries; --"
+        result = self.app.add_entry(title, entry)
+        sql, params = self.cursor.execute.call_args.args
+        self.assertEqual(sql, 'INSERT INTO journal_entries (title, entry, created_at) VALUES (%s, %s, %s)')
+        self.assertEqual(params, (title, entry, self.now.replace(tzinfo=None)))
+        self.assertEqual(result['id'], 42)
+        self.assertEqual(result['created_at'], self.now.isoformat())
+        self.connection.commit.assert_called_once()
+        self.connection.rollback.assert_not_called()
+        self.connection.close.assert_called_once()
 
-    def test_list_entries_returns_markdown(self) -> None:
-        repository = FakeRepository()
-        repository.create("First", "One paragraph.")
+    def test_rate_limit_and_exact_boundary(self):
+        for elapsed in (0, 59, 60):
+            with self.subTest(elapsed=elapsed):
+                self.connection.reset_mock()
+                self.cursor.fetchall.side_effect = [
+                    [{'acquired': 1}],
+                    [{'created_at': self.now.replace(tzinfo=None) - timedelta(seconds=elapsed)}],
+                ]
+                if elapsed < 60:
+                    with self.assertRaises(JournalRateLimitError) as error:
+                        self.app.add_entry('Title', 'Entry')
+                    self.assertEqual(error.exception.retry_after, 60 - elapsed)
+                    self.connection.rollback.assert_called_once()
+                    self.connection.commit.assert_not_called()
+                    self.assertEqual(self.cursor.execute.call_count, 2)
+                else:
+                    self.assertEqual(self.app.add_entry('Title', 'Entry')['status'], 'ok')
+                    self.connection.commit.assert_called_once()
+                self.connection.close.assert_called_once()
 
-        result = run_operation("list_entries", limit=10, repository=repository)
+    def test_invalid_input_never_connects(self):
+        for title, entry in [('', 'x'), ('  ', 'x'), (None, 'x'), ('x'*121, 'x'),
+                             ('x', 'y'*10001), ('x', ''), ('x', []),
+                             ('x', 'bad\x00text'), ('x', '\ud800')]:
+            with self.subTest(title=title, entry=entry), self.assertRaises(JournalValidationError):
+                self.app.add_entry(title, entry)
+        DbMgr.connect.assert_not_called()
 
-        self.assertTrue(result.startswith("# Journal\n"))
-        self.assertIn("## First", result)
-        self.assertNotIn("SELECT", result)
-        self.assertEqual(repository.requested_limit, 10)
+    def test_limits_accept_valid_unicode(self):
+        self.assertEqual(self.app.add_entry('x'*120, '😀'*10000)['status'], 'ok')
 
-    def test_empty_journal_returns_markdown(self) -> None:
-        result = run_operation("list_entries", repository=FakeRepository())
-        self.assertEqual(result, "# Journal\n\nNo journal entries found.")
+    def test_lock_failure_does_not_read_or_insert(self):
+        for acquired in (0, None):
+            self.connection.reset_mock()
+            self.cursor.fetchall.side_effect = [[{'acquired': acquired}]]
+            with self.assertRaises(JournalBusyError):
+                self.app.add_entry('Title', 'Entry')
+            self.assertEqual(self.cursor.execute.call_count, 1)
+            self.connection.rollback.assert_called_once()
+            self.connection.close.assert_called_once()
 
-    def test_more_than_five_paragraphs_are_rejected(self) -> None:
-        entry = "\n\n".join(f"Paragraph {number}" for number in range(6))
-        with self.assertRaisesRegex(ValueError, "no more than 5 paragraphs"):
-            run_operation(
-                "new_entry",
-                "Too Long",
-                entry,
-                repository=FakeRepository(),
-            )
+    def test_insert_and_commit_failures_roll_back_and_close(self):
+        for failure in ('insert', 'commit'):
+            with self.subTest(failure=failure):
+                self.connection.reset_mock()
+                self.cursor.fetchall.side_effect = [[{'acquired': 1}], []]
+                self.cursor.execute.side_effect = [None, None, RuntimeError('insert failed')] if failure == 'insert' else None
+                self.connection.commit.side_effect = RuntimeError('commit failed') if failure == 'commit' else None
+                with self.assertRaises(RuntimeError):
+                    self.app.add_entry('Title', 'Entry')
+                self.connection.rollback.assert_called_once()
+                self.connection.close.assert_called_once()
 
-    def test_invalid_operation_is_rejected(self) -> None:
-        with self.assertRaisesRegex(ValueError, "new_entry, list_entries"):
-            run_operation("query_database", repository=FakeRepository())
+    def test_database_selection_and_read_results(self):
+        self.cursor.fetchall.side_effect = [[{'id': 1}]]
+        result = DbMgr(database_name='snakelab', unix_socket='/tmp/mysql.sock').query('SELECT id FROM runs WHERE id = %s', (1,))
+        DbMgr.connect.assert_called_once_with(database_name='snakelab', unix_socket='/tmp/mysql.sock')
+        self.assertEqual(result, [{'id': 1}])
 
-    def test_operation_arguments_are_scoped(self) -> None:
-        with self.assertRaisesRegex(ValueError, "accepts only op and limit"):
-            run_operation(
-                "list_entries",
-                title="Not allowed",
-                repository=FakeRepository(),
-            )
-
-
-class FakeCursor:
-    def __init__(self, rows=None) -> None:
-        self.rows = rows or []
-        self.lastrowid = 7
-        self.executions: list[tuple[str, tuple]] = []
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, _type, _value, _traceback) -> None:
-        pass
-
-    def execute(self, sql: str, parameters: tuple) -> None:
-        self.executions.append((sql, parameters))
-
-    def fetchall(self):
-        return self.rows
-
-
-class FakeConnection:
-    def __init__(self, cursor: FakeCursor) -> None:
-        self.fake_cursor = cursor
-        self.committed = False
-        self.rolled_back = False
-        self.closed = False
-
-    def cursor(self) -> FakeCursor:
-        return self.fake_cursor
-
-    def commit(self) -> None:
-        self.committed = True
-
-    def rollback(self) -> None:
-        self.rolled_back = True
-
-    def close(self) -> None:
-        self.closed = True
-
-
-class JournalRepositoryTest(unittest.TestCase):
-    def test_create_uses_parameterized_insert(self) -> None:
-        cursor = FakeCursor()
-        connection = FakeConnection(cursor)
-        repository = JournalRepository(lambda: connection)
-
-        created = repository.create("Title", "Entry")
-
-        sql, parameters = cursor.executions[0]
-        self.assertIn("INSERT INTO journal_entries", sql)
-        self.assertEqual(parameters[:2], ("Title", "Entry"))
-        self.assertNotIn("Title", sql)
-        self.assertEqual(created.id, 7)
-        self.assertTrue(connection.committed)
-        self.assertTrue(connection.closed)
-
-    def test_list_is_bounded_and_parameterized(self) -> None:
-        rows = [{
-            "id": 3,
-            "title": "Title",
-            "entry": "Entry",
-            "created_at": datetime(2026, 9, 1, 14, 30),
-        }]
-        cursor = FakeCursor(rows)
-        connection = FakeConnection(cursor)
-        repository = JournalRepository(lambda: connection)
-
-        entries = repository.list(12)
-
-        sql, parameters = cursor.executions[0]
-        self.assertIn("ORDER BY created_at DESC", sql)
-        self.assertEqual(parameters, (12,))
-        self.assertEqual(entries[0].title, "Title")
-        self.assertTrue(connection.closed)
+    def test_recent_entries_are_bounded_and_ordered(self):
+        self.cursor.fetchall.side_effect = [[]]
+        JournalDb().get_entries(10)
+        sql, params = self.cursor.execute.call_args.args
+        self.assertIn('ORDER BY created_at DESC, id DESC LIMIT %s', sql)
+        self.assertEqual(params, (10,))
+        for limit in (0, 101, True):
+            with self.assertRaises(ValueError):
+                JournalDb().get_entries(limit)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     unittest.main()

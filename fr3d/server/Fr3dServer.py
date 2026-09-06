@@ -20,7 +20,8 @@ from fr3d.constants.DMethod import DMethod as METHOD
 from fr3d.zmq.ZMQClient import ZMQClient
 from fr3d.zmq.ZMQServer import MsgHandler, ZMQServer
 from fr3d.zmq.ZMQMsg import ZMQMsg
-from fr3d.database.JournalDb import JournalDb
+from fr3d.app.JournalApp import JournalApp, JournalValidationError, JournalRateLimitError
+from fr3d.database.JournalDb import JournalBusyError
 
 
 
@@ -36,7 +37,8 @@ class Fr3dServer:
         srv_methods: dict[str, MsgHandler] | None = None,
     ) -> None:
 
-        srv_methods = { METHOD.ADD_JOURNAL_ENTRY: self.add_journal_entry}
+        if srv_methods is None:
+            srv_methods = {METHOD.ADD_JOURNAL_ENTRY: self.add_journal_entry}
         
         self.zmq_server = ZMQServer(
             address=address,
@@ -51,9 +53,19 @@ class Fr3dServer:
         self._running = False
 
     async def add_journal_entry(self, msg: ZMQMsg):
-        self.log.info(f"Received: {msg.payload}")
-        db = JournalDb()
-        return db.add_entry(title=msg.payload['title'], entry=msg.payload['entry']) 
+        app = JournalApp()
+        try:
+            return await asyncio.to_thread(
+                app.add_entry, title=msg.payload.get('title'), entry=msg.payload.get('entry'),
+            )
+        except (JournalValidationError, JournalRateLimitError, JournalBusyError) as error:
+            code = ("rate_limited" if isinstance(error, JournalRateLimitError) else
+                    "journal_busy" if isinstance(error, JournalBusyError) else "invalid_request")
+            details = {"code": code, "message": str(error)}
+            if isinstance(error, JournalRateLimitError):
+                details["retry_after_seconds"] = error.retry_after
+            self.log.warning(f"Journal request rejected: {error}")
+            return {"status": "error", "error": details}
 
     async def run(self) -> None:
         """Serve until stopped, cancelled, or the transport fails."""

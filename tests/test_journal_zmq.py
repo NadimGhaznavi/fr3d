@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from fr3d.constants.DMethod import DMethod
 from fr3d.server.Fr3dServer import Fr3dServer
@@ -27,12 +27,16 @@ class JournalMCPTest(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(result.is_error)
         self.assertEqual(json.loads(result.content[0].text), payload)
 
-    async def test_mcp_to_fr3d_stub_over_zmq(self) -> None:
+    async def test_mcp_to_fr3d_database_boundary_over_zmq(self) -> None:
         with patch("fr3d.zmq.ZMQServer.MyLog"):
             server = Fr3dServer(address="127.0.0.1", port=0, log_file=None)
         task = asyncio.create_task(server.run())
         try:
-            with patch(
+            connection = MagicMock()
+            cursor = connection.cursor.return_value.__enter__.return_value
+            cursor.fetchall.side_effect = [[{"acquired": 1}], []]
+            cursor.lastrowid = 123
+            with patch("fr3d.database.DbMgr.DbMgr.connect", return_value=connection), patch(
                 "journal_tool.JournalTool.ZMQClient",
                 return_value=ZMQClient(server.endpoint, timeout=1),
             ):
@@ -40,8 +44,10 @@ class JournalMCPTest(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(result.is_error)
             payload = json.loads(result.content[0].text)
             self.assertEqual(payload["status"], "ok")
-            # The existing server stub still uses its placeholder title.
-            self.assertEqual(payload["message"], "New journal entry (foo) being created")
+            self.assertEqual(payload["id"], 123)
+            self.assertEqual(cursor.execute.call_args.args[1][:2], ("Test title", "Test entry"))
+            connection.commit.assert_called_once()
+            connection.close.assert_called_once()
             server.log.error.assert_not_called()
         finally:
             server.stop()
