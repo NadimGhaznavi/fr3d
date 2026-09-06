@@ -50,10 +50,10 @@ class Fr3dServer:
         self._stop_event = asyncio.Event()
         self._running = False
 
-    async def add_journal_entry(self, payload: ZMQMsg):
-        self.log.info(f"Received: {payload.payload}")
+    async def add_journal_entry(self, msg: ZMQMsg):
+        self.log.info(f"Received: {msg.payload}")
         db = JournalDb()
-        return db.add_entry(title="foo", entry="bar") 
+        return db.add_entry(title=msg.payload['title'], entry=msg.payload['entry']) 
 
     async def run(self) -> None:
         """Serve until stopped, cancelled, or the transport fails."""
