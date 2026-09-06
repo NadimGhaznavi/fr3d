@@ -21,7 +21,8 @@ async def choose_learning_rate(report: str) -> float:
         "max_tokens": 4096,
         "stream": False,
         "tools": [LEARNING_RATE_TOOL],
-        "tool_choice": {"type": "function", "function": {"name": "submit_learning_rate"}},
+        # This llama-server expects a string; only submit_learning_rate is offered.
+        "tool_choice": "required",
         "parallel_tool_calls": False,
     }
     # The whole request is bounded and cancellation closes the HTTP connection.

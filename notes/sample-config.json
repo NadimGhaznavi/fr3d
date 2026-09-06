@@ -1,0 +1,38 @@
+{
+  "epochs": 500,
+  "seed": 1970,
+  "game": {
+    "board_width": 20,
+    "board_height": 20,
+    "initial_snake_length": 3,
+    "max_moves_multiplier": 100,
+    "rewards": {
+      "food": 10.0,
+      "wall": -10.0,
+      "snake": -10.0,
+      "max_moves": -10.0,
+      "empty": 0.0,
+      "closer_to_food": 0.1,
+      "further_from_food": -0.1
+    }
+  },
+  "model": {
+    "hidden_size": 192,
+    "layers": 3,
+    "dropout": 0.1
+  },
+  "training": {
+    "sequence_length": 8,
+    "batch_size": 64,
+    "replay_max_frames": 150000,
+    "learning_rate": 0.002,
+    "gamma": 0.96,
+    "tau": 0.001,
+    "max_gradient_norm": 1.0
+  },
+  "epsilon": {
+    "initial": 0.96,
+    "minimum": 0.0,
+    "decay": 0.97
+  }
+}
