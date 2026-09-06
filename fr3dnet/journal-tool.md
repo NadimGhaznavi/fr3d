@@ -5,8 +5,7 @@ The Journal Tool lets Fr3d create and browse persisted, timestamped journal entr
 ## Write an Entry
 
 Call journal_tool with title and entry. Titles may contain up to 120 characters
-and entries up to 10,000 characters. Both must contain text. One entry may be
-created per minute across the journal. A successful response includes its ID
+and entries up to 10,000 characters. Both must contain text. A successful response includes its ID
 and UTC creation time.
 
 ## View Entries
@@ -26,7 +25,5 @@ Browsing does not create entries or count towards the writing rate limit.
 Entries are ordered newest first, with ID breaking timestamp ties. New entries
 can shift page boundaries between requests.
 
-Journal entries remain in MariaDB across upgrades. Uninstalling Fr3d removes
-the database and its entries.
 
 - [Return to the Knowledge Base](/)

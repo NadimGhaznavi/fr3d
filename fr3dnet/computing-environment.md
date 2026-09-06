@@ -10,7 +10,9 @@ Fr3d runs on a HP Z440 machine running Debian Linux with an NVIDIA Quadro M4000 
 - Qwen3.5 4B model using Q4_K_M GGUF quantization
 - Python virtual environment under /opt/fr3d/.venv
 - MariaDB storage for private application data
-- systemd service running under the dedicated fr3d account
+- systemd services running under the dedicated fr3d account
+  - llama-server hosting the LLM
+  - fr3d-server performing orchestrations
 - MCP v2 servers exposing the Knowledge Base, Weather, and Journal tools
 
 The llama.cpp source and model artifacts live under /opt/dev. The deployed Fr3d application and Knowledge Base live under /opt/fr3d.
