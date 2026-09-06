@@ -69,6 +69,7 @@ class LearningRateLoop:
         return report, config, baseline
 
     async def decide(self) -> None:
+        self.log.info("decide(): Prompting the LLM to pick a learning rate")
         try:
             version = await asyncio.to_thread(self.server.snake_lab_version)
             if version != self.project_version:
@@ -105,15 +106,17 @@ class LearningRateLoop:
                 result = json.loads(await SnakeLabTool(self.server.endpoint).submit_learning_rate(learning_rate))
                 if result.get("status") == "already_run":
                     report = result["message"] + "\n\n" + result["report"]
-                    self.log.info(f"Attempted to re-run experiment with LR set to: {learning_rate}")
+                    self.log.info(f"Rejected duplicate learning rate: {learning_rate}")
                     continue
                 if result.get("status") != "ok":
-                    raise RuntimeError(result.get("error", {}).get("message", "Learning-rate submission failed"))
+                    msg = result.get("error", {}).get("message", "Learning-rate submission failed")
+                    self.log.critical(msg)
+                    raise RuntimeError(msg)
                 self.server.log.info(f"Submitted learning rate {learning_rate}: run {result['run_id']}")
                 return
             raise ValueError("Model selected previously completed simulations three times")
         except Exception as error:
-            self.server.log.warning(f"Learning-rate decision failed: {error}")
+            self.server.log.warning(f"Learning rate decision failed: {error}")
         finally:
             self.pending_config = None
 
@@ -155,4 +158,5 @@ class LearningRateLoop:
             # Consume before sending: a timeout must not retry this proposal.
             self.pending_config = None
             result = await asyncio.to_thread(self.server.submit_simulation, config)
+            self.log.info(f"New learning rate experiment submitted: {learning_rate}")
             return {"status": "ok", "learning_rate": learning_rate, "run_id": result["run_id"]}
