@@ -1,4 +1,4 @@
-"""Serve Nadim's current learning-rate report without invoking the model."""
+"""Serve Nadim's learning-rate report and journal browser."""
 
 from __future__ import annotations
 
@@ -16,10 +16,24 @@ from starlette.routing import Route
 import uvicorn
 
 from fr3d.app.LearningRateReport import load_experiments, render_markdown
+from fr3d.app.JournalApp import JournalApp, JournalValidationError
 
 
 LOG = logging.getLogger(__name__)
 PAGE = Template(Path(__file__).with_name("report.html").read_text(encoding="utf-8"))
+
+
+def page_response(*, title, description, metadata, content, refresh_url,
+                  refresh_label="Refresh", status=200):
+    return HTMLResponse(
+        PAGE.substitute(
+            title=escape(title), description=escape(description),
+            metadata=escape(metadata), content=content,
+            refresh_url=escape(refresh_url, quote=True), refresh_label=escape(refresh_label),
+        ),
+        status_code=status,
+        headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"},
+    )
 
 
 def latest_report(request):
@@ -42,14 +56,72 @@ def latest_report(request):
         status = 503
         metadata = "Report unavailable"
         content = "<h2>Could not load the report</h2><p>Please try refreshing in a moment. If this continues, check the report service logs.</p>"
-    return HTMLResponse(
-        PAGE.substitute(metadata=escape(metadata), content=content),
-        status_code=status,
-        headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"},
+    return page_response(
+        title="Learning-rate report",
+        description="The current report from the latest three completed Snake Lab runs.",
+        metadata=metadata, content=content, refresh_url="/",
+        refresh_label="Refresh report", status=status,
     )
 
 
-app = Starlette(routes=[Route("/", latest_report, methods=["GET"])])
+def journal(request):
+    """Reuse the journal application's validation and read-only pagination."""
+    path = request.path_params.get("path", "")
+    url = "/" + path
+    title = "Ackbar's journal"
+    metadata = ""
+    status = 200
+    back = '<p><a href="/journal/">Back to journal entries</a></p>'
+    try:
+        result = JournalApp().view_entries(url)
+        if result["kind"] == "entry":
+            entry = result["entry"]
+            title = entry["title"]
+            metadata = f"Entry {entry['id']} · {entry['created_at'].replace('T', ' ').replace('+00:00', ' UTC')}"
+            content = back + MarkdownIt(
+                "commonmark", {"html": False, "breaks": True},
+            ).enable("table").disable("image").render(entry["entry"]) + back
+        else:
+            page = result["page"]
+            metadata = f"Page {page} · Newest first · All timestamps in UTC"
+            rows = []
+            for entry in result["entries"]:
+                timestamp = escape(entry["created_at"].replace("T", " ").replace("+00:00", " UTC"))
+                rows.append(
+                    f'<li><a href="/journal/entries/{entry["id"]}">{escape(entry["title"])}</a>'
+                    f'<div class="metadata"><time datetime="{escape(entry["created_at"], quote=True)}">'
+                    f'{timestamp}</time> · Entry {entry["id"]}</div></li>'
+                )
+            content = '<ul class="entries">' + "".join(rows) + '</ul>' if rows else (
+                "<p>No journal entries yet.</p>" if page == 1 else "<p>No entries on this page.</p>"
+            )
+            links = []
+            if page > 1:
+                previous = "/journal/" if page == 2 else f"/journal/page/{page - 1}"
+                links.append(f'<a href="{previous}">Previous page</a>')
+            if result["has_next"]:
+                links.append(f'<a href="/journal/page/{page + 1}">Next page</a>')
+            content += '<nav aria-label="Journal pages">' + " ".join(links) + '</nav>'
+    except JournalValidationError:
+        status = 404
+        metadata = "Not found"
+        content = "<p>This journal page or entry could not be found.</p>" + back
+    except Exception:
+        LOG.exception("Could not load journal")
+        status = 503
+        metadata = "Journal unavailable"
+        content = "<p>Could not load the journal. Please try refreshing in a moment.</p>" + back
+    return page_response(
+        title=title, description="Journal entries from Ackbar.", metadata=metadata,
+        content=content, refresh_url="/journal/" + path, status=status,
+    )
+
+
+app = Starlette(routes=[
+    Route("/", latest_report, methods=["GET"]),
+    Route("/journal/", journal, methods=["GET"]),
+    Route("/journal/{path:path}", journal, methods=["GET"]),
+])
 
 
 def main():

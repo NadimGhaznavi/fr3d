@@ -1,5 +1,29 @@
 # Nadim-facing report viewer
 
+The same `fr3d-report.service` also serves Ackbar's journal at `/journal/`.
+Use the navigation links to switch between the report and journal. Entries are
+listed newest first, ten per page, with UTC timestamps and previous/next links.
+Select a title to read its Markdown at `/journal/entries/<id>`; refresh reloads
+the current page. Empty journals, missing entries, and database failures have
+explanatory pages.
+
+The journal viewer reuses `JournalApp.view_entries` and the configured Fr3d
+database's shared `journal_entries` table; there is no author filter in the
+current schema. Reads run in a worker thread and do not require the Fr3d agent
+or model to be running. Titles and embedded HTML are escaped, and Markdown
+images are disabled. The interface provides no write or delete actions.
+It uses the existing service, credentials, listener, and installation path.
+After deploying these changes, restart `fr3d-report.service`.
+
+During web chat, Fr3d can call `view_latest_report` on the existing `snakelab_tool`
+MCP server with no arguments. It reads the latest three completed, comparable
+runs through MCP → ZMQ → `Fr3dServer` → the shared report generator and returns
+`status: ok` with Markdown in `report`, or `report_unavailable` with an explanation.
+It works with learning-rate automation disabled and never creates a pending
+decision, calls the model, or submits a simulation. The report's task instructions
+are preview content, not a new submission request. After upgrading, restart
+`fr3d-server.service` and `llm-server.service` to load the handler and MCP tool.
+
 `fr3d-report.service` runs a separate Python web application at
 `http://127.0.0.1:61980/`. Each visit or refresh reads the latest three completed
 Snake Lab runs and renders the existing learning-rate Markdown report, including

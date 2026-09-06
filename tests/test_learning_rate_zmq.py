@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, patch
 import zmq
 import zmq.asyncio
 
-from fr3d.app.LearningRateReport import Episode, Experiment
+from fr3d.app.LearningRateReport import Episode, Experiment, render_markdown
 from fr3d.app.SnakeLabTool import SnakeLabTool
 from fr3d.constants.DSnakeLab import DSnakeLab
 from fr3d.server.Fr3dServer import Fr3dServer
@@ -88,8 +88,8 @@ class LearningRateZMQTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_mcp_exposes_and_forwards_only_learning_rate(self):
         tools = await mcp.list_tools()
-        self.assertEqual(len(tools), 1)
-        tool = tools[0]
+        self.assertEqual({tool.name for tool in tools}, {"submit_learning_rate", "view_latest_report"})
+        tool = next(tool for tool in tools if tool.name == "submit_learning_rate")
         self.assertEqual(tool.name, "submit_learning_rate")
         self.assertEqual(tool.input_schema["required"], ["learning_rate"])
         self.assertEqual(list(tool.input_schema["properties"]), ["learning_rate"])
@@ -98,6 +98,63 @@ class LearningRateZMQTest(unittest.IsolatedAsyncioTestCase):
             result = await mcp.call_tool("submit_learning_rate", {"learning_rate": .003})
             self.assertFalse(result.is_error)
             factory.return_value.submit_learning_rate.assert_awaited_once_with(.003)
+
+    async def test_mcp_latest_report_through_zmq_without_automation(self):
+        config = {"epochs": 1, "seed": 1970, "training": {"learning_rate": .002}}
+        runs = [Experiment(i, "test", config, (Episode(1, i, .1),)) for i in (1, 2, 3)]
+        tools = await mcp.list_tools()
+        tool = next(tool for tool in tools if tool.name == "view_latest_report")
+        self.assertEqual(tool.input_schema.get("properties", {}), {})
+        with patch("fr3d.zmq.ZMQServer.MyLog"):
+            server = Fr3dServer(port=0, log_file=None, learning_rate_enabled=False)
+        with patch.object(server, "snake_lab_request") as snake_request, patch(
+            "fr3d.app.LearningRateReport.load_experiments", return_value=runs,
+        ) as load, patch(
+            "snakelab_tool.server.SnakeLabTool", return_value=SnakeLabTool(server.endpoint),
+        ):
+            task = asyncio.create_task(server.run())
+            try:
+                result = await mcp.call_tool("view_latest_report", {})
+                self.assertFalse(result.is_error)
+                payload = json.loads(result.content[0].text)
+                self.assertEqual(payload, {"status": "ok", "report": render_markdown(runs)})
+                load.assert_called_once_with(limit=3)
+                self.assertIsNone(server.learning_rate_loop)
+                snake_request.assert_not_called()
+
+                load.return_value = []
+                payload = json.loads(await SnakeLabTool(server.endpoint).view_latest_report())
+                self.assertEqual(payload["error"]["code"], "report_unavailable")
+                self.assertIn("Three completed", payload["error"]["message"])
+
+                load.return_value = [runs[0], runs[1], Experiment(3, "different", config, runs[2].episodes)]
+                payload = json.loads(await SnakeLabTool(server.endpoint).view_latest_report())
+                self.assertEqual(payload["error"]["code"], "report_unavailable")
+                self.assertIn("project version", payload["error"]["message"])
+
+                load.side_effect = RuntimeError("private database details")
+                payload = json.loads(await SnakeLabTool(server.endpoint).view_latest_report())
+                self.assertEqual(payload["error"]["code"], "report_unavailable")
+                self.assertNotIn("private database details", json.dumps(payload))
+                server.log.error.assert_called_once()
+                snake_request.assert_not_called()
+            finally:
+                server.stop()
+                await task
+
+    async def test_report_rejects_arguments_and_preserves_pending_decision(self):
+        with patch("fr3d.zmq.ZMQServer.MyLog"):
+            server = Fr3dServer(port=0, log_file=None)
+        self.addAsyncCleanup(server.zmq_server.stop)
+        pending = {"training": {"learning_rate": .003}}
+        server.learning_rate_loop.pending_config = pending
+        with patch("fr3d.server.Fr3dServer.generate_latest_markdown", return_value="report") as generate:
+            result = await server.view_latest_report(ZMQMsg("test", "view_latest_report", payload={"run_id": 1}))
+            self.assertEqual(result["error"]["code"], "invalid_request")
+            generate.assert_not_called()
+            result = await server.view_latest_report(ZMQMsg("test", "view_latest_report", payload={}))
+            self.assertEqual(result, {"status": "ok", "report": "report"})
+            self.assertIs(server.learning_rate_loop.pending_config, pending)
 
     async def test_server_rejects_extra_arguments_over_zmq(self):
         with patch("fr3d.zmq.ZMQServer.MyLog"):

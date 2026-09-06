@@ -3,12 +3,18 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Learning-rate report · Fr3d</title>
+  <title>$title · Fr3d</title>
   <style>
     :root { color-scheme: light; font-family: system-ui, sans-serif; color: #243137; background: #f3f5f4; }
     body { margin: 0; line-height: 1.65; }
     main { max-width: 960px; margin: 0 auto; padding: 32px 20px 64px; }
     header { margin-bottom: 24px; }
+    nav { display: flex; gap: 20px; flex-wrap: wrap; margin: 16px 0; }
+    a { color: #265c49; }
+    .entries { list-style: none; padding: 0; margin: 0; }
+    .entries li { padding: 16px 0; border-bottom: 1px solid #dbe2de; }
+    .entries a { font-size: 1.1rem; font-weight: 600; }
+    pre { overflow-x: auto; padding: 12px; background: #edf3ef; }
     .brand { color: #326b59; font-weight: 700; letter-spacing: .08em; }
     h1, h2, h3, h4 { line-height: 1.25; }
     header h1 { margin: 8px 0; }
@@ -28,12 +34,13 @@
   <main>
     <header>
       <div class="brand">FR3D</div>
-      <h1>Learning-rate report</h1>
-      <p class="description">The current report from the latest three completed Snake Lab runs.</p>
+      <nav aria-label="Main navigation"><a href="/">Learning-rate report</a><a href="/journal/">Ackbar's journal</a></nav>
+      <h1>$title</h1>
+      <p class="description">$description</p>
       <p class="metadata">$metadata</p>
-      <a class="refresh" href="/">Refresh report</a>
+      <a class="refresh" href="$refresh_url">$refresh_label</a>
     </header>
-    <article aria-label="Learning-rate report">$content</article>
+    <article aria-label="$title">$content</article>
   </main>
 </body>
 </html>
