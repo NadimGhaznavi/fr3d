@@ -19,6 +19,7 @@ from fr3d.constants.DMethod import DMethod as METHOD
 
 from fr3d.zmq.ZMQClient import ZMQClient
 from fr3d.zmq.ZMQServer import MsgHandler, ZMQServer
+from fr3d.zmq.ZMQMsg import ZMQMsg
 from fr3d.database.JournalDb import JournalDb
 
 
@@ -49,8 +50,8 @@ class Fr3dServer:
         self._stop_event = asyncio.Event()
         self._running = False
 
-    async def add_journal_entry(self, payload):
-        self.log.info(f"Received: {payload}")
+    async def add_journal_entry(self, payload: ZMQMsg):
+        self.log.info(f"Received: {payload.payload}")
         db = JournalDb()
         return db.add_entry(title="foo", entry="bar") 
 
