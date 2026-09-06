@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.15] - 2026-09-06 @ 05:58
+
+### Added
+
+- Added journal `view_entries(url="/")` browsing with knowledge-base-style
+  Markdown links, newest-first lists of ten titles, previous/next navigation,
+  and individual entry pages with UTC timestamps and journal text.
+- Added validated journal browse routes and parameterized database reads through
+  the existing MCP, ZMQ, application, and database pipeline.
+
 ## [0.8.14] - 2026-09-06 @ 05:40
 
 ### Added
