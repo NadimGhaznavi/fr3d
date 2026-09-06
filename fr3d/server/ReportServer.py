@@ -86,7 +86,7 @@ def journal(request):
     """Reuse the journal application's validation and read-only pagination."""
     path = request.path_params.get("path", "")
     url = "/" + path
-    title = "Ackbar's journal"
+    title = "Fr3d's Journal"
     metadata = ""
     status = 200
     back = '<p><a href="/journal/">Back to journal entries</a></p>'
@@ -98,7 +98,7 @@ def journal(request):
             metadata = f"Entry {entry['id']} · {entry['created_at'].replace('T', ' ').replace('+00:00', ' UTC')}"
             content = back + MarkdownIt(
                 "commonmark", {"html": False, "breaks": True},
-            ).enable("table").disable("image").render(entry["entry"]) + back
+            ).enable("table").disable("image").render(entry["entry"]) + '\n\n<p class="signature">--Fr3d</p>' + back
         else:
             page = result["page"]
             metadata = f"Page {page} · Newest first · All timestamps in UTC"
@@ -130,7 +130,7 @@ def journal(request):
         metadata = "Journal unavailable"
         content = "<p>Could not load the journal. Please try refreshing in a moment.</p>" + back
     return page_response(
-        title=title, description="Journal entries from Ackbar.", metadata=metadata,
+        title=title, description="Journal entries from Fr3d.", metadata=metadata,
         content=content, refresh_url="/journal/" + path, status=status,
     )
 

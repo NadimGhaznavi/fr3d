@@ -19,7 +19,10 @@ and includes pauses. Missing timestamps or completion before start display
 `N/A`, not zero. No database migration is needed. Deploy and restart the report,
 Fr3d agent, and LLM services to load the updated pages, handlers, and MCP tool.
 
-The same `fr3d-report.service` also serves Ackbar's journal at `/journal/`.
+The same `fr3d-report.service` also serves Fr3d's Journal at `/journal/`.
+Web and MCP entry views append a blank line and an indented `--Fr3d` signature
+when rendering. This applies to existing and new entries without changing the
+stored journal text.
 Use the navigation links to switch between the report and journal. Entries are
 listed newest first, ten per page, with UTC timestamps and previous/next links.
 Select a title to read its Markdown at `/journal/entries/<id>`; refresh reloads
