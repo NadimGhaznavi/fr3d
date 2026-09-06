@@ -6,11 +6,7 @@ import math
 from fr3d.app.LearningRateReport import LearningRateReport, DURATION_NOTE
 
 
-def markdown_cell(value):
-    return str(value).replace("\\", "\\\\").replace("|", "\\|").replace("\n", " ").replace("\r", " ").replace("<", "&lt;").replace(">", "&gt;")
-
-
-def generate_best_worst_markdown(*, connection_factory=LearningRateReport.connect_snake_lab) -> str:
+def generate_best_worst_report(*, connection_factory=LearningRateReport.connect_snake_lab) -> dict:
     connection = connection_factory()
     try:
         with connection.cursor() as cursor:
@@ -25,34 +21,33 @@ def generate_best_worst_markdown(*, connection_factory=LearningRateReport.connec
                 groups.append(cursor.fetchall())
     finally:
         connection.close()
-    lines = [
-        "# Best and Worst Simulations", "",
-        "Completed runs across all project versions, ranked by recorded final high score. "
-        "Runs without a high score are excluded. Ties use the lower run ID first.",
-        "Versions and configurations may differ; this is a historical ranking, not a controlled learning-rate comparison.",
-        "Each table contains up to ten runs. Tables may overlap when scores tie or fewer than twenty runs are available.",
-        "", DURATION_NOTE,
-    ]
-    for heading, rows in zip(("Top 10 — Highest scores", "Bottom 10 — Lowest scores"), groups):
-        lines.extend(["", f"## {heading}", ""])
-        if not rows:
-            lines.append("No completed simulations with a recorded high score found.")
-            continue
-        lines.extend([
-            "| Rank | Run | Version | Epochs | Highscore | Learning Rate | Duration (s) |",
-            "|---:|---:|---|---:|---:|---:|---:|",
-        ])
+    report = {
+        "metadata": {
+            "scope": "Completed runs across all project versions; missing high scores are excluded.",
+            "ranking": "High score; ties use lower run ID first.",
+            "comparison": "Versions and configurations may differ; this is historical ranking, not a controlled learning-rate comparison.",
+            "overlap": "Each list contains up to ten runs. Lists may overlap when scores tie or fewer than twenty runs are available.",
+            "duration": DURATION_NOTE.replace("N/A", "null"),
+        },
+        "top_10": [],
+        "bottom_10": [],
+    }
+    for key, rows in zip(("top_10", "bottom_10"), groups):
         for rank, row in enumerate(rows, 1):
             try:
                 rate = json.loads(row["config"])["training"]["learning_rate"]
                 if type(rate) not in (int, float) or not math.isfinite(rate) or not 0 < rate <= 1:
-                    rate = "N/A"
+                    rate = None
             except (ValueError, KeyError, TypeError):
-                rate = "N/A"
+                rate = None
             duration = LearningRateReport.format_duration(row["started_at"], row["completed_at"])
-            lines.append(
-                f"| {rank} | {row['id']} | {markdown_cell(row['project_version'])} | "
-                f"{row['episode_count'] if row['episode_count'] is not None else 'N/A'} | "
-                f"{row['high_score']} | {rate} | {duration} |"
-            )
-    return "\n".join(lines) + "\n"
+            report[key].append({
+                "rank": rank,
+                "run_id": row["id"],
+                "project_version": row["project_version"],
+                "epochs": row["episode_count"],
+                "highscore": row["high_score"],
+                "learning_rate": rate,
+                "duration_s": None if duration == "N/A" else float(duration),
+            })
+    return report

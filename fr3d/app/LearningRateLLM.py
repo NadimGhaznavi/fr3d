@@ -8,7 +8,7 @@ import logging
 import httpx
 
 from fr3d.app.SnakeLabTool import LEARNING_RATE_TOOL, BEST_WORST_TOOL, validate_learning_rate
-from fr3d.app.BestWorstReport import generate_best_worst_markdown
+from fr3d.app.BestWorstReport import generate_best_worst_report
 
 
 async def choose_learning_rate(report: str) -> float:
@@ -64,7 +64,7 @@ async def choose_learning_rate(report: str) -> float:
             except (KeyError, IndexError, TypeError, AttributeError) as error:
                 raise ValueError("LLM did not return a valid tool call") from error
             try:
-                ranking = await asyncio.to_thread(generate_best_worst_markdown)
+                ranking = await asyncio.to_thread(generate_best_worst_report)
                 result = {"status": "ok", "report": ranking}
             except Exception:
                 logging.getLogger(__name__).exception("Best/worst lookup failed during learning-rate decision")

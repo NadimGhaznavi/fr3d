@@ -1,8 +1,9 @@
 # Nadim-facing report viewer
 
 `LearningRateReport` is an object with per-instance `connection_factory` and
-`template_path` dependencies. Call `generate_latest_markdown()` for the latest
-three runs or `generate_markdown(run_ids)` for selected history. Loading,
+`template_path` dependencies. Call `generate_latest_report()` for JSON-safe data
+from the latest three runs, or `render_report(experiments)` for selected results.
+The Markdown methods remain available for the browser and standalone CLI. Loading,
 validation, rendering, and duplicate lookup are methods on the class. The loop,
 server, and viewer use report instances; `dialogue.learning_rate` remains a
 compatibility adapter for the standalone API.
@@ -11,7 +12,7 @@ Prefer objects with explicit dependencies for new application components.
 
 The **Best / worst** navigation link opens `/best-worst/`, showing up to ten
 highest-scoring and ten lowest-scoring completed simulations. Fr3d can retrieve
-the same Markdown through `view_best_worst_report` on `snakelab_tool` with no
+the same JSON data through `view_best_worst_report` on `snakelab_tool` with no
 arguments. It follows the same read-only MCP → ZMQ → Fr3d path as the latest
 report and does not require a pending decision.
 
@@ -25,7 +26,7 @@ Each table shows up to ten rows and can overlap with the other table.
 Both ranking and comparison reports show duration in seconds (three decimal
 places), calculated from `completed_at - started_at`. This excludes queue time
 and includes pauses. Missing timestamps or completion before start display
-`N/A`, not zero. No database migration is needed. Deploy and restart the report,
+`null` in JSON reports and `N/A` in the Markdown web comparison, not zero. No database migration is needed. Deploy and restart the report,
 Fr3d agent, and LLM services to load the updated pages, handlers, and MCP tool.
 
 The same `fr3d-report.service` also serves Fr3d's Journal at `/journal/`.
@@ -49,7 +50,7 @@ After deploying these changes, restart `fr3d-report.service`.
 During web chat, Fr3d can call `view_latest_report` on the existing `snakelab_tool`
 MCP server with no arguments. It reads the latest three completed, comparable
 runs through MCP → ZMQ → `Fr3dServer` → the shared report generator and returns
-`status: ok` with Markdown in `report`, or `report_unavailable` with an explanation.
+`status: ok` with a JSON object in `report`, or `report_unavailable` with an explanation.
 It works with learning-rate automation disabled and never creates a pending
 decision, calls the model, or submits a simulation. The report's task instructions
 are preview content, not a new submission request. After upgrading, restart
@@ -158,7 +159,12 @@ and its change from the previous displayed row in that run (current minus previo
 negative means a decrease). The first row's change is `N/A`, as is any change with
 a missing endpoint loss. The final epoch always appears once, even when it does
 not set a new high score. No seed or full configuration is sent to the model.
-`LearningRateLLM` sends this report as the sole message to the local
+The automated loop serializes the comparison as JSON in the user message,
+alongside the existing system message. It preserves template context and task
+instructions, score/loss summaries, high-score milestones and loss changes,
+learning rates, run IDs, versions, epoch counts, and durations. Missing numeric
+values are `null`. Duplicate-run follow-ups also contain JSON reports.
+`LearningRateLLM` sends the messages to the local
 `/v1/chat/completions` endpoint, with `submit_learning_rate` and the optional
 read-only `view_best_worst_report` function. The report template explains when
 to use the historical ranking. Submission takes:

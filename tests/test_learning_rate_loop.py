@@ -24,6 +24,9 @@ def experiments():
 
 
 class ReportSelectionTest(unittest.TestCase):
+    def setUp(self):
+        self.enterContext(patch("fr3d.app.LearningRateReport.MyLog"))
+
     def test_only_latest_three_completed_are_loaded_in_chronological_order(self):
         connection = MagicMock()
         cursor = connection.cursor.return_value.__enter__.return_value
@@ -115,9 +118,9 @@ class LLMTest(unittest.IsolatedAsyncioTestCase):
 
                 client = httpx.AsyncClient(transport=httpx.MockTransport(respond))
                 with patch('fr3d.app.LearningRateLLM.httpx.AsyncClient', return_value=client), patch(
-                    'fr3d.app.LearningRateLLM.generate_best_worst_markdown',
+                    'fr3d.app.LearningRateLLM.generate_best_worst_report',
                     side_effect=RuntimeError('private details') if fail_lookup else None,
-                    return_value='# Historical report',
+                    return_value={'top_10': [], 'bottom_10': []},
                 ) as generate:
                     if repeat:
                         with self.assertRaises(ValueError):
@@ -130,12 +133,14 @@ class LLMTest(unittest.IsolatedAsyncioTestCase):
                     generate.assert_called_once_with()
                 self.assertEqual(len(payloads), 2)
                 self.assertEqual([t['function']['name'] for t in payloads[1]['tools']], ['submit_learning_rate'])
-                messages = payloads[1]['messages']
+                messages = [message for message in payloads[1]['messages'] if message['role'] != 'system']
                 self.assertEqual(messages[0]['content'], 'COMPARISON')
                 self.assertEqual(messages[1]['role'], 'assistant')
                 self.assertEqual(messages[2]['tool_call_id'], 'history-1')
                 result = json.loads(messages[2]['content'])
                 self.assertEqual(result['status'], 'error' if fail_lookup else 'ok')
+                if not fail_lookup:
+                    self.assertEqual(result['report'], {'top_10': [], 'bottom_10': []})
                 self.assertNotIn('private details', messages[2]['content'])
 
     async def test_invalid_history_call_cannot_read_database(self):
@@ -143,7 +148,7 @@ class LLMTest(unittest.IsolatedAsyncioTestCase):
             data = self.response(arguments, 'view_best_worst_report')
             if call_id:
                 data['choices'][0]['message']['tool_calls'][0]['id'] = call_id
-            with patch('fr3d.app.LearningRateLLM.generate_best_worst_markdown') as generate:
+            with patch('fr3d.app.LearningRateLLM.generate_best_worst_report') as generate:
                 with self.assertRaises(ValueError):
                     await self.request(data)
                 generate.assert_not_called()
@@ -162,6 +167,7 @@ class LLMTest(unittest.IsolatedAsyncioTestCase):
 
 class LoopTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
+        self.enterContext(patch("fr3d.app.LearningRateReport.MyLog"))
         self.server = MagicMock()
         self.enterContext(patch("fr3d.app.LearningRateLoop.MyLog", return_value=self.server.log))
         self.server.snake_lab_version.return_value = "test"
@@ -223,7 +229,7 @@ class LoopTest(unittest.IsolatedAsyncioTestCase):
         self.loop.pending_config = deepcopy(experiments()[-1].config)
         result = await self.loop.submit({"learning_rate": .001})
         self.assertEqual(result["status"], "already_run")
-        self.assertEqual(result["report"], render_markdown([previous]))
+        self.assertEqual(result["report"], self.loop.report.render_report([previous]))
         self.assertEqual(result["message"], "This simulation has already been run. Here's your report.")
         self.find_previous.assert_called_once_with(previous.config, "test")
         self.server.submit_simulation.assert_not_called()
@@ -243,8 +249,8 @@ class LoopTest(unittest.IsolatedAsyncioTestCase):
         ) as choose, patch("fr3d.app.LearningRateLoop.SnakeLabTool") as tool:
             tool.return_value.submit_learning_rate = AsyncMock(side_effect=submit)
             await self.loop.decide()
-        self.assertEqual(choose.call_args_list[1].args[0],
-                         "This simulation has already been run. Here's your report.\n\n" + render_markdown([previous]))
+        self.assertEqual(json.loads(choose.call_args_list[1].args[0]),
+                         {"message": "This simulation has already been run. Here's your report.", "report": self.loop.report.render_report([previous])})
         self.server.submit_simulation.assert_called_once()
         self.assertIsNone(self.loop.pending_config)
         self.server.log.warning.assert_not_called()
