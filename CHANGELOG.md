@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.15] - 2026-09-06 @ 05:58
+
 ### Added
 
 - Added journal `view_entries(url="/")` browsing with knowledge-base-style
