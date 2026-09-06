@@ -9,7 +9,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added Ackbar's journal browser to `fr3d-report.service` at `/journal/`, with
+  newest-first pages of ten entries, UTC timestamps, rendered Markdown entry
+  pages, and navigation back to the learning-rate report. Reuse the existing
+  read-only journal application and database access, with empty, missing-entry,
+  and unavailable states.
+- Added the read-only `view_latest_report` MCP tool for web chat. Return the
+  current learning-rate report from the latest three completed, comparable
+  runs without requiring a pending decision or starting a simulation.
+
+### Changed
+
+- Increased the llama-server context size from 8,192 to 12,288 tokens and
+  reasoning budget from 2,048 to 4,096 tokens.
+- Updated Fr3dNet's Snake Lab tool guide with latest-report access during web
+  chat and clarified that viewing a report does not request a new experiment.
+
 ## [0.11.2] - 2026-09-06 @ 13:06
+
+### Changed
+
+- Replaced the Snake Lab tool's under-construction notice in Fr3dNet with
+  instructions for submitting a learning rate, interpreting report losses,
+  and handling previously completed configurations. Documented that submission
+  requires a pending experiment decision.
 
 ## [0.11.1] - 2026-09-06 @ 12:55
 

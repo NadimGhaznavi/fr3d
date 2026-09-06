@@ -1,4 +1,4 @@
-"""The one-value tool contract and its Fr3d ZMQ bridge."""
+"""Learning-rate submission and read-only report access through Fr3d ZMQ."""
 
 import asyncio
 import json
@@ -52,6 +52,16 @@ class SnakeLabTool:
                 sender="mcp-snakelab", target="snakelab",
                 method=DMethod.SUBMIT_LEARNING_RATE,
                 payload={"learning_rate": learning_rate},
+            ),
+        )
+        return json.dumps(response.payload)
+
+    async def view_latest_report(self) -> str:
+        response = await asyncio.to_thread(
+            self.client.request,
+            ZMQMsg(
+                sender="mcp-snakelab", target="snakelab",
+                method=DMethod.VIEW_LATEST_REPORT, payload={},
             ),
         )
         return json.dumps(response.payload)

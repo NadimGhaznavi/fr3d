@@ -23,6 +23,7 @@ from fr3d.zmq.ZMQMsg import ZMQMsg
 from fr3d.app.JournalApp import JournalApp, JournalValidationError, JournalRateLimitError
 from fr3d.database.JournalDb import JournalBusyError
 from fr3d.app.LearningRateLoop import LearningRateLoop
+from fr3d.app.LearningRateReport import generate_latest_markdown
 
 
 
@@ -44,6 +45,7 @@ class Fr3dServer:
                 METHOD.ADD_JOURNAL_ENTRY: self.add_journal_entry,
                 METHOD.VIEW_JOURNAL_ENTRIES: self.view_journal_entries,
                 METHOD.SUBMIT_LEARNING_RATE: self.submit_learning_rate,
+                METHOD.VIEW_LATEST_REPORT: self.view_latest_report,
             }
         
         self.zmq_server = ZMQServer(
@@ -66,6 +68,22 @@ class Fr3dServer:
             return await self.learning_rate_loop.submit(msg.payload)
         except ValueError as error:
             return {"status": "error", "error": {"code": "invalid_request", "message": str(error)}}
+
+    async def view_latest_report(self, msg: ZMQMsg):
+        if msg.payload:
+            return {"status": "error", "error": {
+                "code": "invalid_request", "message": "view_latest_report takes no arguments",
+            }}
+        try:
+            report = await asyncio.to_thread(generate_latest_markdown)
+            return {"status": "ok", "report": report}
+        except ValueError as error:
+            return {"status": "error", "error": {"code": "report_unavailable", "message": str(error)}}
+        except Exception as error:
+            self.log.error(f"Could not load the latest learning-rate report: {error}")
+            return {"status": "error", "error": {
+                "code": "report_unavailable", "message": "Could not load the report. Try again later.",
+            }}
 
     async def add_journal_entry(self, msg: ZMQMsg):
         app = JournalApp()
