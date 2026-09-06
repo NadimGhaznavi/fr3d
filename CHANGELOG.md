@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.4] - 2026-09-06 @ 04:19
+
 ### Changed
 
 - Defaulted the Fr3d and ZMQ server listeners to `127.0.0.1` using a separate
