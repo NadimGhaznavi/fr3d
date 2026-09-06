@@ -24,7 +24,7 @@ from fr3d.app.JournalApp import JournalApp, JournalValidationError, JournalRateL
 from fr3d.database.JournalDb import JournalBusyError
 from fr3d.app.LearningRateLoop import LearningRateLoop
 from fr3d.app.LearningRateReport import LearningRateReport
-from fr3d.app.BestWorstReport import generate_best_worst_markdown
+from fr3d.app.BestWorstReport import generate_best_worst_report
 
 
 
@@ -73,10 +73,10 @@ class Fr3dServer:
             return {"status": "error", "error": {"code": "invalid_request", "message": str(error)}}
 
     async def view_latest_report(self, msg: ZMQMsg):
-        return await self._view_report(msg, self.report.generate_latest_markdown)
+        return await self._view_report(msg, self.report.generate_latest_report)
 
     async def view_best_worst_report(self, msg: ZMQMsg):
-        return await self._view_report(msg, generate_best_worst_markdown)
+        return await self._view_report(msg, generate_best_worst_report)
 
     async def _view_report(self, msg: ZMQMsg, generate):
         if msg.payload:

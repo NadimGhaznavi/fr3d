@@ -58,7 +58,7 @@ class LearningRateLoop:
             msg = "Three completed Snake Lab runs are required"
             self.log.critical(msg)
             raise ValueError(msg)
-        report = self.report.render_markdown(experiments)
+        report = json.dumps(self.report.render_report(experiments), allow_nan=False)
         config = deepcopy(experiments[-1].config)
         if type(config.get("seed")) is not int:
             msg = "The baseline must contain a fixed integer seed"
@@ -106,7 +106,7 @@ class LearningRateLoop:
                 learning_rate = await choose_learning_rate(report)
                 result = json.loads(await SnakeLabTool(self.server.endpoint).submit_learning_rate(learning_rate))
                 if result.get("status") == "already_run":
-                    report = result["message"] + "\n\n" + result["report"]
+                    report = json.dumps({"message": result["message"], "report": result["report"]}, allow_nan=False)
                     self.log.info(f"Rejected duplicate learning rate: {learning_rate}")
                     continue
                 if result.get("status") != "ok":
@@ -149,7 +149,7 @@ class LearningRateLoop:
                 raise ValueError(msg)
             previous = await asyncio.to_thread(self.report.find_completed_experiment, config, self.baseline[0])
             if previous is not None:
-                report = await asyncio.to_thread(self.report.render_markdown, [previous])
+                report = await asyncio.to_thread(self.report.render_report, [previous])
                 return {
                     "status": "already_run", "learning_rate": learning_rate,
                     "run_id": previous.id,
