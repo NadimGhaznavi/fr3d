@@ -11,10 +11,11 @@ import urllib.request
 from collections.abc import Callable
 from typing import Any
 
-from constants.DFr3d import DFr3d as FRED
-from constants.DModule import DModule as MODULE
-from constants.DMyLog import DMyLogDef as DEFLOG
-from utils.MyLog import MyLog
+from fr3d.constants.DFr3d import DFr3d as FRED
+from fr3d.constants.DModule import DModule as MODULE
+from fr3d.constants.DMyLog import DMyLogDef as DEFLOG
+from fr3d.constants.DFile import DFileDef as DEFFILE
+from fr3d.utils.MyLog import MyLog
 
 from time import sleep
 
@@ -35,7 +36,7 @@ def is_healthy(
 def restart_server() -> None:
     """Ask systemd to restart the LLM server unit."""
     subprocess.run(
-        ("systemctl", "restart", FRED.LLM_SERVER_SERVICE_NAME),
+        ("systemctl", "restart", DEFFILE.LLM_SERVER_SERVICE_NAME),
         check=True,
     )
 
@@ -55,7 +56,7 @@ def main() -> int:
         if not is_healthy():
             msg = (
                 f"LLMWatchdog: unhealthy response from {HEALTH_URL}; restarting "
-                f"{FRED.LLM_SERVER_SERVICE_NAME}"
+                f"{DEFFILE.LLM_SERVER_SERVICE}"
             )
             log.critical(msg)
             try:

@@ -4,9 +4,9 @@ import unittest
 from io import BytesIO
 from unittest.mock import patch
 
-from constants.DFr3d import DFr3d
-from server.LLMServer import build_command
-from server.LLMWatchdog import is_healthy, restart_server
+from fr3d.constants.DFr3d import DFr3d
+from fr3d.server.LLMServer import build_command
+from fr3d.server.LLMWatchdog import is_healthy, restart_server
 
 
 class LLMServerCommandTest(unittest.TestCase):

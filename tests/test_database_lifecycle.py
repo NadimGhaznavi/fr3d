@@ -5,8 +5,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from constants.DDatabase import DDatabase
-from constants.DFr3d import DFr3d
+from fr3d.constants.DDatabase import DDatabase
+from fr3d.constants.DFr3d import DFr3d
 from scripts import install, upgrade
 
 
@@ -33,7 +33,6 @@ class DatabaseLifecycleTest(unittest.TestCase):
             config_directory = Path(temporary_directory) / "fr3d"
             environment_file = config_directory / "database.env"
             with (
-                patch.object(DFr3d, "CONFIG_DIRECTORY", config_directory),
                 patch.object(DDatabase, "ENV_FILE", environment_file),
                 patch("scripts.install.mariadb_client", return_value="mariadb"),
                 patch("scripts.install.shutil.chown"),
@@ -85,13 +84,11 @@ class DatabaseLifecycleTest(unittest.TestCase):
             environment_file.write_text("existing", encoding="utf-8")
             with (
                 patch.object(DDatabase, "ENV_FILE", environment_file),
-                patch("scripts.upgrade.provision_database") as provision,
                 patch("scripts.install.mariadb_client", return_value="mariadb"),
                 patch("scripts.install.subprocess.run") as run,
             ):
                 upgrade.ensure_database_configuration()
                 upgrade.ensure_database_configuration()
-            provision.assert_not_called()
             self.assertEqual(environment_file.read_text(encoding="utf-8"), "existing")
             self.assertEqual(run.call_count, 2)
             for grant_call in run.call_args_list:
@@ -100,17 +97,16 @@ class DatabaseLifecycleTest(unittest.TestCase):
                     "GRANT SELECT ON `snakelab`.*\n    TO 'fr3d'@'localhost';",
                 )
 
-    def test_upgrade_bootstraps_missing_database_configuration(self) -> None:
+    def test_upgrade_rejects_missing_database_configuration(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             environment_file = Path(temporary_directory) / "database.env"
             with (
                 patch.object(DDatabase, "ENV_FILE", environment_file),
-                patch("scripts.upgrade.mariadb_client") as client,
-                patch("scripts.upgrade.provision_database") as provision,
+                patch("scripts.upgrade.ensure_snake_lab_read_access") as grant,
             ):
-                upgrade.ensure_database_configuration()
-            client.assert_called_once_with()
-            provision.assert_called_once_with()
+                with self.assertRaisesRegex(FileNotFoundError, "reinstall Fr3d"):
+                    upgrade.ensure_database_configuration()
+            grant.assert_not_called()
 
 
 if __name__ == "__main__":

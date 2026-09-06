@@ -6,15 +6,19 @@ from __future__ import annotations
 import os
 import sys
 
-from constants.DFr3d import DFr3d
+from pathlib import Path
+
+from fr3d.constants.DFr3d import DFr3d
+from fr3d.constants.DFile import DFileDef as DEFFILE
+from fr3d.constants.DDir import DDirDef as DEFDIR
 
 
 def build_command() -> list[str]:
     """Build the configured llama-server command."""
     return [
-        str(DFr3d.LLAMA_SERVER),
+        Path(DEFDIR.LLAMA_SERVER_BIN / DEFFILE.LLAMA_SERVER),
         "-m",
-        str(DFr3d.MODEL),
+        Path(DEFDIR.MODELS / DEFFILE.MODEL),
         "--ctx-size",
         str(DFr3d.CONTEXT_SIZE),
         "--reasoning-budget",
@@ -24,23 +28,28 @@ def build_command() -> list[str]:
         "--port",
         str(DFr3d.LLM_PORT),
         "--mcp-servers-config",
-        str(DFr3d.MCP_SERVERS_CONFIG),
+        Path(DEFDIR.SERVER_CONFIG / DEFFILE.MCP_SERVERS_CONFIG),
     ]
 
 
 def validate_configuration() -> None:
     """Validate runtime files before replacing this process."""
-    if not DFr3d.LLAMA_SERVER.is_file():
-        raise FileNotFoundError(f"llama-server not found: {DFr3d.LLAMA_SERVER}")
-    if not os.access(DFr3d.LLAMA_SERVER, os.X_OK):
+    llama_server = Path(DEFDIR.LLAMA_SERVER_BIN / DEFFILE.LLAMA_SERVER)
+    if not os.path.exists(llama_server):
+        raise FileNotFoundError(f"llama-server not found: {llama_server}")
+    if not os.access(llama_server, os.X_OK):
         raise PermissionError(
-            f"llama-server is not executable: {DFr3d.LLAMA_SERVER}"
+            f"llama-server is not executable: {llama_server}"
         )
-    if not DFr3d.MODEL.is_file():
-        raise FileNotFoundError(f"model not found: {DFr3d.MODEL}")
-    if not DFr3d.MCP_SERVERS_CONFIG.is_file():
+    
+    model_file = Path(DEFDIR.MODELS / DEFFILE.MODEL)
+    if not os.path.exists(model_file):
+        raise FileNotFoundError(f"model not found: {model_file}")
+
+    mcp_config = Path(DEFDIR.SERVER_CONFIG / DEFFILE.MCP_SERVERS_CONFIG)
+    if not os.path.exists(mcp_config):
         raise FileNotFoundError(
-            f"MCP server configuration not found: {DFr3d.MCP_SERVERS_CONFIG}"
+            f"MCP server configuration not found: {mcp_config}"
         )
 
 

@@ -9,6 +9,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Integrated `ZMQServer` into `Fr3dServer` for server-side handler dispatch,
+  transport error propagation, and signal-aware async startup and shutdown.
+  No LLM client or application RPC methods are added by this integration.
+- Completed the standalone async `ZMQServer` request/reply wrapper with socket
+  binding, synchronous and async method handlers, error replies, receive
+  timeouts, and cancellation-safe shutdown. Added usage documentation and
+  loopback tests for dispatch, malformed requests, and lifecycle behavior.
+
+### Changed
+
+- Updated deployment for the `fr3d` package layout and the refactored directory
+  and file constants, including systemd entry points, MCP imports, and runtime
+  configuration copying. Database credentials remain in `/etc/fr3d/database.env`
+  with root ownership, service-group access, and mode `0640`.
+- This release requires uninstalling and reinstalling Fr3d. Upgrade does not
+  migrate the previous layout or recreate missing credentials. Uninstall removes
+  the Fr3d database and installation tree, including any models stored there;
+  back up needed data and model files first. SnakeLab's database is not removed.
+- Kept the ZMQ package focused on Fr3d request/reply messaging, removing unused
+  copied helpers, topic-prefix configuration, and compatibility wording.
+
+### Fixed
+
+- Added deployment preflight checks for unsafe paths and invalid server syntax,
+  corrected runtime and credential handling, and preserved staged model files
+  when reinstalling without first removing the installation tree.
+- Corrected `ZMQMsg`'s protocol-default import and numeric protocol-version
+  serialization, and validated incoming message fields before dispatch.
+
 ## [0.7.1] - 2026-09-05 @ 13:39
 
 ## [0.7.0] - 2026-09-05 @ 11:26

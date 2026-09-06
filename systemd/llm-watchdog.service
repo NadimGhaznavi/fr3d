@@ -7,7 +7,7 @@ Wants=llm-server.service
 Type=simple
 WorkingDirectory=/opt/fr3d
 Environment=PYTHONUNBUFFERED=1
-ExecStart=/opt/fr3d/.venv/bin/python -m server.LLMWatchdog
+ExecStart=/opt/fr3d/.venv/bin/python -m fr3d.server.LLMWatchdog
 Restart=on-failure
 RestartSec=3
 NoNewPrivileges=true

@@ -8,7 +8,7 @@ import shlex
 import sys
 from pathlib import Path
 
-from constants.DDatabase import DDatabase
+from fr3d.constants.DDatabase import DDatabase
 from dialogue.learning_rate import DEFAULT_TEMPLATE, generate_markdown
 
 

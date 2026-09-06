@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from database.JournalDb import JournalDb
+from fr3d.database.JournalDb import JournalDb
 
 
 class JournalTool:

@@ -2,7 +2,7 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from constants.DMyLog import LOG_LEVELS, DMyLog, DMyLogDef
+from fr3d.constants.DMyLog import LOG_LEVELS, DMyLog, DMyLogDef
 
 
 class MyLog:
