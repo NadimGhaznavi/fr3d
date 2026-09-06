@@ -1,5 +1,34 @@
 # Nadim-facing report viewer
 
+## LLM decision logs
+
+Automatic learning-rate decisions write a correlated trace to
+`/opt/fr3d/logs/llm-server.log`. Each event contains a `decision_id`; actual HTTP
+requests also have a `request_number` that increases across historical lookups
+and duplicate-rate retries within that decision.
+
+- `decision_started` means checks have begun, not that the model was called.
+- `llm_request` includes the exact outgoing JSON payload: system/user messages,
+  tool definitions, and generation settings. Authorization headers are omitted.
+- `llm_response` includes the full response body, HTTP status, and elapsed seconds.
+  `llm_tool_call` extracts the finish reason, tool name, and arguments.
+- `lookup_started`, `lookup_result`, and `lookup_failed` describe automatic
+  historical report reads, including those that bypass the MCP wrapper.
+- `submission_started`, `submission_result`, `duplicate_rejected`, and
+  `simulation_submitted` connect proposals to the resulting run or retry.
+- `decision_failed` and `decision_finished` record the final outcome, including
+  cancellation and release initialization without a model call.
+
+Events are single-line JSON after the normal timestamp/level/logger prefix;
+embedded newlines are escaped. Search for a decision ID to follow its exchange.
+These traces capture automatic loop requests. Native llama-server diagnostics
+and web-chat request handling remain in `journalctl -u llm-server.service`;
+MCP wrapper logs alone do not capture the complete web-chat prompt.
+
+```sh
+tail -f /opt/fr3d/logs/llm-server.log
+```
+
 `LearningRateReport` is an object with per-instance `connection_factory` and
 `template_path` dependencies. Call `generate_latest_report()` for JSON-safe data
 from the latest three runs, or `render_report(experiments)` for selected results.

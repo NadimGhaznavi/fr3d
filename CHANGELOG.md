@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-09-06 @ 18:33
+
+### Added
+
+- Added correlated automatic LLM decision traces in `llm-server.log`, including
+  exact request JSON, full responses, request timings, tool calls, historical
+  lookup results, submissions, duplicate retries, and final outcomes. Omit
+  authorization headers and number requests within each decision.
+
+### Fixed
+
+- Normalize log file paths before comparing handlers, preventing duplicate
+  messages when multiple components reuse a logger with a `Path` argument.
+- Replace the premature "Prompting the LLM" message with a decision-start
+  event and record actual requests at the HTTP boundary.
+
 ## [0.12.9] - 2026-09-06 @ 18:18
 
 ### Changed
