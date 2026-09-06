@@ -9,7 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Added more log messages to the llm-server
+
 ## [0.12.4] - 2026-09-06 @ 16:04
+
+### Fixed
+
+- Enabled LLM server logs
 
 ## [0.12.3] - 2026-09-06 @ 16:00
 
