@@ -97,7 +97,7 @@ class LLMTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_report_and_single_numeric_tool_are_the_entire_model_input(self):
         self.assertEqual(await self.request(self.response()), 0.003)
-        self.assertEqual(self.payload["messages"], [{"role": "user", "content": "REPORT ONLY"}])
+        self.assertEqual([m for m in self.payload["messages"] if m["role"] == "user"], [{"role": "user", "content": "REPORT ONLY"}])
         self.assertEqual(self.payload["tool_choice"], "required")
         self.assertEqual(len(self.payload["tools"]), 2)
         schema = self.payload["tools"][0]["function"]["parameters"]
@@ -251,6 +251,11 @@ class LoopTest(unittest.IsolatedAsyncioTestCase):
             await self.loop.decide()
         self.assertEqual(json.loads(choose.call_args_list[1].args[0]),
                          {"message": "This simulation has already been run. Here's your report.", "report": self.loop.report.render_report([previous])})
+        self.assertIs(choose.call_args_list[0].kwargs["trace"], choose.call_args_list[1].kwargs["trace"])
+        records = [json.loads(call.args[0]) for call in self.server.log.info.call_args_list if call.args[0].startswith('{')]
+        self.assertEqual(len({r["decision_id"] for r in records}), 1)
+        self.assertIn("duplicate_rejected", [r["event"] for r in records])
+        self.assertEqual(records[-1]["outcome"], "submitted")
         self.server.submit_simulation.assert_called_once()
         self.assertIsNone(self.loop.pending_config)
         self.server.log.warning.assert_not_called()

@@ -50,7 +50,7 @@ class LearningRateZMQTest(unittest.IsolatedAsyncioTestCase):
                     "status": "ok", "payload": payload,
                 })
 
-        async def choose(report):
+        async def choose(report, *, trace=None):
             self.assertNotIn('"seed"', report)
             self.assertNotIn("1970", report)
             self.assertNotIn("gamma", report)
