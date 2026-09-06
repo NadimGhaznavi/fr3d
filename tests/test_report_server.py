@@ -79,6 +79,21 @@ class ReportServerTest(unittest.TestCase):
             self.assertEqual(self.client.post("/").status_code, 405)
             load.assert_not_called()
 
+    def test_best_worst_page_refresh_and_failure(self):
+        with patch("fr3d.server.ReportServer.generate_best_worst_markdown", return_value="# Best and Worst\n\n| Run | Duration (s) |\n|---|---|\n| 1 | 60 |") as generate:
+            response = self.client.get("/best-worst/")
+            self.assertEqual(response.status_code, 200)
+            self.assertIn("<table>", response.text)
+            self.assertIn('href="/best-worst/">Refresh', response.text)
+            self.assertEqual(response.headers["cache-control"], "no-store")
+            self.assertEqual(self.client.post("/best-worst/").status_code, 405)
+            generate.assert_called_once_with()
+            generate.side_effect = RuntimeError("secret")
+            with self.assertLogs("fr3d.server.ReportServer", level="ERROR"):
+                response = self.client.get("/best-worst/")
+            self.assertEqual(response.status_code, 503)
+            self.assertNotIn("secret", response.text)
+
 
 class JournalWebTest(unittest.TestCase):
     def setUp(self):

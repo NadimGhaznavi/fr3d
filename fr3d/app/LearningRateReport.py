@@ -6,6 +6,7 @@ import json
 import math
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from statistics import mean, median
 from typing import Any
@@ -29,6 +30,8 @@ class Experiment:
     project_version: str
     config: dict[str, Any]
     episodes: tuple[Episode, ...]
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
 
 
 def connect_snake_lab():
@@ -49,7 +52,7 @@ def load_experiments(
     try:
         with connection.cursor() as cursor:
             query = """
-                SELECT id, run_id, project_version, config
+                SELECT id, run_id, project_version, config, started_at, completed_at
                 FROM simulation_runs
                 WHERE status = %s
             """
@@ -100,6 +103,8 @@ def load_experiments(
                         project_version=row["project_version"],
                         config=json.loads(row["config"]),
                         episodes=episodes,
+                        started_at=row.get("started_at"),
+                        completed_at=row.get("completed_at"),
                     )
                 )
             return sorted(experiments, key=lambda experiment: experiment.id)
@@ -187,6 +192,19 @@ def format_number(value: float | int | None) -> str:
     return f"{value:.6g}"
 
 
+DURATION_NOTE = (
+    "Duration is elapsed seconds from start to completion, excluding queue time and including pauses. "
+    "N/A means timestamps are missing or completion precedes start."
+)
+
+
+def format_duration(started_at: datetime | None, completed_at: datetime | None) -> str:
+    if started_at is None or completed_at is None:
+        return "N/A"
+    seconds = (completed_at - started_at).total_seconds()
+    return f"{seconds:.3f}" if seconds >= 0 else "N/A"
+
+
 def render_markdown(
     experiments: Sequence[Experiment], *, template_path: Path = DEFAULT_TEMPLATE
 ) -> str:
@@ -265,6 +283,12 @@ def render_markdown(
         lines.append(
             f"| {experiment.id} | {format_number(mean(losses) if losses else None)} | "
             f"{format_number(experiment.episodes[-1].loss)} |"
+        )
+    lines.extend(["", "### Duration", "", DURATION_NOTE, "",
+                  "| Run | Duration (s) |", "|---|---:|"])
+    for experiment in experiments:
+        lines.append(
+            f"| {experiment.id} | {format_duration(experiment.started_at, experiment.completed_at)} |"
         )
     lines.extend(["", "## Task", task.rstrip()])
     return "\n".join(lines) + "\n"

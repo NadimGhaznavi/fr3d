@@ -17,6 +17,7 @@ import uvicorn
 
 from fr3d.app.LearningRateReport import load_experiments, render_markdown
 from fr3d.app.JournalApp import JournalApp, JournalValidationError
+from fr3d.app.BestWorstReport import generate_best_worst_markdown
 
 
 LOG = logging.getLogger(__name__)
@@ -61,6 +62,23 @@ def latest_report(request):
         description="The current report from the latest three completed Snake Lab runs.",
         metadata=metadata, content=content, refresh_url="/",
         refresh_label="Refresh report", status=status,
+    )
+
+
+def best_worst_report(request):
+    status = 200
+    try:
+        markdown = generate_best_worst_markdown()
+        content = MarkdownIt("commonmark", {"html": False}).enable("table").render(markdown)
+        metadata = "Generated " + datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    except Exception:
+        LOG.exception("Could not generate best/worst report")
+        status = 503
+        metadata = "Report unavailable"
+        content = "<p>Could not load the report. Please try refreshing in a moment.</p>"
+    return page_response(
+        title="Best and worst simulations", description="Top and bottom ten completed runs by high score.",
+        metadata=metadata, content=content, refresh_url="/best-worst/", status=status,
     )
 
 
@@ -119,6 +137,7 @@ def journal(request):
 
 app = Starlette(routes=[
     Route("/", latest_report, methods=["GET"]),
+    Route("/best-worst/", best_worst_report, methods=["GET"]),
     Route("/journal/", journal, methods=["GET"]),
     Route("/journal/{path:path}", journal, methods=["GET"]),
 ])
