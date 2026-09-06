@@ -96,11 +96,57 @@ class LLMTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await self.request(self.response()), 0.003)
         self.assertEqual(self.payload["messages"], [{"role": "user", "content": "REPORT ONLY"}])
         self.assertEqual(self.payload["tool_choice"], "required")
-        self.assertEqual(len(self.payload["tools"]), 1)
+        self.assertEqual(len(self.payload["tools"]), 2)
         schema = self.payload["tools"][0]["function"]["parameters"]
         self.assertEqual(list(schema["properties"]), ["learning_rate"])
         self.assertEqual(schema["required"], ["learning_rate"])
         self.assertFalse(schema["additionalProperties"])
+
+    async def test_optional_history_lookup_then_submission(self):
+        for fail_lookup, repeat in ((False, False), (True, False), (False, True)):
+            with self.subTest(fail_lookup=fail_lookup, repeat=repeat):
+                lookup = self.response('{}', 'view_best_worst_report')
+                lookup['choices'][0]['message']['tool_calls'][0]['id'] = 'history-1'
+                payloads = []
+
+                async def respond(request):
+                    payloads.append(json.loads(request.content))
+                    return httpx.Response(200, json=lookup if len(payloads) == 1 or repeat else self.response())
+
+                client = httpx.AsyncClient(transport=httpx.MockTransport(respond))
+                with patch('fr3d.app.LearningRateLLM.httpx.AsyncClient', return_value=client), patch(
+                    'fr3d.app.LearningRateLLM.generate_best_worst_markdown',
+                    side_effect=RuntimeError('private details') if fail_lookup else None,
+                    return_value='# Historical report',
+                ) as generate:
+                    if repeat:
+                        with self.assertRaises(ValueError):
+                            await choose_learning_rate('COMPARISON')
+                    elif fail_lookup:
+                        with self.assertLogs('fr3d.app.LearningRateLLM', level='ERROR'):
+                            self.assertEqual(await choose_learning_rate('COMPARISON'), .003)
+                    else:
+                        self.assertEqual(await choose_learning_rate('COMPARISON'), .003)
+                    generate.assert_called_once_with()
+                self.assertEqual(len(payloads), 2)
+                self.assertEqual([t['function']['name'] for t in payloads[1]['tools']], ['submit_learning_rate'])
+                messages = payloads[1]['messages']
+                self.assertEqual(messages[0]['content'], 'COMPARISON')
+                self.assertEqual(messages[1]['role'], 'assistant')
+                self.assertEqual(messages[2]['tool_call_id'], 'history-1')
+                result = json.loads(messages[2]['content'])
+                self.assertEqual(result['status'], 'error' if fail_lookup else 'ok')
+                self.assertNotIn('private details', messages[2]['content'])
+
+    async def test_invalid_history_call_cannot_read_database(self):
+        for arguments, call_id in (('{"limit": 10}', 'id'), ('{}', None), ('[]', 'id')):
+            data = self.response(arguments, 'view_best_worst_report')
+            if call_id:
+                data['choices'][0]['message']['tool_calls'][0]['id'] = call_id
+            with patch('fr3d.app.LearningRateLLM.generate_best_worst_markdown') as generate:
+                with self.assertRaises(ValueError):
+                    await self.request(data)
+                generate.assert_not_called()
 
     async def test_missing_wrong_multiple_truncated_and_invalid_calls_are_rejected(self):
         multiple = self.response()

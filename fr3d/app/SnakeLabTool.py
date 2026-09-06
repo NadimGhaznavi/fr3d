@@ -31,6 +31,17 @@ LEARNING_RATE_TOOL = {
 }
 
 
+BEST_WORST_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "view_best_worst_report",
+        "description": "Read the top and bottom ten completed simulations by high score, with learning rates and durations. Historical runs may have different versions and settings. Available once before submitting a learning rate.",
+        "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
+        "strict": True,
+    },
+}
+
+
 def validate_learning_rate(arguments: dict) -> float:
     if not isinstance(arguments, dict) or set(arguments) != {"learning_rate"}:
         raise ValueError("Supply only the required learning_rate argument")
@@ -57,11 +68,17 @@ class SnakeLabTool:
         return json.dumps(response.payload)
 
     async def view_latest_report(self) -> str:
+        return await self._view_report(DMethod.VIEW_LATEST_REPORT)
+
+    async def view_best_worst_report(self) -> str:
+        return await self._view_report(DMethod.VIEW_BEST_WORST_REPORT)
+
+    async def _view_report(self, method: str) -> str:
         response = await asyncio.to_thread(
             self.client.request,
             ZMQMsg(
                 sender="mcp-snakelab", target="snakelab",
-                method=DMethod.VIEW_LATEST_REPORT, payload={},
+                method=method, payload={},
             ),
         )
         return json.dumps(response.payload)

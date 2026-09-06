@@ -24,6 +24,7 @@ from fr3d.app.JournalApp import JournalApp, JournalValidationError, JournalRateL
 from fr3d.database.JournalDb import JournalBusyError
 from fr3d.app.LearningRateLoop import LearningRateLoop
 from fr3d.app.LearningRateReport import generate_latest_markdown
+from fr3d.app.BestWorstReport import generate_best_worst_markdown
 
 
 
@@ -46,6 +47,7 @@ class Fr3dServer:
                 METHOD.VIEW_JOURNAL_ENTRIES: self.view_journal_entries,
                 METHOD.SUBMIT_LEARNING_RATE: self.submit_learning_rate,
                 METHOD.VIEW_LATEST_REPORT: self.view_latest_report,
+                METHOD.VIEW_BEST_WORST_REPORT: self.view_best_worst_report,
             }
         
         self.zmq_server = ZMQServer(
@@ -70,17 +72,23 @@ class Fr3dServer:
             return {"status": "error", "error": {"code": "invalid_request", "message": str(error)}}
 
     async def view_latest_report(self, msg: ZMQMsg):
+        return await self._view_report(msg, generate_latest_markdown)
+
+    async def view_best_worst_report(self, msg: ZMQMsg):
+        return await self._view_report(msg, generate_best_worst_markdown)
+
+    async def _view_report(self, msg: ZMQMsg, generate):
         if msg.payload:
             return {"status": "error", "error": {
-                "code": "invalid_request", "message": "view_latest_report takes no arguments",
+                "code": "invalid_request", "message": "Report viewing takes no arguments",
             }}
         try:
-            report = await asyncio.to_thread(generate_latest_markdown)
+            report = await asyncio.to_thread(generate)
             return {"status": "ok", "report": report}
         except ValueError as error:
             return {"status": "error", "error": {"code": "report_unavailable", "message": str(error)}}
         except Exception as error:
-            self.log.error(f"Could not load the latest learning-rate report: {error}")
+            self.log.error(f"Could not load report: {error}")
             return {"status": "error", "error": {
                 "code": "report_unavailable", "message": "Could not load the report. Try again later.",
             }}

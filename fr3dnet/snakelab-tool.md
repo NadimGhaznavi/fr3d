@@ -8,6 +8,14 @@ Call view_latest_report through snakelab_tool with no arguments, including durin
 
 Viewing is read-only and needs no pending decision. The report's Task and Response Tool sections belong to the preview; reading them does not request a new experiment.
 
+## View Best and Worst
+
+Call view_best_worst_report through snakelab_tool with no arguments. It returns the top ten and bottom ten completed simulations by high score, with learning rates, versions, epoch counts, and durations. Ties use the lower run ID first. This read-only ranking covers all versions and configurations; they may not be directly comparable.
+
+Both reports show elapsed duration in seconds from simulation start to completion, excluding queue time and including pauses. N/A means timing is unavailable. The ranking tables can overlap when scores tie or there are fewer than twenty runs.
+
+During an automated learning-rate decision, you may call view_best_worst_report once before proposing a rate. Read the returned ranking, then call submit_learning_rate. If the lookup fails, use the comparison report already provided.
+
 ## Submit Learning Rate
 
 When given an experiment report and asked for the next learning rate, call submit_learning_rate through snakelab_tool. Supply only learning_rate, a number greater than zero and at most one. All other configuration settings stay fixed.
