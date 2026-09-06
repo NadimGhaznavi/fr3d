@@ -15,7 +15,7 @@ from starlette.responses import HTMLResponse
 from starlette.routing import Route
 import uvicorn
 
-from fr3d.app.LearningRateReport import load_experiments, render_markdown
+from fr3d.app.LearningRateReport import LearningRateReport
 from fr3d.app.JournalApp import JournalApp, JournalValidationError
 from fr3d.app.BestWorstReport import generate_best_worst_markdown
 
@@ -41,10 +41,11 @@ def latest_report(request):
     """Run synchronous database/report work in Starlette's worker thread pool."""
     status = 200
     try:
-        experiments = load_experiments(limit=3)
+        report = LearningRateReport()
+        experiments = report.load_experiments(limit=3)
         if len(experiments) != 3:
             raise ValueError("Three completed Snake Lab runs are required.")
-        markdown = render_markdown(experiments)
+        markdown = report.render_markdown(experiments)
         content = MarkdownIt("commonmark", {"html": False}).enable("table").render(markdown)
         metadata = "Runs " + ", ".join(str(experiment.id) for experiment in experiments)
         metadata += " · Generated " + datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")

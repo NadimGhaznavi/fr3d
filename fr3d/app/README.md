@@ -1,5 +1,14 @@
 # Nadim-facing report viewer
 
+`LearningRateReport` is an object with per-instance `connection_factory` and
+`template_path` dependencies. Call `generate_latest_markdown()` for the latest
+three runs or `generate_markdown(run_ids)` for selected history. Loading,
+validation, rendering, and duplicate lookup are methods on the class. The loop,
+server, and viewer use report instances; `dialogue.learning_rate` remains a
+compatibility adapter for the standalone API.
+
+Prefer objects with explicit dependencies for new application components.
+
 The **Best / worst** navigation link opens `/best-worst/`, showing up to ten
 highest-scoring and ten lowest-scoring completed simulations. Fr3d can retrieve
 the same Markdown through `view_best_worst_report` on `snakelab_tool` with no

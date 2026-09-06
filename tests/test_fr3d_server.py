@@ -19,7 +19,7 @@ from fr3d.zmq.ZMQMsg import ZMQMsg
 class SnakeLabStatusTest(unittest.TestCase):
     def setUp(self) -> None:
         self.enterContext(patch("fr3d.server.Fr3dServer.ZMQServer"))
-        self.server = Fr3dServer(log_file=None)
+        self.server = Fr3dServer(log_file=None, learning_rate_enabled=False)
         self.context = MagicMock()
         self.socket = self.context.socket.return_value.__enter__.return_value
         self.response = {

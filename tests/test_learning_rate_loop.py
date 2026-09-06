@@ -11,7 +11,7 @@ import httpx
 
 from fr3d.app.LearningRateLLM import choose_learning_rate
 from fr3d.app.LearningRateLoop import LearningRateLoop
-from fr3d.app.LearningRateReport import Episode, Experiment, find_completed_experiment, load_experiments, render_markdown
+from dialogue.learning_rate import Episode, Experiment, find_completed_experiment, load_experiments, render_markdown
 from fr3d.app.SnakeLabTool import LEARNING_RATE_TOOL, validate_learning_rate
 
 
@@ -54,9 +54,9 @@ class ReportSelectionTest(unittest.TestCase):
             {"id": 1, "config": json.dumps(previous.config)},
         ]
         factory = lambda: connection
-        with patch("fr3d.app.LearningRateReport.load_experiments", return_value=[previous]) as load:
+        with patch("fr3d.app.LearningRateReport.LearningRateReport.load_experiments", return_value=[previous]) as load:
             self.assertEqual(find_completed_experiment(previous.config, "test", connection_factory=factory), previous)
-            load.assert_called_once_with((7,), connection_factory=factory)
+            load.assert_called_once_with((7,))
         sql, params = cursor.execute.call_args.args
         self.assertIn("ORDER BY id DESC", sql)
         self.assertNotIn("LIMIT", sql)
@@ -163,6 +163,7 @@ class LLMTest(unittest.IsolatedAsyncioTestCase):
 class LoopTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.server = MagicMock()
+        self.enterContext(patch("fr3d.app.LearningRateLoop.MyLog", return_value=self.server.log))
         self.server.snake_lab_version.return_value = "test"
         self.server.is_simulation_running.return_value = False
         self.server.submit_simulation.return_value = {"run_id": "next-run"}
@@ -171,7 +172,7 @@ class LoopTest(unittest.IsolatedAsyncioTestCase):
         self.addCleanup(initializer.stop)
         self.loop = LearningRateLoop(self.server)
         self.loop.baseline = ("test", {})
-        finder = patch("fr3d.app.LearningRateLoop.find_completed_experiment", return_value=None)
+        finder = patch("fr3d.app.LearningRateReport.LearningRateReport.find_completed_experiment", return_value=None)
         self.find_previous = finder.start()
         self.addCleanup(finder.stop)
 
@@ -237,7 +238,7 @@ class LoopTest(unittest.IsolatedAsyncioTestCase):
         self.find_previous.side_effect = [previous, None]
         async def submit(rate):
             return json.dumps(await self.loop.submit({"learning_rate": rate}))
-        with patch("fr3d.app.LearningRateLoop.load_experiments", return_value=experiments()), patch(
+        with patch("fr3d.app.LearningRateReport.LearningRateReport.load_experiments", return_value=experiments()), patch(
             "fr3d.app.LearningRateLoop.choose_learning_rate", side_effect=[.001, .003],
         ) as choose, patch("fr3d.app.LearningRateLoop.SnakeLabTool") as tool:
             tool.return_value.submit_learning_rate = AsyncMock(side_effect=submit)
@@ -253,7 +254,7 @@ class LoopTest(unittest.IsolatedAsyncioTestCase):
         self.find_previous.return_value = experiments()[0]
         async def submit(rate):
             return json.dumps(await self.loop.submit({"learning_rate": rate}))
-        with patch("fr3d.app.LearningRateLoop.load_experiments", return_value=experiments()), patch(
+        with patch("fr3d.app.LearningRateReport.LearningRateReport.load_experiments", return_value=experiments()), patch(
             "fr3d.app.LearningRateLoop.choose_learning_rate", return_value=.001,
         ) as choose, patch("fr3d.app.LearningRateLoop.SnakeLabTool") as tool:
             tool.return_value.submit_learning_rate = AsyncMock(side_effect=submit)
@@ -284,7 +285,7 @@ class LoopTest(unittest.IsolatedAsyncioTestCase):
         changed = experiments()
         changed[-1] = replace(changed[-1], config={**changed[-1].config, "seed": 42})
         for runs in ([], experiments()[:2], changed):
-            with patch("fr3d.app.LearningRateLoop.load_experiments", return_value=runs), patch(
+            with patch("fr3d.app.LearningRateReport.LearningRateReport.load_experiments", return_value=runs), patch(
                 "fr3d.app.LearningRateLoop.choose_learning_rate", new_callable=AsyncMock,
             ) as llm:
                 await self.loop.decide()
@@ -301,7 +302,7 @@ class LoopTest(unittest.IsolatedAsyncioTestCase):
             finally:
                 cancelled.set()
         self.loop.decide = AsyncMock(side_effect=decide)
-        with patch("fr3d.app.LearningRateLoop.DFr3d.FR3D_POLL_INTERVAL", .005):
+        with patch("fr3d.app.LearningRateLoop.FR3D.FR3D_POLL_INTERVAL", .005):
             task = asyncio.create_task(self.loop.run())
             await asyncio.wait_for(started.wait(), 1)
             while self.server.is_simulation_running.call_count < 3:
@@ -316,7 +317,7 @@ class LoopTest(unittest.IsolatedAsyncioTestCase):
         self.server.is_simulation_running.side_effect = [TimeoutError(), True, False]
         started = asyncio.Event()
         self.loop.decide = AsyncMock(side_effect=started.set)
-        with patch("fr3d.app.LearningRateLoop.DFr3d.FR3D_POLL_INTERVAL", .005):
+        with patch("fr3d.app.LearningRateLoop.FR3D.FR3D_POLL_INTERVAL", .005):
             task = asyncio.create_task(self.loop.run())
             await asyncio.wait_for(started.wait(), 1)
             task.cancel()

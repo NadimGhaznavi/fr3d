@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.6] - 2026-09-06 @ 16:45
+
+### Added
+
+- Additional LLM server logging (MCP tool use)
+
+### Changed
+
+- Refactored `LearningRateReport` into an object owning its database connection
+  factory and template path. Updated the loop, server, and web viewer
+  to use report instances, preserving report output and the standalone API.
+
 ## [0.12.5] - 2026-09-06 @ 16:16
 
 - Added more log messages to the llm-server

@@ -4,10 +4,10 @@ import json
 from collections import Counter
 from copy import deepcopy
 
-from fr3d.app.LearningRateReport import connect_snake_lab
+from fr3d.app.LearningRateReport import LearningRateReport
 
 
-def release_replays(version, *, connection_factory=connect_snake_lab):
+def release_replays(version, *, connection_factory=LearningRateReport.connect_snake_lab):
     """Return old configurations still missing from the new release queue.
 
     The first run on this version fixes the history boundary across restarts.
