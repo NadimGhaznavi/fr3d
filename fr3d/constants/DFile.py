@@ -3,6 +3,7 @@ from typing import Final
 class DFileDef:
     # SystemD service files
     FR3D_SERVER_SERVICE: Final[str] = "fr3d-server.service"
+    FR3D_REPORT_SERVICE: Final[str] = "fr3d-report.service"
     LLM_SERVER_SERVICE: Final[str] = "llm-server.service"
     LLM_WATCHDOG_SERVICE: Final[str] = "llm-watchdog.service"
 
