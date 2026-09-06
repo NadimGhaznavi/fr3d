@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added a reusable synchronous `ZMQClient` for plain JSON and Fr3d `ZMQMsg`
+  request/reply calls, with configurable timeouts and socket cleanup per request.
+
+### Changed
+
+- Delegated SnakeLab request transport in `Fr3dServer.is_simulation_running()`
+  to `ZMQClient`, retaining SnakeLab response validation in the server.
+
 ## [0.7.4] - 2026-09-06 @ 03:22
 
 ## [0.7.3] - 2026-09-06 @ 03:13

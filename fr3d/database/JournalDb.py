@@ -12,9 +12,10 @@ class JournalDb:
     def add_entry(self, title: str, entry: str) -> str:
         """Add a new journal entry to the database."""
         # Implementation for adding a journal entry to the database
+        message = f"New journal entry ({title}) being created"
         response = {
             "status": "ok",
-            "message": "New journal entry being created",
+            "message": message,
         }
 
         return json.dumps(response)

@@ -1,3 +1,35 @@
+# ZMQClient
+
+`ZMQClient` provides synchronous request/reply calls. It connects to an endpoint
+and creates a fresh REQ socket per call, closing it with zero linger even when
+a send, receive, or JSON decode fails. Send and receive each default to a
+`DFr3d.ZMQ_TIMEOUT` second timeout; pass `timeout=` to override it. Timeout errors
+(`zmq.Again`) propagate. The client does not automatically retry requests.
+
+Use `request()` to exchange Fr3d `ZMQMsg` messages:
+
+```python
+from fr3d.zmq.ZMQClient import ZMQClient
+from fr3d.zmq.ZMQMsg import ZMQMsg
+
+client = ZMQClient("tcp://127.0.0.1:41972")
+response = client.request(ZMQMsg("mcp", "echo", payload={"value": 42}))
+print(response.payload)
+```
+
+The server must register the requested method. Application error replies remain
+messages; callers inspect their payloads. `request_json(dict)` exchanges plain
+JSON for protocols such as SnakeLab's, leaving protocol, request ID, status, and
+payload validation to the caller. `Fr3dServer.is_simulation_running()` uses this
+method and retains SnakeLab-specific validation.
+
+By default, each call also owns and terminates its context. A supplied
+`context=` must be synchronous and remains owned by the caller. For async MCP
+handlers or other event-loop code, use `await asyncio.to_thread(client.request,
+message)` with the default context management so the call does not block the
+event loop. Cancelling that await does not interrupt the worker; the configured
+socket timeouts still bound its wait.
+
 # ZMQServer
 
 `ZMQServer` binds an async REP socket at construction. It receives a single
