@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Defaulted the Fr3d and ZMQ server listeners to `127.0.0.1` using a separate
+  `DFr3d.ZMQ_HOST` setting, restricting ZMQ access to the local machine.
+
 ## [0.8.3] - 2026-09-06 @ 04:12
 
 ## [0.8.2] - 2026-09-06 @ 04:10
