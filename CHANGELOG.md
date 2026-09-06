@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.7] - 2026-09-06 @ 17:06
+
+### Added
+
+- Log knowledge-base page requests to the LLM server log using the `KbBrowser`
+  identity.
+
+### Changed
+
+- Refactored the knowledge-base browser into `KbBrowser`, with an instance-owned
+  document root and methods for URL resolution, Markdown validation, and page
+  loading. Updated the MCP entry point and tests to use the object.
+
 ## [0.12.6] - 2026-09-06 @ 16:45
 
 ### Added
