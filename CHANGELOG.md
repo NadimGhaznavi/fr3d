@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.3] - 2026-09-06 @ 16:00
+
+### Added
+
+- Added additional logging of the MCP tool invocations
+
+
 ## [0.12.2] - 2026-09-06 @ 15:03
 
 ### Fixed

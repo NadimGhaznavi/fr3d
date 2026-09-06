@@ -3,12 +3,20 @@
 import asyncio
 import json
 from copy import deepcopy
+from pathlib import Path
+
+from fr3d.constants.DFr3d import DFr3d as FR3D
+from fr3d.constants.DMyLog import DMyLogDef as DEFLOG
+from fr3d.constants.DModule import DModule as MODULE
+from fr3d.constants.DDir import DDirDef as DEFDIR
+from fr3d.constants.DFile import DFileDef as DEFILE
 
 from fr3d.app.LearningRateLLM import choose_learning_rate
 from fr3d.app.LearningRateReport import find_completed_experiment, load_experiments, render_markdown
 from fr3d.app.ReleaseInitialization import release_replays
 from fr3d.app.SnakeLabTool import SnakeLabTool, validate_learning_rate
-from fr3d.constants.DFr3d import DFr3d
+from fr3d.utils.MyLog import MyLog
+
 
 
 class LearningRateLoop:
@@ -19,6 +27,10 @@ class LearningRateLoop:
         self.project_version = None
         self.decision_task = None
         self.submission_lock = asyncio.Lock()
+
+        server_log = Path(DEFDIR.SERVER_LOGS / DEFILE.LLM_SERVER_LOG)
+
+        self.log = MyLog(client_id=MODULE.LR_LOOP, log_file=server_log, to_console=False)
 
     async def run(self) -> None:
         try:
@@ -32,7 +44,7 @@ class LearningRateLoop:
                         self.decision_task = asyncio.create_task(self.decide(), name="fr3d-learning-rate-decision")
                 except Exception as error:
                     self.server.log.warning(f"Snake Lab polling failed: {error}")
-                await asyncio.sleep(DFr3d.FR3D_POLL_INTERVAL)
+                await asyncio.sleep(FR3D.FR3D_POLL_INTERVAL)
         finally:
             if self.decision_task is not None:
                 self.decision_task.cancel()
@@ -42,11 +54,15 @@ class LearningRateLoop:
     def prepare_report(self):
         experiments = load_experiments(limit=3)
         if len(experiments) != 3:
-            raise ValueError("Three completed Snake Lab runs are required")
+            msg = "Three completed Snake Lab runs are required"
+            self.log.critical(msg)
+            raise ValueError(msg)
         report = render_markdown(experiments)
         config = deepcopy(experiments[-1].config)
         if type(config.get("seed")) is not int:
-            raise ValueError("The baseline must contain a fixed integer seed")
+            msg = "The baseline must contain a fixed integer seed"
+            self.log.critical(msg)
+            raise ValueError(msg)
         fixed = deepcopy(config)
         del fixed["training"]["learning_rate"]
         baseline = (experiments[-1].project_version, fixed)
@@ -63,7 +79,9 @@ class LearningRateLoop:
                 async with self.submission_lock:
                     for config in replays:
                         if await asyncio.to_thread(self.server.snake_lab_version) != version:
-                            raise ValueError("Snake Lab version changed before initialization submission")
+                            msg = "Snake Lab version changed before initialization submission"
+                            self.log.critical(msg)
+                            raise ValueError(msg)
                         result = await asyncio.to_thread(self.server.submit_simulation, config)
                         self.server.log.info(
                             f"Initializing Snake Lab {version}: queued learning rate "
@@ -72,17 +90,22 @@ class LearningRateLoop:
                 return
             report, config, baseline = await asyncio.to_thread(self.prepare_report)
             if baseline[0] != version:
-                raise ValueError("Completed history does not match the running Snake Lab version")
+                msg = "Completed history does not match the running Snake Lab version"
+                self.log.critical(msg)
+                raise ValueError(msg)
             if self.baseline is None:
                 self.baseline = baseline
             elif self.baseline != baseline:
-                raise ValueError("Snake Lab's fixed configuration changed during the experiment")
+                msg = "Snake Lab's fixed configuration changed during the experiment"
+                self.log.critical(msg)
+                raise ValueError(msg)
             self.pending_config = config
             for _ in range(3):
                 learning_rate = await choose_learning_rate(report)
                 result = json.loads(await SnakeLabTool(self.server.endpoint).submit_learning_rate(learning_rate))
                 if result.get("status") == "already_run":
                     report = result["message"] + "\n\n" + result["report"]
+                    self.log.info(f"Attempted to re-run experiment with LR set to: {learning_rate}")
                     continue
                 if result.get("status") != "ok":
                     raise RuntimeError(result.get("error", {}).get("message", "Learning-rate submission failed"))
@@ -98,18 +121,28 @@ class LearningRateLoop:
         learning_rate = validate_learning_rate(arguments)
         async with self.submission_lock:
             if self.pending_config is None:
-                raise ValueError("No learning-rate decision is awaiting submission")
+                msg = "No learning-rate decision is awaiting submission"
+                self.log.critical(msg)
+                raise ValueError(msg)
             pending = self.pending_config
             if await asyncio.to_thread(self.server.is_simulation_running):
-                raise ValueError("Snake Lab is already running or queuing a simulation")
+                msg = "Snake Lab is already running or queuing a simulation"
+                self.log.critical(msg)
+                raise ValueError(msg)
             if self.pending_config is not pending:
-                raise ValueError("The learning-rate decision is no longer awaiting submission")
+                msg = "The learning-rate decision is no longer awaiting submission"
+                self.log.critical(msg)
+                raise ValueError(msg)
             config = deepcopy(pending)
             config["training"]["learning_rate"] = learning_rate
             if self.baseline is None:
-                raise ValueError("No experiment baseline is available")
+                msg = "No experiment baseline is available"
+                self.log.critical(msg)
+                raise ValueError(msg)
             if await asyncio.to_thread(self.server.snake_lab_version) != self.baseline[0]:
-                raise ValueError("Snake Lab version changed during the learning-rate decision")
+                msg = "Snake Lab version changed during the learning-rate decision"
+                self.log.critical(msg)
+                raise ValueError(msg)
             previous = await asyncio.to_thread(find_completed_experiment, config, self.baseline[0])
             if previous is not None:
                 report = await asyncio.to_thread(render_markdown, [previous])
