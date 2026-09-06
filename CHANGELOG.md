@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-09-06 @ 14:23
+
 ### Added
 
 - Added a best/worst simulation report at `/best-worst/` and through the read-only
