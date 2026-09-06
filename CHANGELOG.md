@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.8] - 2026-09-06 @ 04:53
+
+### Fixed
+
+- Restored the ops uptime target `llm-server` to match the MCP tool schema,
+  while retaining `llama-server` as the process name used to calculate uptime.
+
 ## [0.8.7] - 2026-09-06 @ 04:27
 
 ## [0.8.6] - 2026-09-06 @ 04:25
