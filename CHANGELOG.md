@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Qwen 3.7 Plus suggested these tweaks to the LLM prompts
+  - Further refined by Qwen 3.8 Max
+
 ## [0.12.7] - 2026-09-06 @ 17:06
 
 ### Added

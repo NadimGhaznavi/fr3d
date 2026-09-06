@@ -15,39 +15,55 @@ from fr3d.zmq.ZMQMsg import ZMQMsg
 from fr3d.utils.MyLog import MyLog
 
 
-LEARNING_RATE_TOOL = {
+from typing import Final
+
+from typing import Final
+
+LEARNING_RATE_TOOL: Final = {
     "type": "function",
     "function": {
         "name": "submit_learning_rate",
-        "description": "Submit the next experiment's learning rate through snakelab_tool.",
+        "description": (
+            "Submit the learning rate for the next experiment. "
+            "Call this only when you are ready to submit. "
+            "The learning rate must be greater than 0 and at most 1."
+        ),
         "parameters": {
             "type": "object",
             "properties": {
                 "learning_rate": {
                     "type": "number",
-                    "description": "New learning rate. Must be greater than 0 and at most 1.",
-                    # Added explicit schema constraints so the LLM grammar engine 
-                    # physically prevents the model from outputting 1.5 or -0.1
-                    "exclusiveMinimum": 0, 
-                    "maximum": 1
-                },
+                    "description": (
+                        "Learning rate for the next experiment. "
+                        "Example: 0.001."
+                    ),
+                    "minimum": 1e-12,
+                    "maximum": 1.0,
+                }
             },
             "required": ["learning_rate"],
             "additionalProperties": False,
         },
-        # Note: llama-server ignores "strict", but it's fine to leave for OpenAI compatibility
-        "strict": True, 
     },
 }
 
-BEST_WORST_TOOL = {
+
+BEST_WORST_TOOL: Final = {
     "type": "function",
     "function": {
         "name": "view_best_worst_report",
-        "description": "Read the top and bottom ten completed simulations by high score, with learning rates and durations. Historical runs may have different versions and settings. Available once before submitting a learning rate.",
-        # Tweak: For zero-argument tools, it is safer in llama.cpp to omit 
-        # the parameters key entirely, OR ensure required is explicitly empty.
-        # Here, we just omit it to be 100% safe against grammar generation bugs.
+        "description": (
+            "Read-only report of the top 10 and bottom 10 completed simulations "
+            "by high score, including learning rate and duration. "
+            "Historical runs may have different versions and settings. "
+            "Use this when you need historical results to choose a learning rate."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": False,
+        },
     },
 }
 
