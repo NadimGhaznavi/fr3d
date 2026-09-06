@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.14] - 2026-09-06 @ 05:40
+
 ### Added
 
 - Added `JournalApp` validation and append-only journal persistence through
