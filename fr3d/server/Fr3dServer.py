@@ -12,10 +12,15 @@ from pathlib import Path
 import zmq
 
 from fr3d.constants.DFr3d import DFr3d as FRED
-from fr3d.constants.DModule import DModule
-from fr3d.constants.DSnakeLab import DSnakeLab
+from fr3d.constants.DModule import DModule as MODULE
+from fr3d.constants.DSnakeLab import DSnakeLab as SNAKELAB
+from fr3d.constants.DMethod import DMethod as METHOD
+
+
 from fr3d.zmq.ZMQClient import ZMQClient
 from fr3d.zmq.ZMQServer import MsgHandler, ZMQServer
+from fr3d.database.JournalDb import JournalDb
+
 
 
 class Fr3dServer:
@@ -29,10 +34,13 @@ class Fr3dServer:
         *,
         srv_methods: dict[str, MsgHandler] | None = None,
     ) -> None:
+
+        srv_methods = { METHOD.ADD_JOURNAL_ENTRY: self.add_journal_entry}
+        
         self.zmq_server = ZMQServer(
             address=address,
             port=port,
-            identity=DModule.FR3D,
+            identity=MODULE.FR3D,
             log_file=log_file,
             srv_methods=srv_methods,
         )
@@ -40,6 +48,11 @@ class Fr3dServer:
         self.endpoint = self.zmq_server.endpoint
         self._stop_event = asyncio.Event()
         self._running = False
+
+    async def add_journal_entry(self, payload):
+        self.log.info(f"Received: {payload}")
+        db = JournalDb()
+        return db.add_entry(title="foo", entry="bar") 
 
     async def run(self) -> None:
         """Serve until stopped, cancelled, or the transport fails."""
@@ -76,9 +89,9 @@ class Fr3dServer:
     def is_simulation_running(self, context: zmq.Context | None = None) -> bool:
         """Return whether SnakeLab has an active or queued simulation."""
         request_id = str(uuid.uuid4())
-        client = ZMQClient(DSnakeLab.ENDPOINT, timeout=DSnakeLab.TIMEOUT, context=context)
+        client = ZMQClient(SNAKELAB.ENDPOINT, timeout=SNAKELAB.TIMEOUT, context=context)
         response = client.request_json({
-            "protocol_version": DSnakeLab.PROTOCOL_VERSION,
+            "protocol_version": SNAKELAB.PROTOCOL_VERSION,
             "request_id": request_id,
             "method": "simulation.active",
             "payload": {},
@@ -86,7 +99,7 @@ class Fr3dServer:
 
         if not isinstance(response, dict):
             raise ValueError("invalid SnakeLab response")
-        if response.get("protocol_version") != DSnakeLab.PROTOCOL_VERSION:
+        if response.get("protocol_version") != SNAKELAB.PROTOCOL_VERSION:
             raise ValueError("unsupported SnakeLab protocol")
         if response.get("request_id") != request_id:
             raise ValueError("SnakeLab request_id mismatch")
