@@ -16,6 +16,7 @@ from fr3d.app.LearningRateReport import LearningRateReport
 from fr3d.app.ReleaseInitialization import release_replays
 from fr3d.app.SnakeLabTool import SnakeLabTool, validate_learning_rate
 from fr3d.utils.MyLog import MyLog
+from fr3d.app.DecisionTrace import DecisionTrace
 
 
 
@@ -44,7 +45,7 @@ class LearningRateLoop:
                     if not busy and self.decision_task is None:
                         self.decision_task = asyncio.create_task(self.decide(), name="fr3d-learning-rate-decision")
                 except Exception as error:
-                    self.server.log.warning(f"Snake Lab polling failed: {error}")
+                    self.log.warning(f"Snake Lab polling failed: {error}")
                 await asyncio.sleep(FR3D.FR3D_POLL_INTERVAL)
         finally:
             if self.decision_task is not None:
@@ -70,7 +71,9 @@ class LearningRateLoop:
         return report, config, baseline
 
     async def decide(self) -> None:
-        self.log.info("decide(): Prompting the LLM to pick a learning rate")
+        trace = DecisionTrace(self.log)
+        trace.record("decision_started")
+        outcome = "failed"
         try:
             version = await asyncio.to_thread(self.server.snake_lab_version)
             if version != self.project_version:
@@ -85,10 +88,9 @@ class LearningRateLoop:
                             self.log.critical(msg)
                             raise ValueError(msg)
                         result = await asyncio.to_thread(self.server.submit_simulation, config)
-                        self.server.log.info(
-                            f"Initializing Snake Lab {version}: queued learning rate "
-                            f"{config['training']['learning_rate']}: run {result['run_id']}"
-                        )
+                        trace.record("release_replay_queued", version=version,
+                                     learning_rate=config['training']['learning_rate'], run_id=result['run_id'])
+                outcome = "release_initialization"
                 return
             report, config, baseline = await asyncio.to_thread(self.prepare_report)
             if baseline[0] != version:
@@ -102,24 +104,32 @@ class LearningRateLoop:
                 self.log.critical(msg)
                 raise ValueError(msg)
             self.pending_config = config
-            for _ in range(3):
-                learning_rate = await choose_learning_rate(report)
+            for proposal in range(1, 4):
+                trace.record("proposal_started", proposal=proposal)
+                learning_rate = await choose_learning_rate(report, trace=trace)
+                trace.record("submission_started", proposal=proposal, learning_rate=learning_rate)
                 result = json.loads(await SnakeLabTool(self.server.endpoint).submit_learning_rate(learning_rate))
+                trace.record("submission_result", proposal=proposal, result=result)
                 if result.get("status") == "already_run":
                     report = json.dumps({"message": result["message"], "report": result["report"]}, allow_nan=False)
-                    self.log.info(f"Rejected duplicate learning rate: {learning_rate}")
+                    trace.record("duplicate_rejected", proposal=proposal, learning_rate=learning_rate, run_id=result["run_id"])
                     continue
                 if result.get("status") != "ok":
                     msg = result.get("error", {}).get("message", "Learning-rate submission failed")
                     self.log.critical(msg)
                     raise RuntimeError(msg)
-                self.server.log.info(f"Submitted learning rate {learning_rate}: run {result['run_id']}")
+                outcome = "submitted"
+                trace.record("simulation_submitted", learning_rate=learning_rate, run_id=result['run_id'])
                 return
             raise ValueError("Model selected previously completed simulations three times")
+        except asyncio.CancelledError:
+            outcome = "cancelled"
+            raise
         except Exception as error:
-            self.server.log.warning(f"Learning rate decision failed: {error}")
+            trace.record("decision_failed", level="warning", error_type=type(error).__name__, message=str(error))
         finally:
             self.pending_config = None
+            trace.record("decision_finished", outcome=outcome)
 
     async def submit(self, arguments: dict) -> dict:
         learning_rate = validate_learning_rate(arguments)

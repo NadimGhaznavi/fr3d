@@ -61,6 +61,7 @@ class MyLog:
 
         # Optional file handler
         if log_file:
+            log_file = str(Path(log_file).resolve())
             try:
                 Path(log_file).parent.mkdir(parents=True, exist_ok=True)
             except OSError as error:
