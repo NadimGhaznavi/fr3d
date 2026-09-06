@@ -270,6 +270,14 @@ def render_markdown(
     return "\n".join(lines) + "\n"
 
 
+def generate_latest_markdown() -> str:
+    """Preview the latest three completed runs without starting a decision."""
+    experiments = load_experiments(limit=3)
+    if len(experiments) != 3:
+        raise ValueError("Three completed Snake Lab runs are required.")
+    return render_markdown(experiments)
+
+
 def generate_markdown(
     run_ids: Sequence[int] = (),
     *,
