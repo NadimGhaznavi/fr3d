@@ -25,27 +25,31 @@ LEARNING_RATE_TOOL = {
             "properties": {
                 "learning_rate": {
                     "type": "number",
-                    "description": "New learning rate, greater than zero and at most one.",
+                    "description": "New learning rate. Must be greater than 0 and at most 1.",
+                    # Added explicit schema constraints so the LLM grammar engine 
+                    # physically prevents the model from outputting 1.5 or -0.1
+                    "exclusiveMinimum": 0, 
+                    "maximum": 1
                 },
             },
             "required": ["learning_rate"],
             "additionalProperties": False,
         },
-        "strict": True,
+        # Note: llama-server ignores "strict", but it's fine to leave for OpenAI compatibility
+        "strict": True, 
     },
 }
-
 
 BEST_WORST_TOOL = {
     "type": "function",
     "function": {
         "name": "view_best_worst_report",
         "description": "Read the top and bottom ten completed simulations by high score, with learning rates and durations. Historical runs may have different versions and settings. Available once before submitting a learning rate.",
-        "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
-        "strict": True,
+        # Tweak: For zero-argument tools, it is safer in llama.cpp to omit 
+        # the parameters key entirely, OR ensure required is explicitly empty.
+        # Here, we just omit it to be 100% safe against grammar generation bugs.
     },
 }
-
 
 def validate_learning_rate(arguments: dict) -> float:
     if not isinstance(arguments, dict) or set(arguments) != {"learning_rate"}:

@@ -18,8 +18,20 @@ async def choose_learning_rate(report: str) -> float:
         headers["Authorization"] = f"Bearer {key}"
     payload = {
         "model": os.environ.get("LLAMA_MODEL", "local-model"),
-        "messages": [{"role": "user", "content": report}],
-        "temperature": 0.2,
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "You are an ML experiment analyst for the Snake Lab system. "
+                    "Analyze the experiment report and choose the next learning rate."
+                ),
+            },
+            {
+                "role": "user",
+                "content": report,
+            },
+        ],
+        "temperature": 0.1,
         "max_tokens": 4096,
         "stream": False,
         "tools": [LEARNING_RATE_TOOL, BEST_WORST_TOOL],
