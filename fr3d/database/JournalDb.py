@@ -1,7 +1,6 @@
 # database/JournalDb.py
 
 from __future__ import annotations
-import json
 
 class JournalDb:
     """Application database interface for journal operations."""
@@ -9,7 +8,7 @@ class JournalDb:
     def __init__(self):
         pass
 
-    def add_entry(self, title: str, entry: str) -> str:
+    def add_entry(self, title: str, entry: str) -> dict[str, str]:
         """Add a new journal entry to the database."""
         # Implementation for adding a journal entry to the database
         message = f"New journal entry ({title}) being created"
@@ -18,4 +17,4 @@ class JournalDb:
             "message": message,
         }
 
-        return json.dumps(response)
+        return response

@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Awaited journal MCP requests, aligned their method name with the Fr3d handler,
+  and returned dictionary payloads over ZMQ with JSON text at the MCP boundary.
+  Journal persistence remains a stub.
+
 ## [0.8.10] - 2026-09-06 @ 04:59
 
 ## [0.8.9] - 2026-09-06 @ 04:55

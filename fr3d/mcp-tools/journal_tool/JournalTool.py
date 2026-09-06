@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import json
 
 from fr3d.constants.DFr3d import DFr3d as FR3D
+from fr3d.constants.DMethod import DMethod
 
 from fr3d.zmq.ZMQClient import ZMQClient
 from fr3d.zmq.ZMQMsg import ZMQMsg
@@ -19,7 +21,7 @@ class JournalTool:
         request = ZMQMsg(
             sender="mcp-journal",
             target="journal",
-            method="add",
+            method=DMethod.ADD_JOURNAL_ENTRY,
             payload={
                 "title": title,
                 "entry": entry,
@@ -31,4 +33,4 @@ class JournalTool:
             request,
         )
 
-        return response.payload
+        return json.dumps(response.payload)
