@@ -44,7 +44,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         load_database_environment(args.env_file)
-        from database.Database import connect
+        from fr3d.database.DbMgr import DbMgr
         from pymysql import MySQLError
     except (OSError, ValueError, ImportError) as error:
         print(f"poke_fr3d: {error}", file=sys.stderr)
@@ -54,7 +54,7 @@ def main(argv: list[str] | None = None) -> int:
         markdown = generate_markdown(
             args.run_id,
             template_path=args.template,
-            connection_factory=lambda: connect(
+            connection_factory=lambda: DbMgr.connect(
                 database_name=DDatabase.SNAKE_LAB_DB_NAME,
                 unix_socket=args.unix_socket,
             ),

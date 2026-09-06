@@ -183,7 +183,7 @@ class LearningRateCliTest(unittest.TestCase):
         stdout, stderr = io.StringIO(), io.StringIO()
         with (
             patch("dialogue.poke_fr3d.load_database_environment"),
-            patch("database.Database.connect") as connect,
+            patch("fr3d.database.DbMgr.DbMgr.connect") as connect,
             patch("dialogue.poke_fr3d.generate_markdown") as generate,
             redirect_stdout(stdout), redirect_stderr(stderr),
         ):
@@ -219,13 +219,14 @@ class LearningRateCliTest(unittest.TestCase):
         self.assertNotIn("private connection details", stderr.getvalue())
 
     def test_database_override_preserves_default_connection_behavior(self) -> None:
-        from database.Database import connect
+        from fr3d.database.DbMgr import DbMgr
+        connect = DbMgr.connect
 
         with (
             patch.dict(os.environ, {
                 "FR3D_DB_PASSWORD": "secret", "FR3D_DB_NAME": "configured_fr3d",
             }),
-            patch("database.Database.pymysql.connect") as pymysql_connect,
+            patch("fr3d.database.DbMgr.pymysql.connect") as pymysql_connect,
         ):
             connect()
             self.assertEqual(pymysql_connect.call_args.kwargs["database"], "configured_fr3d")

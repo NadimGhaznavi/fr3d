@@ -93,6 +93,7 @@ class Fr3dServerIntegrationTest(unittest.IsolatedAsyncioTestCase):
         self.enterContext(patch("fr3d.zmq.ZMQServer.MyLog"))
         self.methods = {"echo": lambda request: request.payload}
         self.server = Fr3dServer(
+            learning_rate_enabled=False,
             address="127.0.0.1", port=0, log_file=None, srv_methods=self.methods,
         )
         self.task = None
