@@ -35,6 +35,8 @@ class LearningRateZMQTest(unittest.IsolatedAsyncioTestCase):
                 if request["method"] == "simulation.submit":
                     payload = {"run_id": "next-run", "state": "queued", "queue_position": 1}
                     submitted.set()
+                elif request["method"] == "health":
+                    payload = {"service": "snake-lab", "project_version": "test"}
                 else:
                     self.assertEqual(request["method"], "simulation.active")
                     payload = {"run": {"run_id": "next-run", "state": "queued"} if submitted.is_set() else None}
@@ -52,7 +54,7 @@ class LearningRateZMQTest(unittest.IsolatedAsyncioTestCase):
             await release_model.wait()
             return .003
 
-        with patch("fr3d.zmq.ZMQServer.MyLog"), patch.object(
+        with patch("fr3d.app.LearningRateLoop.release_replays", return_value=[]), patch("fr3d.app.LearningRateLoop.find_completed_experiment", return_value=None), patch("fr3d.zmq.ZMQServer.MyLog"), patch.object(
             DSnakeLab, "ENDPOINT", f"tcp://127.0.0.1:{port}",
         ), patch("fr3d.app.LearningRateLoop.load_experiments", return_value=runs), patch(
             "fr3d.app.LearningRateLoop.choose_learning_rate", side_effect=choose,

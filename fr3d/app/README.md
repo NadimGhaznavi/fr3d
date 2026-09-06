@@ -79,6 +79,15 @@ an active simulation again, and replaces only the rate in its internal stored
 configuration. It sends the full configuration through `simulation.submit` and
 returns only status, rate, and run ID to the tool.
 
+Before submitting, Fr3d checks all completed history for an identical configuration
+and project version. A match returns `status: already_run`, the latest matching
+run's numeric report ID, and "This simulation has already been run. Here's your
+report." with the standard report rendered using only that run. No simulation is
+started. The pending configuration stays available and the loop sends the message
+and report back to the model for another choice. Each decision allows at most
+three proposals before yielding to the next poll. Lookup or report failures
+prevent submission.
+
 Each proposal is consumed before submission and is never retransmitted on a
 failed or missing reply. The next poll checks status before beginning another
 decision. Snake Lab has no idempotent submission operation or atomic
@@ -91,3 +100,25 @@ The installer and upgrader include the runtime modules, report template, and MCP
 tool under `fr3d/`. Automation starts when the updated Fr3d service starts.
 Tests can construct `Fr3dServer(learning_rate_enabled=False)` to isolate other
 server functionality.
+
+
+On a SnakeLab code release, Fr3d reads `project_version` from the live `health`
+response before making a learning-rate decision. Deploy the SnakeLab health
+version field before this Fr3d update. Missing version information prevents
+submission.
+
+When the latest three completed runs are not on that version, initialization
+copies the last three completed configurations preceding the first run on the
+new version (or the latest three when the version has no runs yet). Fr3d submits
+all missing configurations to SnakeLab's queue, preserving their learning rates
+and every other parameter. SnakeLab handles serial execution. Source versions
+may differ, but the fixed configuration and integer seed must match.
+
+Database history fixes that boundary across Fr3d restarts. Matching completed or
+active/queued runs on the new version count toward the three replays; duplicate
+configurations count individually. Failed or cancelled attempts can be retried.
+A submission error stops the batch, and the next idle poll reloads history before
+submitting anything else. Once three new-version results are available, normal
+learning-rate decisions resume with a fresh version baseline. Version identifiers
+must identify distinct releases; rebuilding different code under the same version
+cannot be detected by this mechanism.
