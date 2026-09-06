@@ -50,6 +50,7 @@ class JournalTool:
             entry = page["entry"]
             return (f"# {self._title(entry['title'])}\n\n"
                     f"Created: {entry['created_at']}\n\n{entry['entry']}\n\n"
+                    "    --Fr3d\n\n"
                     "- [Journal Entries](/)\n")
         lines = ["# Journal Entries", ""]
         lines.extend(f"- [{self._title(row['title'])}](/entries/{row['id']})"

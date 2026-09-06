@@ -77,6 +77,7 @@ class JournalMarkdownTest(unittest.IsolatedAsyncioTestCase):
             {'title': 'Title', 'entry': 'First paragraph.\n\nSecond paragraph.', 'created_at': '2026-09-06T00:00:00+00:00'}}, '/entries/42')
         self.assertTrue(text.startswith('# Title\n'))
         self.assertIn('First paragraph.\n\nSecond paragraph.', text)
+        self.assertIn('Second paragraph.\n\n    --Fr3d\n\n', text)
         self.assertIn('[Journal Entries](/)', text)
         text = await self.render({'status': 'ok', 'kind': 'index', 'page': 1, 'has_next': False, 'entries': []})
         self.assertIn('No journal entries found.', text)
