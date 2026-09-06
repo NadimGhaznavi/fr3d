@@ -12,7 +12,7 @@ from fr3d.constants.DDir import DDirDef as DEFDIR
 from fr3d.constants.DFile import DFileDef as DEFILE
 
 from fr3d.app.LearningRateLLM import choose_learning_rate
-from fr3d.app.LearningRateReport import find_completed_experiment, load_experiments, render_markdown
+from fr3d.app.LearningRateReport import LearningRateReport
 from fr3d.app.ReleaseInitialization import release_replays
 from fr3d.app.SnakeLabTool import SnakeLabTool, validate_learning_rate
 from fr3d.utils.MyLog import MyLog
@@ -31,6 +31,7 @@ class LearningRateLoop:
         server_log = Path(DEFDIR.SERVER_LOGS / DEFILE.LLM_SERVER_LOG)
 
         self.log = MyLog(client_id=MODULE.LR_LOOP, log_file=server_log, to_console=False)
+        self.report = LearningRateReport()
 
     async def run(self) -> None:
         try:
@@ -52,12 +53,12 @@ class LearningRateLoop:
             self.pending_config = None
 
     def prepare_report(self):
-        experiments = load_experiments(limit=3)
+        experiments = self.report.load_experiments(limit=3)
         if len(experiments) != 3:
             msg = "Three completed Snake Lab runs are required"
             self.log.critical(msg)
             raise ValueError(msg)
-        report = render_markdown(experiments)
+        report = self.report.render_markdown(experiments)
         config = deepcopy(experiments[-1].config)
         if type(config.get("seed")) is not int:
             msg = "The baseline must contain a fixed integer seed"
@@ -146,9 +147,9 @@ class LearningRateLoop:
                 msg = "Snake Lab version changed during the learning-rate decision"
                 self.log.critical(msg)
                 raise ValueError(msg)
-            previous = await asyncio.to_thread(find_completed_experiment, config, self.baseline[0])
+            previous = await asyncio.to_thread(self.report.find_completed_experiment, config, self.baseline[0])
             if previous is not None:
-                report = await asyncio.to_thread(render_markdown, [previous])
+                report = await asyncio.to_thread(self.report.render_markdown, [previous])
                 return {
                     "status": "already_run", "learning_rate": learning_rate,
                     "run_id": previous.id,

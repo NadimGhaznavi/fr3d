@@ -28,7 +28,7 @@ class ReportServerTest(unittest.TestCase):
         self.client = TestClient(app)
 
     def test_report_renders_tables_and_refresh_loads_latest_history(self):
-        with patch("fr3d.server.ReportServer.load_experiments", return_value=experiments()) as load:
+        with patch("fr3d.app.LearningRateReport.LearningRateReport.load_experiments", return_value=experiments()) as load:
             response = self.client.get("/")
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.headers["cache-control"], "no-store")
@@ -49,14 +49,14 @@ class ReportServerTest(unittest.TestCase):
                 runs[0].config["seed"] = 99
             else:
                 runs[0].config["epochs"] = 3
-            with self.subTest(kind=kind), patch("fr3d.server.ReportServer.load_experiments", return_value=runs):
+            with self.subTest(kind=kind), patch("fr3d.app.LearningRateReport.LearningRateReport.load_experiments", return_value=runs):
                 response = self.client.get("/")
                 self.assertEqual(response.status_code, 503)
                 self.assertIn("Waiting for comparable results", response.text)
                 self.assertIn("parameters other than learning_rate" if kind == "incompatible" else "incomplete episode data", response.text)
 
     def test_database_failure_is_logged_without_exposing_credentials(self):
-        with patch("fr3d.server.ReportServer.load_experiments", side_effect=RuntimeError("secret database detail")):
+        with patch("fr3d.app.LearningRateReport.LearningRateReport.load_experiments", side_effect=RuntimeError("secret database detail")):
             with self.assertLogs("fr3d.server.ReportServer", level="ERROR"):
                 response = self.client.get("/")
         self.assertEqual(response.status_code, 503)
@@ -64,17 +64,17 @@ class ReportServerTest(unittest.TestCase):
         self.assertNotIn("secret database detail", response.text)
 
     def test_markdown_html_and_validation_messages_are_escaped(self):
-        with patch("fr3d.server.ReportServer.load_experiments", return_value=experiments()):
-            with patch("fr3d.server.ReportServer.render_markdown", return_value="<script>alert(1)</script>"):
+        with patch("fr3d.app.LearningRateReport.LearningRateReport.load_experiments", return_value=experiments()):
+            with patch("fr3d.app.LearningRateReport.LearningRateReport.render_markdown", return_value="<script>alert(1)</script>"):
                 response = self.client.get("/")
         self.assertNotIn("<script>", response.text)
         self.assertIn("&lt;script&gt;", response.text)
-        with patch("fr3d.server.ReportServer.load_experiments", side_effect=ValueError("<script>")):
+        with patch("fr3d.app.LearningRateReport.LearningRateReport.load_experiments", side_effect=ValueError("<script>")):
             response = self.client.get("/")
         self.assertNotIn("<script>", response.text)
 
     def test_other_routes_and_writes_do_not_load_reports(self):
-        with patch("fr3d.server.ReportServer.load_experiments") as load:
+        with patch("fr3d.app.LearningRateReport.LearningRateReport.load_experiments") as load:
             self.assertEqual(self.client.get("/missing").status_code, 404)
             self.assertEqual(self.client.post("/").status_code, 405)
             load.assert_not_called()
