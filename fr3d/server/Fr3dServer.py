@@ -38,7 +38,10 @@ class Fr3dServer:
     ) -> None:
 
         if srv_methods is None:
-            srv_methods = {METHOD.ADD_JOURNAL_ENTRY: self.add_journal_entry}
+            srv_methods = {
+                METHOD.ADD_JOURNAL_ENTRY: self.add_journal_entry,
+                METHOD.VIEW_JOURNAL_ENTRIES: self.view_journal_entries,
+            }
         
         self.zmq_server = ZMQServer(
             address=address,
@@ -66,6 +69,13 @@ class Fr3dServer:
                 details["retry_after_seconds"] = error.retry_after
             self.log.warning(f"Journal request rejected: {error}")
             return {"status": "error", "error": details}
+
+    async def view_journal_entries(self, msg: ZMQMsg):
+        try:
+            return await asyncio.to_thread(JournalApp().view_entries, msg.payload.get("url", "/"))
+        except JournalValidationError as error:
+            self.log.warning(f"Journal browse request rejected: {error}")
+            return {"status": "error", "error": {"code": "invalid_request", "message": str(error)}}
 
     async def run(self) -> None:
         """Serve until stopped, cancelled, or the transport fails."""

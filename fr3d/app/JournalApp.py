@@ -1,6 +1,7 @@
 """Validate and persist append-only journal entries."""
 
 import math
+import re
 from datetime import datetime, timedelta, timezone
 
 from fr3d.database.JournalDb import JournalDb
@@ -51,3 +52,32 @@ class JournalApp:
             entry_id = journal.add_entry(title, entry, created_at)
         return {"status": "ok", "id": entry_id, "created_at": now.isoformat(),
                 "message": f"Journal entry ({title}) created"}
+
+    def view_entries(self, url: str = "/") -> dict:
+        """Resolve a journal URL and return JSON-safe page data."""
+        if not isinstance(url, str) or len(url) > 64:
+            raise JournalValidationError("Invalid journal URL; begin at /")
+        if url == "/":
+            page = 1
+        elif match := re.fullmatch(r"/page/([1-9][0-9]{0,6})", url):
+            page = int(match[1])
+            if page > 1_000_000:
+                raise JournalValidationError("Invalid journal page; return to /")
+        elif match := re.fullmatch(r"/entries/([1-9][0-9]{0,19})", url):
+            entry_id = int(match[1])
+            if entry_id > 18_446_744_073_709_551_615:
+                raise JournalValidationError("Invalid journal entry ID; return to /")
+            row = self.repository.get_entry(entry_id)
+            if row is None:
+                raise JournalValidationError("Journal entry not found; return to /")
+            return {"status": "ok", "kind": "entry", "entry": self._serialize(row)}
+        else:
+            raise JournalValidationError("Invalid journal URL; begin at /")
+        rows = self.repository.get_page(page)
+        return {"status": "ok", "kind": "index", "page": page,
+                "has_next": len(rows) > 10,
+                "entries": [self._serialize(row) for row in rows[:10]]}
+
+    @staticmethod
+    def _serialize(row: dict) -> dict:
+        return {**row, "created_at": row["created_at"].replace(tzinfo=timezone.utc).isoformat()}

@@ -47,3 +47,21 @@ class JournalDb:
             "INSERT INTO journal_entries (title, entry, created_at) VALUES (%s, %s, %s)",
             (title, entry, created_at),
         )
+
+    def get_page(self, page: int) -> list[dict]:
+        if type(page) is not int or not 1 <= page <= 1_000_000:
+            raise ValueError("Invalid journal page")
+        return self.manager.query(
+            "SELECT id, title, created_at FROM journal_entries "
+            "ORDER BY created_at DESC, id DESC LIMIT %s OFFSET %s",
+            (11, (page - 1) * 10),
+        )
+
+    def get_entry(self, entry_id: int) -> dict | None:
+        if type(entry_id) is not int or not 1 <= entry_id <= 18_446_744_073_709_551_615:
+            raise ValueError("Invalid journal entry ID")
+        rows = self.manager.query(
+            "SELECT id, title, entry, created_at FROM journal_entries WHERE id = %s",
+            (entry_id,),
+        )
+        return rows[0] if rows else None
