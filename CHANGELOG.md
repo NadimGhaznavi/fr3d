@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.9] - 2026-09-06 @ 18:18
+
 ### Changed
 
 - Added a JSON comparison report for the LLM, including initial decisions,
