@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.2] - 2026-09-06 @ 15:03
+
 ### Fixed
 
 - Corrected the journal branding to Fr3d's Journal. Web and MCP entry views
