@@ -9,7 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.12.1] - 2026-09-06 @ 14:48
+## [0.12.2] - 2026-09-06 @ 15:03
+
+### Fixed
+
+- Corrected the journal branding to Fr3d's Journal. Web and MCP entry views
+  append a blank line and an indented `--Fr3d` signature without changing
+  stored journal text.
 
 ## [0.12.0] - 2026-09-06 @ 14:23
 
@@ -34,7 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Added Ackbar's journal browser to `fr3d-report.service` at `/journal/`, with
+- Added Fr3d's Journal browser to `fr3d-report.service` at `/journal/`, with
   newest-first pages of ten entries, UTC timestamps, rendered Markdown entry
   pages, and navigation back to the learning-rate report. Reuse the existing
   read-only journal application and database access, with empty, missing-entry,
