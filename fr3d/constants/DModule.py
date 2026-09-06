@@ -4,6 +4,7 @@ from typing import Final
 class DModule:
     FR3D: Final[str] = "Fr3d"
     JOURNAL_TOOL: Final[str] = "JournalTool"
+    KB_BROWSER: Final[str] = "KbBrowser"
     LLMWATCHDOG: Final[str] = "LLMWatchdog"
     LR_LOOP: Final[str] = "LearningRateLoop"
     LR_REPORT: Final[str] = "LearningRateReport"
