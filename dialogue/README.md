@@ -26,9 +26,9 @@ and contain every configured epoch. Scores and losses are calculated from
 mean loss; final loss is taken from the final epoch, even if NULL. High-score
 tables show record-setting epochs plus the first and final epochs.
 
-The introduction and task/tool instructions come from `templates/learning-rate.md`;
+The introduction and task/tool instructions come from `fr3d/app/learning-rate.md`;
 `--template PATH` selects another template with the same section headings.
 Only the populated Markdown goes to stdout. Errors go to stderr with a nonzero
 exit status. No database writes, LLM requests, tool calls, or submissions occur;
-`submit_learning_rate` remains only a proposed interface in the generated prompt.
-This module is not yet included in service startup or installation.
+the command only previews the report. The shared report builder is also used by
+the Fr3d learning-rate loop; see [the runtime documentation](../fr3d/app/README.md).

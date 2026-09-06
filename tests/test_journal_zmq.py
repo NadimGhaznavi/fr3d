@@ -29,7 +29,7 @@ class JournalMCPTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_mcp_to_fr3d_database_boundary_over_zmq(self) -> None:
         with patch("fr3d.zmq.ZMQServer.MyLog"):
-            server = Fr3dServer(address="127.0.0.1", port=0, log_file=None)
+            server = Fr3dServer(address="127.0.0.1", port=0, log_file=None, learning_rate_enabled=False)
         task = asyncio.create_task(server.run())
         try:
             connection = MagicMock()
@@ -56,7 +56,7 @@ class JournalMCPTest(unittest.IsolatedAsyncioTestCase):
     async def test_browse_index_then_follow_entry_link_over_zmq(self) -> None:
         from datetime import datetime
         with patch("fr3d.zmq.ZMQServer.MyLog"):
-            server = Fr3dServer(address="127.0.0.1", port=0, log_file=None)
+            server = Fr3dServer(address="127.0.0.1", port=0, log_file=None, learning_rate_enabled=False)
         task = asyncio.create_task(server.run())
         connection = MagicMock()
         cursor = connection.cursor.return_value.__enter__.return_value

@@ -22,6 +22,7 @@ from fr3d.zmq.ZMQServer import MsgHandler, ZMQServer
 from fr3d.zmq.ZMQMsg import ZMQMsg
 from fr3d.app.JournalApp import JournalApp, JournalValidationError, JournalRateLimitError
 from fr3d.database.JournalDb import JournalBusyError
+from fr3d.app.LearningRateLoop import LearningRateLoop
 
 
 
@@ -35,12 +36,14 @@ class Fr3dServer:
         log_file: str | Path | None = FRED.FRED_SERVER_LOG,
         *,
         srv_methods: dict[str, MsgHandler] | None = None,
+        learning_rate_enabled: bool = True,
     ) -> None:
 
         if srv_methods is None:
             srv_methods = {
                 METHOD.ADD_JOURNAL_ENTRY: self.add_journal_entry,
                 METHOD.VIEW_JOURNAL_ENTRIES: self.view_journal_entries,
+                METHOD.SUBMIT_LEARNING_RATE: self.submit_learning_rate,
             }
         
         self.zmq_server = ZMQServer(
@@ -54,6 +57,15 @@ class Fr3dServer:
         self.endpoint = self.zmq_server.endpoint
         self._stop_event = asyncio.Event()
         self._running = False
+        self.learning_rate_loop = LearningRateLoop(self) if learning_rate_enabled else None
+
+    async def submit_learning_rate(self, msg: ZMQMsg):
+        try:
+            if self.learning_rate_loop is None:
+                raise ValueError("Learning-rate automation is disabled")
+            return await self.learning_rate_loop.submit(msg.payload)
+        except ValueError as error:
+            return {"status": "error", "error": {"code": "invalid_request", "message": str(error)}}
 
     async def add_journal_entry(self, msg: ZMQMsg):
         app = JournalApp()
@@ -83,20 +95,29 @@ class Fr3dServer:
             raise RuntimeError("Fr3d server is already running")
         self._running = True
         stop_task = None
+        learning_task = None
         try:
             if self._stop_event.is_set():
                 return
             self.zmq_server.start()
             listener = self.zmq_server.listen_task
             assert listener is not None
+            if self.learning_rate_loop is not None:
+                learning_task = asyncio.create_task(self.learning_rate_loop.run(), name="fr3d-learning-rate")
             stop_task = asyncio.create_task(self._stop_event.wait(), name="fr3d-stop")
             completed, _ = await asyncio.wait(
-                (listener, stop_task), return_when=asyncio.FIRST_COMPLETED
+                [task for task in (listener, stop_task, learning_task) if task is not None],
+                return_when=asyncio.FIRST_COMPLETED
             )
             if listener in completed:
                 await listener
+            if learning_task in completed:
+                await learning_task
         finally:
             self._stop_event.set()
+            if learning_task is not None:
+                learning_task.cancel()
+                await asyncio.gather(learning_task, return_exceptions=True)
             if stop_task is not None:
                 stop_task.cancel()
                 await asyncio.gather(stop_task, return_exceptions=True)
@@ -111,13 +132,32 @@ class Fr3dServer:
 
     def is_simulation_running(self, context: zmq.Context | None = None) -> bool:
         """Return whether SnakeLab has an active or queued simulation."""
+        payload = self.snake_lab_request("simulation.active", {}, context=context)
+        if "run" not in payload:
+            raise ValueError("invalid SnakeLab active simulation payload")
+        run = payload["run"]
+        if run is None:
+            return False
+        if not isinstance(run, dict) or run.get("state") not in (
+            "running", "paused", "cancelling", "queued"
+        ):
+            raise ValueError("invalid SnakeLab active simulation state")
+        return True
+
+    def submit_simulation(self, config: dict) -> dict:
+        payload = self.snake_lab_request("simulation.submit", {"config": config})
+        if payload.get("state") != "queued" or not isinstance(payload.get("run_id"), str) or not payload["run_id"]:
+            raise ValueError("invalid SnakeLab submission response")
+        return payload
+
+    def snake_lab_request(self, method: str, payload: dict, *, context: zmq.Context | None = None) -> dict:
         request_id = str(uuid.uuid4())
         client = ZMQClient(SNAKELAB.ENDPOINT, timeout=SNAKELAB.TIMEOUT, context=context)
         response = client.request_json({
             "protocol_version": SNAKELAB.PROTOCOL_VERSION,
             "request_id": request_id,
-            "method": "simulation.active",
-            "payload": {},
+            "method": method,
+            "payload": payload,
         })
 
         if not isinstance(response, dict):
@@ -129,16 +169,9 @@ class Fr3dServer:
         if response.get("status") != "ok":
             raise RuntimeError(f"SnakeLab request failed: {response.get('error')}")
         payload = response.get("payload")
-        if not isinstance(payload, dict) or "run" not in payload:
-            raise ValueError("invalid SnakeLab active simulation payload")
-        run = payload["run"]
-        if run is None:
-            return False
-        if not isinstance(run, dict) or run.get("state") not in (
-            "running", "paused", "cancelling", "queued"
-        ):
-            raise ValueError("invalid SnakeLab active simulation state")
-        return True
+        if not isinstance(payload, dict):
+            raise ValueError("invalid SnakeLab response payload")
+        return payload
 
 
 async def amain() -> None:
