@@ -14,6 +14,7 @@ import zmq
 from fr3d.constants.DFr3d import DFr3d as FRED
 from fr3d.constants.DModule import DModule
 from fr3d.constants.DSnakeLab import DSnakeLab
+from fr3d.zmq.ZMQClient import ZMQClient
 from fr3d.zmq.ZMQServer import MsgHandler, ZMQServer
 
 
@@ -72,21 +73,16 @@ class Fr3dServer:
         """Request shutdown from the event loop or a signal handler."""
         self._stop_event.set()
 
-    def is_simulation_running(self, context: zmq.Context) -> bool:
+    def is_simulation_running(self, context: zmq.Context | None = None) -> bool:
         """Return whether SnakeLab has an active or queued simulation."""
         request_id = str(uuid.uuid4())
-        with context.socket(zmq.REQ) as socket:
-            socket.setsockopt(zmq.LINGER, 0)
-            socket.setsockopt(zmq.SNDTIMEO, DSnakeLab.TIMEOUT * 1000)
-            socket.setsockopt(zmq.RCVTIMEO, DSnakeLab.TIMEOUT * 1000)
-            socket.connect(DSnakeLab.ENDPOINT)
-            socket.send_json({
-                "protocol_version": DSnakeLab.PROTOCOL_VERSION,
-                "request_id": request_id,
-                "method": "simulation.active",
-                "payload": {},
-            })
-            response = socket.recv_json()
+        client = ZMQClient(DSnakeLab.ENDPOINT, timeout=DSnakeLab.TIMEOUT, context=context)
+        response = client.request_json({
+            "protocol_version": DSnakeLab.PROTOCOL_VERSION,
+            "request_id": request_id,
+            "method": "simulation.active",
+            "payload": {},
+        })
 
         if not isinstance(response, dict):
             raise ValueError("invalid SnakeLab response")
