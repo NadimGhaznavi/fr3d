@@ -18,8 +18,8 @@ class DFr3d:
     ZMQ_TIMEOUT: Final[int] = 3
 
     # LLM    
-    CONTEXT_SIZE: Final[int] = 12_288
     LLM_PORT: Final[int] = 51970
+    CONTEXT_SIZE: Final[int] = 12_288
     REASONING_BUDGET: Final[int] = 4_096
 
     # LLM Watchdog
