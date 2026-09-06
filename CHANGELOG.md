@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Corrected the LLM model directory to `/opt/dev/models/quantized`, matching
+  the existing model storage outside the Fr3d installation tree.
+- Moved Fr3d's ZMQ listener to port `41972` to avoid conflicting with
+  SnakeLab's control (`41970`) and telemetry (`41971`) listeners.
+
 ## [0.7.2] - 2026-09-06 @ 03:07
 
 ### Added

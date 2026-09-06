@@ -13,7 +13,7 @@ from fr3d.zmq.ZMQServer import ZMQServer
 async def main():
     server = ZMQServer(
         address="127.0.0.1",
-        port=41971,
+        port=41972,
         srv_methods={"echo": lambda request: request.payload},
     )
     await server.run()
