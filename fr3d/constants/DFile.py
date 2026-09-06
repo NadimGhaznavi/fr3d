@@ -22,5 +22,8 @@ class DFileDef:
     # The Fr3d server log file
     FRED_SERVER_LOG: Final[str] = "fr3d.log"
 
+    # The LLM server log file
+    LLM_SERVER_LOG: Final[str] = "llm-server.log"
+
     # The watchdog log file
     WATCHDOG_LOG: Final[str] = "llm-watchdog.log"
