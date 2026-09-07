@@ -152,7 +152,7 @@ class ConversationTests(unittest.IsolatedAsyncioTestCase):
         return patch('fr3d.app.epsilon.conversation.httpx.AsyncClient',
                      side_effect=lambda **kw: real_client(transport=httpx.MockTransport(handler), **kw))
 
-    async def test_rejections_and_successes_share_one_thread(self):
+    async def test_rejections_share_history_and_success_resets_it(self):
         replies = iter([reply({'epsilon_decay': 0}), reply({'epsilon_decay': .97}),
                         reply({'epsilon_decay': .98}), reply({'epsilon_decay': .96})])
         sent = []
@@ -166,8 +166,8 @@ class ConversationTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(await conversation.run(summary_report(), Mock()), .98)
             conversation.record_outcome('Experiment submitted: run_id=first-run.')
             self.assertEqual(await conversation.run(summary_report(), Mock()), .96)
-        self.assertEqual([len(p['messages']) for p in sent], [1, 3, 5, 9])
-        self.assertEqual(sent[-1]['messages'][:5], sent[-2]['messages'])
+        self.assertEqual([len(p['messages']) for p in sent], [1, 3, 5, 2])
+        self.assertEqual(conversation.messages, [])
         self.assertIn('# Invalid Value', sent[1]['messages'][-1]['content'])
         self.assertIn('THIS SIMULATION HAS BEEN RUN!', sent[2]['messages'][-1]['content'])
         self.assertIn('0.00021', sent[2]['messages'][-1]['content'])
@@ -175,12 +175,12 @@ class ConversationTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('first-run', sent[-1]['messages'][-2]['content'])
         for payload in sent:
             self.assertEqual([t['function']['name'] for t in payload['tools']], ['submit_epsilon_decay'])
-        # Every retained tool call has a matching result, including successful choices.
-        for i, message in enumerate(conversation.messages):
-            if message.get('tool_calls'):
-                result = conversation.messages[i + 1]
-                self.assertEqual(result['role'], 'tool')
-                self.assertEqual(result['tool_call_id'], message['tool_calls'][0]['id'])
+        for payload in sent:
+            for i, message in enumerate(payload['messages']):
+                if message.get('tool_calls'):
+                    result = payload['messages'][i + 1]
+                    self.assertEqual(result['role'], 'tool')
+                    self.assertEqual(result['tool_call_id'], message['tool_calls'][0]['id'])
 
     async def test_missing_or_malformed_responses_allow_next_cycle(self):
         for bad in (reply(finish='stop'), reply(finish='length'), {}, reply({}, name='unknown')):
@@ -191,7 +191,7 @@ class ConversationTests(unittest.IsolatedAsyncioTestCase):
             ):
                 self.assertIsNone(await conversation.run(summary_report(), Mock()))
                 self.assertEqual(await conversation.run(summary_report(), Mock()), .98)
-            self.assertTrue(conversation.messages[0]['content'].startswith(summary_report().text))
+            self.assertEqual(conversation.messages, [])
 
     async def test_refreshes_summary_and_saves_the_exact_report(self):
         summaries = [
@@ -221,17 +221,22 @@ class ConversationTests(unittest.IsolatedAsyncioTestCase):
         for payload, summary in zip(sent, summaries):
             text = payload['messages'][-1]['content']
             self.assertEqual(json.loads(text.split('Summary report (JSON):\n')[1]), summary)
-        self.assertEqual(sent[1]['messages'][:1], sent[0]['messages'])
+        self.assertEqual([len(p['messages']) for p in sent], [1, 1])
 
     async def test_invalid_arguments_retry_in_same_thread(self):
         for args in ({'epsilon_decay': True}, {'epsilon_decay': None}, {}, {'epsilon_decay': 1.1}):
             replies = iter([reply(args), reply({'epsilon_decay': 1})])
             conversation = Conversation(self.reports)
-            with self.subTest(args=args), self.client_factory(
-                lambda request: httpx.Response(200, json=next(replies)),
-            ):
+            sent = []
+
+            def handle(request):
+                sent.append(json.loads(request.content))
+                return httpx.Response(200, json=next(replies))
+
+            with self.subTest(args=args), self.client_factory(handle):
                 self.assertEqual(await conversation.run(summary_report(), Mock()), 1)
-            self.assertIn('# Invalid Value', conversation.messages[2]['content'])
+            self.assertIn('# Invalid Value', sent[-1]['messages'][2]['content'])
+            self.assertEqual(conversation.messages, [])
 
     async def test_timeout_after_rejection_preserves_history_for_restart(self):
         sent = []
