@@ -1,4 +1,4 @@
-"""Keep one epsilon conversation across experiment cycles and invalid choices."""
+"""Keep bounded retry context until a valid, unused epsilon decay is received."""
 
 import asyncio
 import json
@@ -8,16 +8,21 @@ import time
 import httpx
 
 from fr3d.constants.DFr3d import DFr3d
+from fr3d.app.conversation_context import ConversationContext
 from .tools import SUBMIT_EPSILON_DECAY, validate_epsilon_decay
 from .prompts import invalid_value, no_reruns
 from fr3d.reporting.formats import to_json
 
 
 class Conversation:
-    def __init__(self, reports, snapshots=None):
+    def __init__(self, reports, snapshots=None, context=None):
         self.reports = reports
         self.snapshots = snapshots
-        self.messages = []
+        self.context = context if context is not None else ConversationContext()
+
+    @property
+    def messages(self):
+        return self.context.messages
 
     def record_outcome(self, outcome):
         self.messages.append({'role': 'user', 'content': outcome})
@@ -28,8 +33,9 @@ class Conversation:
             snapshot_id = await asyncio.to_thread(self.snapshots.save, summary)
             trace.record('report_snapshot', snapshot_id=snapshot_id,
                          report_url=f'/reports/{snapshot_id}/')
-        self.messages.append({'role': 'user',
-                              'content': prompt.text + '\n\nSummary report (JSON):\n' + to_json(summary)})
+        current_prompt = {'role': 'user',
+                          'content': prompt.text + '\n\nSummary report (JSON):\n' + to_json(summary)}
+        self.context.messages.append(current_prompt)
         payload = {
             'model': os.environ.get('LLAMA_MODEL', 'local-model'),
             'messages': self.messages,
@@ -46,6 +52,7 @@ class Conversation:
                      timeout_s=DFr3d.PROMPT_TIMEOUT)
         async with asyncio.timeout(DFr3d.PROMPT_TIMEOUT), httpx.AsyncClient(timeout=DFr3d.PROMPT_TIMEOUT) as client:
             while True:
+                self.context.prepare(payload, current_prompt, trace)
                 number = trace.next_request()
                 trace.record('llm_request', request_number=number, payload=payload)
                 started = time.monotonic()
@@ -61,7 +68,9 @@ class Conversation:
                              http_status=response.status_code, body=response.text)
                 response.raise_for_status()
                 try:
-                    choice = response.json()['choices'][0]
+                    body = response.json()
+                    self.context.observe(body, payload, trace)
+                    choice = body['choices'][0]
                     message = choice['message']
                     calls = message.get('tool_calls', [])
                     if choice.get('finish_reason') != 'tool_calls' or len(calls) != 1:
@@ -94,16 +103,12 @@ class Conversation:
                     trace.record('invalid_value_rejected', request_number=number, message=reason)
                 else:
                     if not await asyncio.to_thread(self.reports.already_used, value):
-                        self.messages.extend([
-                            {**message, 'role': 'assistant'},
-                            {'role': 'tool', 'tool_call_id': call_id,
-                             'content': f'Validated epsilon_decay={value}. Experiment submission is pending.'},
-                        ])
+                        self.context.reset()
                         return value
                     warning = no_reruns()
                     reason = f'Epsilon decay {value} has already been used with learning_rate=0.00021.'
                     trace.record('duplicate_rejected', request_number=number, epsilon_decay=value)
-                payload['messages'].extend([
+                self.context.messages.extend([
                     {**message, 'role': 'assistant'},
                     {'role': 'tool', 'tool_call_id': call_id,
                      'content': warning.text + '\n\nRejection reason: ' + reason},
