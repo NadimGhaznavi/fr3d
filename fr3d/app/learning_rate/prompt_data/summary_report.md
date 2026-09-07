@@ -1,13 +1,11 @@
-# Choose an unused learning rate
+# Choose a New Learning Rate
 
 Snake Lab trains a reinforcement-learning agent to play Snake. Choose a learning
 rate that will help achieve the highest game score. High score is the objective.
 Only the learning rate changes; all other experiment settings remain fixed.
 
-The current learning rate, {learning_rate}, was already used in an experiment.
-Choose a different value that has not been used. Use
-`view_experiments_summary_report` to see completed experiment IDs, learning rates,
-and high scores. Historical results may come from different settings or versions.
+The summary report below contains completed experiment IDs, learning rates,
+and high scores. Choose a learning rate that has not already been used. Historical results may come from different settings or versions.
 
 Submit your new choice using `submit_learning_rate`. Supply only `learning_rate`,
 a finite number greater than zero and at most one. A prose answer does not submit

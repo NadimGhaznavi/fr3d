@@ -9,7 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.5] - 2026-09-07 @ 12:13
+
+### Changed
+
+- Send the experiment summary with the initial LLM prompt and make one request
+  per learning-rate decision. Expose only `submit_learning_rate`; remove report
+  lookups and duplicate-choice retries from the active conversation flow.
+- Submit only valid, unused learning rates. Missing, invalid, duplicate, or
+  timed-out responses end the cycle; the main loop tries again after sleeping.
+- Rename the Markdown prompts to `summary_report.md` and `experiment_report.md`,
+  updating loaders and installation checks. The active flow uses only the summary
+  prompt.
+
 ## [0.14.3] - 2026-09-07 @ 11:13
+
+### Changed
+
+- Double the LLM context size from 12,288 to 24,576 tokens.
 
 ## [0.14.2] - 2026-09-07 @ 11:06
 

@@ -109,7 +109,7 @@ def validate_paths() -> None:
             compile(entrypoint.read_text(encoding="utf-8"), str(entrypoint), "exec")
         except SyntaxError as error:
             raise ValueError(f"invalid runtime module: {entrypoint}:{error.lineno}: {error.msg}") from error
-    for name in ("01.md", "02.md"):
+    for name in ("summary_report.md", "experiment_report.md"):
         prompt = PROJECT_ROOT / "fr3d/app/learning_rate/prompt_data" / name
         if not prompt.is_file():
             raise FileNotFoundError(f"prompt not found: {prompt}")
