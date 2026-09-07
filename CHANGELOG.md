@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.2] - 2026-09-07 @ 05:51
+
+### Summary
+
+- Enhanced LLM logging
+
+### Changed
+
+- Shorten decision IDs from 32 to 8 hexadecimal characters across all three
+  decision logs to keep activity lines compact.
+- Move `reasoning_content` and `reasoning` text out of the JSON metadata line
+  in `llm-reasoning.log` into readable blocks below it, preserving actual
+  line breaks, paragraphs, and lists. Label each block by response choice
+  and field name.
+
 ## [0.13.1] - 2026-09-07 @ 05:30
 
 ### Changed

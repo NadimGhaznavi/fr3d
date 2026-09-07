@@ -23,12 +23,14 @@ class FileLoggingTest(unittest.TestCase):
                 logs = [MyLog(name, log_file=path, to_console=False) for name, path in zip(names, paths)]
                 trace = DecisionTrace(logs[0], prompt_logger=logs[1], reasoning_logger=logs[2])
                 trace.record("llm_request", request_number=1, payload={"messages": [{"role": "user", "content": "PRIVATE PROMPT"}]})
-                trace.record("llm_response", request_number=1, body=json.dumps({"choices": [{"message": {"reasoning": "MODEL THOUGHT"}}]}), elapsed_s=1)
+                trace.record("llm_response", request_number=1, body=json.dumps({"choices": [{"message": {"reasoning": "MODEL THOUGHT\n\n- Finding"}}]}), elapsed_s=1)
                 activity, prompts, reasoning = [p.read_text() for p in paths]
                 self.assertNotIn("PRIVATE PROMPT", activity + reasoning)
                 self.assertNotIn("MODEL THOUGHT", activity + prompts)
                 self.assertIn("PRIVATE PROMPT", prompts)
                 self.assertIn("MODEL THOUGHT", reasoning)
+                self.assertIn("reasoning:\nMODEL THOUGHT\n\n- Finding", reasoning)
+                self.assertNotIn('"reasoning":', reasoning)
                 for content in (activity, prompts, reasoning):
                     self.assertIn(trace.decision_id, content)
             finally:
@@ -62,7 +64,7 @@ class DecisionTraceTest(unittest.IsolatedAsyncioTestCase):
         self.trace = DecisionTrace(self.log, prompt_logger=self.prompt_log, reasoning_logger=self.reasoning_log)
 
     def records(self):
-        return [json.loads(call.args[0]) for logger in (self.prompt_log, self.reasoning_log) for call in logger.method_calls]
+        return [json.loads(call.args[0].split("\n", 1)[0]) for logger in (self.prompt_log, self.reasoning_log) for call in logger.method_calls]
 
     async def test_exact_payload_response_lookup_and_request_numbers(self):
         payloads = []
@@ -110,14 +112,27 @@ class DecisionTraceTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.records()[-1]["http_status"], 500)
 
     def test_reasoning_is_only_in_reasoning_log(self):
-        response = {"choices": [{"message": {"reasoning_content": "MODEL REASONING", "content": "ANSWER", "tool_calls": []}}]}
+        response = {"choices": [{"message": {"reasoning_content": "MODEL REASONING\n\n- First finding\n- Second finding", "content": "ANSWER", "tool_calls": []}}]}
         self.trace.record("llm_response", request_number=1, body=json.dumps(response), http_status=200, elapsed_s=2)
-        record = json.loads(self.reasoning_log.info.call_args.args[0])
+        header, body = self.reasoning_log.info.call_args.args[0].split("\n", 1)
+        record = json.loads(header)
         self.assertEqual(record["reasoning_status"], "returned")
-        self.assertEqual(record["response"], response)
+        self.assertEqual(record["response"], {"choices": [{"message": {"content": "ANSWER", "tool_calls": []}}]})
+        self.assertEqual(body, "choice=0 reasoning_content:\n" + response["choices"][0]["message"]["reasoning_content"])
+        self.assertNotIn("MODEL REASONING", header)
         self.prompt_log.info.assert_not_called()
         self.assertNotIn("MODEL REASONING", self.log.info.call_args.args[0])
         self.assertNotIn("ANSWER", self.log.info.call_args.args[0])
+
+    def test_reasoning_alias_and_multiple_choices_keep_text(self):
+        response = {"choices": [
+            {"message": {"reasoning": "First\n\nSecond"}},
+            {"message": {"reasoning_content": "Third\nFourth"}},
+        ]}
+        self.trace.record("llm_response", body=json.dumps(response))
+        header, body = self.reasoning_log.info.call_args.args[0].split("\n", 1)
+        self.assertEqual(json.loads(header)["reasoning_status"], "returned")
+        self.assertEqual(body, "choice=0 reasoning:\nFirst\n\nSecond\nchoice=1 reasoning_content:\nThird\nFourth")
 
     def test_duplicate_reports_are_kept_out_of_activity(self):
         result = {"status": "already_run", "run_id": 42, "report": {"instructions": "LONG PROMPT"}}
