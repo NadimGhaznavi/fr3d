@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.6] - 2026-09-07 @ 12:58
+
 ### Changed
 
 - Keep the summary and rejected learning-rate choices in one conversation. Send
