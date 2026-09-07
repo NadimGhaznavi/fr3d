@@ -42,7 +42,7 @@ def main(argv=None):
         try:
             with connection.cursor() as cursor:
                 # Include every status, including experiments without a score yet.
-                cursor.execute("SELECT id, high_score, config FROM simulation_runs ORDER BY id")
+                cursor.execute("SELECT id, high_score, config FROM simulation_runs ORDER BY score")
                 rows = cursor.fetchall()
         finally:
             connection.close()

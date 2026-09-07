@@ -116,6 +116,8 @@ class InstallationLifecycleTest(unittest.TestCase):
         self.assertTrue((self.prefix / "fr3d/app/learning_rate/main_loop.py").is_file())
         self.assertTrue((self.prefix / "fr3d/app/learning_rate/prompt_data/summary_report.md").is_file())
         self.assertTrue((self.prefix / "fr3d/app/learning_rate/prompt_data/experiment_report.md").is_file())
+        self.assertTrue((self.prefix / "fr3d/app/learning_rate/prompt_data/no_reruns.md").is_file())
+        self.assertTrue((self.prefix / "fr3d/app/learning_rate/prompt_data/invalid_lr.md").is_file())
         self.assertTrue((self.prefix / "fr3d/reporting/experiments.py").is_file())
         self.assertTrue((self.prefix / "fr3d/app_legacy/learning-rate.md").is_file())
         self.assertTrue((self.prefix / "fr3d/server/ReportServer.py").is_file())
