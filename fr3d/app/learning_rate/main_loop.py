@@ -49,6 +49,7 @@ class LearningRateLoop:
                 outcome = 'no_submission'
                 return outcome
 
+            # Guard against the rate being used after conversation validation.
             if await asyncio.to_thread(self.reports.already_used, rate):
                 trace.record('duplicate_rejected', learning_rate=rate)
                 outcome = 'duplicate_rejected'

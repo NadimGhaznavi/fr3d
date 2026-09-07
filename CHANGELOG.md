@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Keep the summary and rejected learning-rate choices in one conversation. Send
+  `invalid_lr.md` for invalid submissions and `no_reruns.md` for previously used
+  rates, then wait for another choice within the original conversation deadline.
+- Install and validate both warning prompts. Missing submissions and timeouts
+  return control to the main loop; only valid, unused rates reach Snake Lab.
+- Order results by score not id in the `list-experiements.py` tool
+
 ## [0.14.5] - 2026-09-07 @ 12:13
 
 ### Changed
