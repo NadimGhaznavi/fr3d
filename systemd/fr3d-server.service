@@ -10,9 +10,8 @@ Group=fr3d
 WorkingDirectory=/opt/fr3d
 Environment=PYTHONUNBUFFERED=1
 EnvironmentFile=/etc/fr3d/database.env
-ExecStart=/opt/fr3d/.venv/bin/python -m fr3d.app.epsilon.main_loop
-Restart=on-failure
-RestartSec=3
+ExecStart=/opt/fr3d/.venv/bin/python -m fr3d.app.whole_config.main_loop
+Restart=no
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectHome=true

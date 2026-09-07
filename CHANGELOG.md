@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Updated the Snake Lab schemas
+- Replace the service's epsilon-only loop with modular whole-configuration search:
+  schema-derived baseline and validation, comparable SQL history, least-explored
+  parameter selection, and promotion only on a strictly higher episode high score.
+- Generalize first-contact, summary, invalid-value, and no-reruns conversations;
+  preserve context budgeting and report snapshots. Reject complete duplicate
+  configurations across all run statuses and skip exhausted integer parameters.
+- Archive gold promotions in `logs/gold.jsonl`. Let unexpected failures terminate
+  the service and disable its automatic systemd restart.
+- Install the Snake Lab schema files with the runtime and declare `jsonschema`
+  as a direct dependency.
+
+
 ## [0.16.0] - 2026-09-07 @ 16:39
 
 ### Fixed

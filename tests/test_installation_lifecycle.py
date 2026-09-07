@@ -31,7 +31,7 @@ class DeploymentConfigurationTest(unittest.TestCase):
 
     def test_service_paths_match_refactored_layout(self) -> None:
         for filename, module in (
-            (DEFFILE.FR3D_SERVER_SERVICE, "fr3d.app.epsilon.main_loop"),
+            (DEFFILE.FR3D_SERVER_SERVICE, "fr3d.app.whole_config.main_loop"),
             (DEFFILE.FR3D_REPORT_SERVICE, "fr3d.server.ReportServer"),
             (DEFFILE.LLM_SERVER_SERVICE, "fr3d.server.LLMServer"),
             (DEFFILE.LLM_WATCHDOG_SERVICE, "fr3d.server.LLMWatchdog"),
@@ -45,6 +45,8 @@ class DeploymentConfigurationTest(unittest.TestCase):
                 )
                 if filename != DEFFILE.LLM_WATCHDOG_SERVICE:
                     self.assertIn(f"EnvironmentFile={DDatabase.ENV_FILE}\n", text)
+                if filename == DEFFILE.FR3D_SERVER_SERVICE:
+                    self.assertIn('Restart=no\n', text)
 
     def test_mcp_paths_include_package_root_and_tools(self) -> None:
         config = json.loads((PROJECT_ROOT / "fr3d/server/mcp.json").read_text())
@@ -70,7 +72,7 @@ class InstallationLifecycleTest(unittest.TestCase):
         self.units = self.root / "systemd"
         self.units.mkdir()
         self.source.mkdir()
-        for directory in ("fr3d", "fr3dnet", "scripts", "systemd"):
+        for directory in ("fr3d", "fr3dnet", "scripts", "systemd", "pages/snake-lab-schemas"):
             shutil.copytree(
                 PROJECT_ROOT / directory, self.source / directory,
                 ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
@@ -118,6 +120,11 @@ class InstallationLifecycleTest(unittest.TestCase):
                          "prompt_data/summary_report.md", "prompt_data/no_reruns.md"):
             self.assertTrue((self.prefix / "fr3d/app/epsilon" / filename).is_file())
         self.assertTrue((self.prefix / "fr3d/app/learning_rate/main_loop.py").is_file())
+        self.assertTrue((self.prefix / "fr3d/app/whole_config/main_loop.py").is_file())
+        self.assertEqual(
+            (self.prefix / 'pages/snake-lab-schemas/simulation-config-v1.schema.json').read_text(),
+            (PROJECT_ROOT / 'pages/snake-lab-schemas/simulation-config-v1.schema.json').read_text(),
+        )
         self.assertTrue((self.prefix / "fr3d/app/learning_rate/prompt_data/summary_report.md").is_file())
         self.assertTrue((self.prefix / "fr3d/app/learning_rate/prompt_data/experiment_report.md").is_file())
         self.assertTrue((self.prefix / "fr3d/app/learning_rate/prompt_data/no_reruns.md").is_file())
@@ -132,7 +139,10 @@ class InstallationLifecycleTest(unittest.TestCase):
         for filename in install.SCRIPT_FILES:
             self.assertEqual((self.prefix / "scripts" / filename).stat().st_mode & 0o777, 0o755)
         result = subprocess.run(
-            [sys.executable, "-c", "from scripts import install, uninstall, upgrade"],
+            [sys.executable, "-c",
+             "from scripts import install, uninstall, upgrade; "
+             "from fr3d.app.whole_config.configuration import Configuration; "
+             "assert Configuration().baseline()['seed'] == 1970"],
             cwd=self.prefix, env={**os.environ, "PYTHONPATH": ""},
             capture_output=True, text=True,
         )

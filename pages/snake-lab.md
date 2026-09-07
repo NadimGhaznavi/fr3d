@@ -228,3 +228,13 @@ repeated configurations and new attempts after a failed or cancelled run.
 Establish the subscription before submitting work. This is a live PUB/SUB
 notification stream with no acknowledgement or replay. Pending events are
 sent before the publisher closes during orderly shutdown.
+
+## Database Schemaa
+
+- [Snake Lab schema v1](/snake-lab-schemas/database-v1.sql)
+- [Snake Lab schema v1](/snake-lab-schemas/database-v2.sql)
+- [Snake Lab schema v1](/snake-lab-schemas/database-v3.sql)
+
+## Simulation Configuration Schema
+
+- [Simulation Schema](/snake-lab-schemas/simulation-config-v1.schema.json)

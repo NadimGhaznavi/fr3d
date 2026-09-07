@@ -27,6 +27,7 @@ SYSTEMD_DIRECTORY = Path("/etc/systemd/system")
 SOURCE_DIRECTORIES = (
     "fr3d",
     "fr3dnet",
+    "pages/snake-lab-schemas",
 )
 ROOT_FILES = ("requirements.txt", "pyproject.toml")
 SCRIPT_FILES = ("install.py", "uninstall.py", "upgrade.py", "upgrade.sh")
@@ -97,6 +98,14 @@ def validate_paths() -> None:
                 f"invalid server entry point: {entrypoint}:{error.lineno}: {error.msg}"
             ) from error
     for relative in (
+        "fr3d/app/whole_config/main_loop.py",
+        "fr3d/app/whole_config/configuration.py",
+        "fr3d/app/whole_config/conversation.py",
+        "fr3d/app/whole_config/initial_conversation.py",
+        "fr3d/app/whole_config/prompts.py",
+        "fr3d/app/whole_config/reports.py",
+        "fr3d/app/whole_config/selection.py",
+        "fr3d/app/whole_config/archive.py",
         "fr3d/app/epsilon/main_loop.py",
         "fr3d/app/epsilon/conversation.py",
         "fr3d/app/epsilon/prompts.py",
@@ -119,9 +128,15 @@ def validate_paths() -> None:
         if not prompt.is_file():
             raise FileNotFoundError(f"prompt not found: {prompt}")
     for name in ("first_contact.md", "invalid_value.md", "summary_report.md", "no_reruns.md"):
+        prompt = PROJECT_ROOT / "fr3d/app/whole_config/prompt_data" / name
+        if not prompt.is_file():
+            raise FileNotFoundError(f"prompt not found: {prompt}")
         prompt = PROJECT_ROOT / "fr3d/app/epsilon/prompt_data" / name
         if not prompt.is_file():
             raise FileNotFoundError(f"prompt not found: {prompt}")
+    schema = PROJECT_ROOT / "pages/snake-lab-schemas/simulation-config-v1.schema.json"
+    if not schema.is_file():
+        raise FileNotFoundError(f"configuration schema not found: {schema}")
     report_page = PROJECT_ROOT / "fr3d" / "server" / "report.html"
     if not report_page.is_file():
         raise FileNotFoundError(f"report page not found: {report_page}")
