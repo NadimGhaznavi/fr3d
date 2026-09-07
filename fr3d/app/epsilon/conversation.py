@@ -9,18 +9,27 @@ import httpx
 
 from fr3d.constants.DFr3d import DFr3d
 from .tools import SUBMIT_EPSILON_DECAY, validate_epsilon_decay
-from .prompts import invalid_value
+from .prompts import invalid_value, no_reruns
+from fr3d.reporting.formats import to_json
 
 
 class Conversation:
-    def __init__(self):
+    def __init__(self, reports, snapshots=None):
+        self.reports = reports
+        self.snapshots = snapshots
         self.messages = []
 
     def record_outcome(self, outcome):
         self.messages.append({'role': 'user', 'content': outcome})
 
     async def run(self, prompt, trace):
-        self.messages.append({'role': 'user', 'content': prompt.text})
+        summary = await asyncio.to_thread(self.reports.summary)
+        if self.snapshots is not None:
+            snapshot_id = await asyncio.to_thread(self.snapshots.save, summary)
+            trace.record('report_snapshot', snapshot_id=snapshot_id,
+                         report_url=f'/reports/{snapshot_id}/')
+        self.messages.append({'role': 'user',
+                              'content': prompt.text + '\n\nSummary report (JSON):\n' + to_json(summary)})
         payload = {
             'model': os.environ.get('LLAMA_MODEL', 'local-model'),
             'messages': self.messages,
@@ -84,12 +93,16 @@ class Conversation:
                     reason = str(error)
                     trace.record('invalid_value_rejected', request_number=number, message=reason)
                 else:
-                    self.messages.extend([
-                        {**message, 'role': 'assistant'},
-                        {'role': 'tool', 'tool_call_id': call_id,
-                         'content': f'Validated epsilon_decay={value}. Experiment submission is pending.'},
-                    ])
-                    return value
+                    if not await asyncio.to_thread(self.reports.already_used, value):
+                        self.messages.extend([
+                            {**message, 'role': 'assistant'},
+                            {'role': 'tool', 'tool_call_id': call_id,
+                             'content': f'Validated epsilon_decay={value}. Experiment submission is pending.'},
+                        ])
+                        return value
+                    warning = no_reruns()
+                    reason = f'Epsilon decay {value} has already been used with learning_rate=0.00021.'
+                    trace.record('duplicate_rejected', request_number=number, epsilon_decay=value)
                 payload['messages'].extend([
                     {**message, 'role': 'assistant'},
                     {'role': 'tool', 'tool_call_id': call_id,
