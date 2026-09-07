@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.5] - 2026-09-07 @ 12:13
+
 ### Changed
 
 - Send the experiment summary with the initial LLM prompt and make one request
