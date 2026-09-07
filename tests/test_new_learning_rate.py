@@ -13,7 +13,7 @@ from starlette.testclient import TestClient
 
 from fr3d.app.learning_rate.main_loop import LearningRateLoop, amain
 from fr3d.app.learning_rate.conversation import Conversation
-from fr3d.app.learning_rate.prompts import outline_challenge, value_already_used
+from fr3d.app.learning_rate.prompts import summary_report
 from fr3d.reporting.experiments import ExperimentReports
 from fr3d.reporting.formats import to_json, to_markdown
 from fr3d.reporting.snapshots import ReportSnapshots
@@ -51,30 +51,22 @@ class LoopTests(unittest.IsolatedAsyncioTestCase):
             {'seed': 42, 'training': {'learning_rate': .002, 'batch_size': 64}})
         self.assertEqual(self.config['training']['learning_rate'], .001)
 
-    async def test_missing_replacement_keeps_current_value(self):
-        self.conversation.run.side_effect = [.001, None, .002]
-        self.assertEqual(await self.loop.run_once(), 'submitted')
-        self.assertEqual([c.args[0].number for c in self.conversation.run.call_args_list], ['01', '02', '02'])
-        self.assertEqual(self.reports.already_used.call_args_list[-1].args, (.002,))
-
-    async def test_exactly_three_duplicate_prompt_attempts(self):
+    async def test_duplicate_ends_cycle_without_reprompting(self):
         self.conversation.run.return_value = .001
-        self.assertEqual(await self.loop.run_once(), 'retry_limit')
-        self.assertEqual([c.args[0].number for c in self.conversation.run.call_args_list], ['01', '02', '02', '02'])
+        self.assertEqual(await self.loop.run_once(), 'duplicate_rejected')
+        self.conversation.run.assert_awaited_once()
         self.backend.submit_simulation.assert_not_called()
-
-    async def test_third_retry_can_submit(self):
-        self.conversation.run.side_effect = [.001, None, None, .002]
+        self.conversation.run.return_value = .002
         self.assertEqual(await self.loop.run_once(), 'submitted')
 
-    async def test_timeout_counts_as_attempt(self):
-        self.conversation.run.side_effect = [.001, TimeoutError(), .002]
-        self.assertEqual(await self.loop.run_once(), 'submitted')
-
-    async def test_http_timeout_counts_as_duplicate_attempt(self):
-        self.conversation.run.side_effect = [.001, httpx.ReadTimeout('slow response'), .002]
-        self.assertEqual(await self.loop.run_once(), 'submitted')
-        self.assertEqual(self.conversation.run.await_count, 3)
+    async def test_timeout_ends_cycle(self):
+        for error in (TimeoutError(), httpx.ReadTimeout('slow response')):
+            with self.subTest(error=error):
+                self.conversation.run.reset_mock()
+                self.conversation.run.side_effect = error
+                self.assertEqual(await self.loop.run_once(), 'no_submission')
+                self.conversation.run.assert_awaited_once()
+                self.backend.submit_simulation.assert_not_called()
 
     async def test_pending_conversation_is_not_reprompted_by_poll_interval(self):
         entered, release = asyncio.Event(), asyncio.Event()
@@ -129,37 +121,32 @@ def response(name=None, arguments=None, finish='tool_calls'):
 
 
 class ConversationTests(unittest.IsolatedAsyncioTestCase):
-    async def test_tool_data_and_fresh_conversations(self):
+    def setUp(self):
+        self.reports = Mock()
+        self.reports.summary.return_value = {'experiments': []}
+
+    async def test_summary_is_sent_upfront_in_one_fresh_request(self):
         sent = []
-        replies = iter([
-            response('view_experiment_report', {}), response('submit_learning_rate', {'learning_rate': .001}),
-            response('view_experiments_summary_report', {}), response('submit_learning_rate', {'learning_rate': .002}),
-        ])
         def handle(request):
             sent.append(json.loads(request.content))
-            return httpx.Response(200, json=next(replies))
+            return httpx.Response(200, json=response('submit_learning_rate', {'learning_rate': .002}))
         real_client = httpx.AsyncClient
-        reports = Mock()
-        reports.experiment.return_value = {'id': 1, 'episodes': [{'score': 0, 'loss': None}]}
-        reports.summary.return_value = {'experiments': [{'id': 1, 'learning_rate': .001, 'high_score': 2}]}
+        self.reports.summary.return_value = {'experiments': [{'id': 1, 'learning_rate': .001, 'high_score': 2}]}
         with tempfile.TemporaryDirectory() as directory:
-            snapshots = ReportSnapshots(directory)
-            conversation = Conversation(reports, snapshots)
+            conversation = Conversation(self.reports, ReportSnapshots(directory))
             with patch('fr3d.app.learning_rate.conversation.httpx.AsyncClient',
                        side_effect=lambda **kw: real_client(transport=httpx.MockTransport(handle), **kw)):
-                self.assertEqual(await conversation.run(outline_challenge(), Mock(next_request=Mock(return_value=1))), .001)
-                self.assertEqual(await conversation.run(value_already_used(.001), Mock(next_request=Mock(return_value=1))), .002)
-            self.assertEqual(len(sent[0]['messages']), 1)
-            self.assertEqual(len(sent[2]['messages']), 1)
-            self.assertEqual(json.loads(sent[1]['messages'][-1]['content']), reports.experiment.return_value)
+                for _ in range(2):
+                    self.assertEqual(await conversation.run(summary_report(), Mock(next_request=Mock(return_value=1))), .002)
+            self.assertEqual(len(sent), 2)
+            for payload in sent:
+                self.assertEqual(len(payload['messages']), 1)
+                self.assertIn(to_json(self.reports.summary.return_value), payload['messages'][0]['content'])
+                self.assertEqual([t['function']['name'] for t in payload['tools']], ['submit_learning_rate'])
+            self.reports.experiment.assert_not_called()
             from pathlib import Path
             saved = [json.loads(p.read_text()) for p in Path(directory).glob('*.json')]
-            self.assertIn(reports.experiment.return_value, saved)
-            self.assertIn(reports.summary.return_value, saved)
-        self.assertEqual([t['function']['name'] for t in sent[0]['tools']],
-                         ['view_experiment_report', 'submit_learning_rate'])
-        self.assertEqual([t['function']['name'] for t in sent[2]['tools']],
-                         ['view_experiments_summary_report', 'submit_learning_rate'])
+            self.assertIn(self.reports.summary.return_value, saved)
 
     async def test_prompt_deadline_cancels_pending_http_request(self):
         cancelled = asyncio.Event()
@@ -177,7 +164,7 @@ class ConversationTests(unittest.IsolatedAsyncioTestCase):
             'fr3d.app.learning_rate.conversation.httpx.AsyncClient', return_value=client,
         ) as factory:
             with self.assertRaises(TimeoutError):
-                await Conversation(Mock()).run(outline_challenge(), trace)
+                await Conversation(self.reports).run(summary_report(), trace)
         factory.assert_called_once_with(timeout=.03)
         self.assertTrue(cancelled.is_set())
         self.assertTrue(client.is_closed)
@@ -189,7 +176,7 @@ class ConversationTests(unittest.IsolatedAsyncioTestCase):
         ))
         trace = Mock()
         with patch('fr3d.app.learning_rate.conversation.httpx.AsyncClient', return_value=client):
-            self.assertIsNone(await Conversation(Mock()).run(outline_challenge(), trace))
+            self.assertIsNone(await Conversation(self.reports).run(summary_report(), trace))
         event = next(c for c in trace.record.call_args_list if c.args[0] == 'prompt_no_submission')
         self.assertEqual(event.kwargs['finish_reason'], 'length')
         self.assertEqual(event.kwargs['tool_call_count'], 0)
@@ -197,11 +184,11 @@ class ConversationTests(unittest.IsolatedAsyncioTestCase):
     async def test_invalid_or_absent_submission_does_not_escape(self):
         real_client = httpx.AsyncClient
         for reply in (response(finish='stop'), response('submit_learning_rate', {'learning_rate': True}),
-                      response('submit_learning_rate', {'learning_rate': 0}), response('unknown', {})):
+                      response('submit_learning_rate', {'learning_rate': 0}), response('unknown', {}), response('view_experiments_summary_report', {})):
             with self.subTest(reply=reply), patch('fr3d.app.learning_rate.conversation.httpx.AsyncClient',
                     side_effect=lambda **kw: real_client(transport=httpx.MockTransport(
                         lambda request: httpx.Response(200, json=reply)), **kw)):
-                self.assertIsNone(await Conversation(Mock()).run(outline_challenge(), Mock()))
+                self.assertIsNone(await Conversation(self.reports).run(summary_report(), Mock()))
 
 
 class ReportingTests(unittest.TestCase):

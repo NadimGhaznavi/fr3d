@@ -13,7 +13,7 @@ from fr3d.reporting.snapshots import ReportSnapshots
 from fr3d.utils.DecisionTrace import DecisionTrace
 from fr3d.utils.MyLog import MyLog
 from .conversation import Conversation
-from .prompts import outline_challenge, value_already_used
+from .prompts import summary_report
 
 
 class LearningRateLoop:
@@ -44,21 +44,15 @@ class LearningRateLoop:
         trace.record('decision_started')
         outcome = 'failed'
         try:
-            rate = await self._prompt(outline_challenge(), trace)
+            rate = await self._prompt(summary_report(), trace)
             if rate is None:
                 outcome = 'no_submission'
                 return outcome
 
-            for attempt in range(4):
-                if not await asyncio.to_thread(self.reports.already_used, rate):
-                    break
-                if attempt == 3:
-                    outcome = 'retry_limit'
-                    return outcome
-                trace.record('duplicate_rejected', learning_rate=rate, attempt=attempt + 1)
-                replacement = await self._prompt(value_already_used(rate), trace)
-                if replacement is not None:
-                    rate = replacement
+            if await asyncio.to_thread(self.reports.already_used, rate):
+                trace.record('duplicate_rejected', learning_rate=rate)
+                outcome = 'duplicate_rejected'
+                return outcome
 
             # Recheck after the conversation in case an experiment was started elsewhere.
             if await asyncio.to_thread(self.experiments.is_simulation_running):
