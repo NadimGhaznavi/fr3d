@@ -8,9 +8,9 @@ import time
 
 import httpx
 
-from fr3d.app.SnakeLabTool import LEARNING_RATE_TOOL, BEST_WORST_TOOL, validate_learning_rate
-from fr3d.app.BestWorstReport import generate_best_worst_report
-from fr3d.app.DecisionTrace import DecisionTrace
+from fr3d.app_legacy.SnakeLabTool import LEARNING_RATE_TOOL, BEST_WORST_TOOL, validate_learning_rate
+from fr3d.app_legacy.BestWorstReport import generate_best_worst_report
+from fr3d.app_legacy.DecisionTrace import DecisionTrace
 
 
 async def choose_learning_rate(report: str, *, trace: DecisionTrace | None = None) -> float:

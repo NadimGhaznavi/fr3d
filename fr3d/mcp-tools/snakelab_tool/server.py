@@ -3,7 +3,7 @@
 from mcp.server import MCPServer
 from pydantic import Field
 from typing import Annotated
-from fr3d.app.SnakeLabTool import SnakeLabTool
+from fr3d.app_legacy.SnakeLabTool import SnakeLabTool
 
 mcp = MCPServer("snakelab_tool")
 

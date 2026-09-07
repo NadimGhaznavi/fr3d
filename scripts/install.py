@@ -96,6 +96,23 @@ def validate_paths() -> None:
             raise ValueError(
                 f"invalid server entry point: {entrypoint}:{error.lineno}: {error.msg}"
             ) from error
+    for relative in (
+        "fr3d/app/learning_rate/main_loop.py",
+        "fr3d/app/learning_rate/conversation.py",
+        "fr3d/reporting/experiments.py",
+        "fr3d/reporting/formats.py",
+    ):
+        entrypoint = PROJECT_ROOT / relative
+        if not entrypoint.is_file():
+            raise FileNotFoundError(f"runtime module not found: {entrypoint}")
+        try:
+            compile(entrypoint.read_text(encoding="utf-8"), str(entrypoint), "exec")
+        except SyntaxError as error:
+            raise ValueError(f"invalid runtime module: {entrypoint}:{error.lineno}: {error.msg}") from error
+    for name in ("01.md", "02.md"):
+        prompt = PROJECT_ROOT / "fr3d/app/learning_rate/prompt_data" / name
+        if not prompt.is_file():
+            raise FileNotFoundError(f"prompt not found: {prompt}")
     report_page = PROJECT_ROOT / "fr3d" / "server" / "report.html"
     if not report_page.is_file():
         raise FileNotFoundError(f"report page not found: {report_page}")

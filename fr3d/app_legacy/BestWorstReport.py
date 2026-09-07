@@ -3,7 +3,7 @@
 import json
 import math
 
-from fr3d.app.LearningRateReport import LearningRateReport, DURATION_NOTE
+from fr3d.app_legacy.LearningRateReport import LearningRateReport, DURATION_NOTE
 
 
 def generate_best_worst_report(*, connection_factory=LearningRateReport.connect_snake_lab) -> dict:

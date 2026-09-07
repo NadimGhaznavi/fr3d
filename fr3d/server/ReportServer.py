@@ -12,13 +12,18 @@ from string import Template
 
 from markdown_it import MarkdownIt
 from starlette.applications import Starlette
-from starlette.responses import HTMLResponse
+from starlette.responses import HTMLResponse, JSONResponse
 from starlette.routing import Route
 import uvicorn
 
-from fr3d.app.LearningRateReport import LearningRateReport
-from fr3d.app.JournalApp import JournalApp, JournalValidationError
-from fr3d.app.BestWorstReport import generate_best_worst_report
+from fr3d.app_legacy.LearningRateReport import LearningRateReport
+from fr3d.app_legacy.JournalApp import JournalApp, JournalValidationError
+from fr3d.app_legacy.BestWorstReport import generate_best_worst_report
+
+
+from fr3d.reporting.experiments import ExperimentReports
+from fr3d.reporting.formats import to_markdown
+from fr3d.reporting.snapshots import ReportSnapshots
 
 
 LOG = logging.getLogger(__name__)
@@ -62,7 +67,7 @@ def latest_report(request):
     return page_response(
         title="Learning-rate report",
         description="The current report from the latest three completed Snake Lab runs.",
-        metadata=metadata, content=content, refresh_url="/",
+        metadata=metadata, content=content, refresh_url="/legacy/",
         refresh_label="Refresh report", status=status,
     )
 
@@ -137,8 +142,52 @@ def journal(request):
     )
 
 
+def experiment_report(request):
+    return shared_report(request, 'Experiment report', lambda: ExperimentReports().experiment(
+        request.path_params.get('experiment_id')
+    ))
+
+
+def experiments_summary(request):
+    return shared_report(request, 'Experiments summary', lambda: ExperimentReports().summary())
+
+
+def report_snapshot(request):
+    return shared_report(request, 'Report supplied to the LLM', lambda: ReportSnapshots().load(
+        request.path_params['identity']
+    ))
+
+
+def shared_report(request, title, load):
+    status = 200
+    try:
+        data = load()
+        if request.query_params.get('format') == 'json':
+            return JSONResponse(data, headers={'Cache-Control': 'no-store'})
+        content = MarkdownIt('commonmark', {'html': False}).enable('table').render(to_markdown(data, title))
+        metadata = 'JSON and Markdown use the same report fields and values.'
+    except (ValueError, FileNotFoundError) as error:
+        status = 404
+        metadata = 'Report unavailable'
+        content = '<p>' + escape(str(error)) + '</p>'
+    except Exception:
+        LOG.exception('Could not load report')
+        status = 503
+        metadata = 'Report unavailable'
+        content = '<p>Could not load the report. Please try again later.</p>'
+    content = ('<nav><a href="/">Latest experiment</a> · '
+               '<a href="/experiments/">Experiments summary</a> · '
+               '<a href="/journal/">Journal</a></nav>') + content
+    return page_response(title=title, description='Snake Lab experiment data.',
+                         metadata=metadata, content=content, refresh_url=request.url.path, status=status)
+
+
 app = Starlette(routes=[
-    Route("/", latest_report, methods=["GET"]),
+    Route("/", experiment_report, methods=["GET"]),
+    Route("/experiments/", experiments_summary, methods=["GET"]),
+    Route("/experiments/{experiment_id:int}/", experiment_report, methods=["GET"]),
+    Route("/reports/{identity:str}/", report_snapshot, methods=["GET"]),
+    Route("/legacy/", latest_report, methods=["GET"]),
     Route("/best-worst/", best_worst_report, methods=["GET"]),
     Route("/journal/", journal, methods=["GET"]),
     Route("/journal/{path:path}", journal, methods=["GET"]),

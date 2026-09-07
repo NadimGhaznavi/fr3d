@@ -20,11 +20,11 @@ from fr3d.constants.DMethod import DMethod as METHOD
 from fr3d.zmq.ZMQClient import ZMQClient
 from fr3d.zmq.ZMQServer import MsgHandler, ZMQServer
 from fr3d.zmq.ZMQMsg import ZMQMsg
-from fr3d.app.JournalApp import JournalApp, JournalValidationError, JournalRateLimitError
+from fr3d.app_legacy.JournalApp import JournalApp, JournalValidationError, JournalRateLimitError
 from fr3d.database.JournalDb import JournalBusyError
-from fr3d.app.LearningRateLoop import LearningRateLoop
-from fr3d.app.LearningRateReport import LearningRateReport
-from fr3d.app.BestWorstReport import generate_best_worst_report
+from fr3d.app_legacy.LearningRateLoop import LearningRateLoop
+from fr3d.app_legacy.LearningRateReport import LearningRateReport
+from fr3d.app_legacy.BestWorstReport import generate_best_worst_report
 
 
 
