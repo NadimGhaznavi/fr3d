@@ -32,6 +32,8 @@ class LearningRateLoop:
         server_log = Path(DEFDIR.SERVER_LOGS / DEFILE.LLM_SERVER_LOG)
 
         self.log = MyLog(client_id=MODULE.LR_LOOP, log_file=server_log, to_console=False)
+        self.prompt_log = MyLog(client_id="Fr3dPrompts", log_file=DEFDIR.SERVER_LOGS / DEFILE.LLM_PROMPTS_LOG, to_console=False)
+        self.reasoning_log = MyLog(client_id="Fr3dReasoning", log_file=DEFDIR.SERVER_LOGS / DEFILE.LLM_REASONING_LOG, to_console=False)
         self.report = LearningRateReport()
 
     async def run(self) -> None:
@@ -71,7 +73,7 @@ class LearningRateLoop:
         return report, config, baseline
 
     async def decide(self) -> None:
-        trace = DecisionTrace(self.log)
+        trace = DecisionTrace(self.log, prompt_logger=self.prompt_log, reasoning_logger=self.reasoning_log)
         trace.record("decision_started")
         outcome = "failed"
         try:
