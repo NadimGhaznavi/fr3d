@@ -5,6 +5,8 @@ from io import BytesIO
 from unittest.mock import patch
 
 from fr3d.constants.DFr3d import DFr3d
+from fr3d.constants.DDir import DDirDef
+from fr3d.constants.DFile import DFileDef
 from fr3d.server.LLMServer import build_command
 from fr3d.server.LLMWatchdog import is_healthy, restart_server
 
@@ -18,7 +20,7 @@ class LLMServerCommandTest(unittest.TestCase):
         reasoning_index = command.index("--reasoning-budget")
         mcp_index = command.index("--mcp-servers-config")
 
-        self.assertEqual(command[model_index + 1], str(DFr3d.MODEL))
+        self.assertEqual(command[model_index + 1], DDirDef.MODELS / DFileDef.MODEL)
         self.assertEqual(command[context_index + 1], str(DFr3d.CONTEXT_SIZE))
         self.assertEqual(
             command[reasoning_index + 1],
@@ -26,7 +28,7 @@ class LLMServerCommandTest(unittest.TestCase):
         )
         self.assertEqual(
             command[mcp_index + 1],
-            str(DFr3d.MCP_SERVERS_CONFIG),
+            DDirDef.SERVER_CONFIG / DFileDef.MCP_SERVERS_CONFIG,
         )
 
 
@@ -47,11 +49,11 @@ class LLMWatchdogTest(unittest.TestCase):
             with self.subTest(body=body):
                 self.assertFalse(is_healthy(lambda *args, **kwargs: Response(body)))
 
-    @patch("server.LLMWatchdog.subprocess.run")
+    @patch("fr3d.server.LLMWatchdog.subprocess.run")
     def test_restarts_llm_server_unit(self, run: object) -> None:
         restart_server()
         run.assert_called_once_with(
-            ("systemctl", "restart", DFr3d.LLM_SERVER_SERVICE_NAME),
+            ("systemctl", "restart", DFileDef.LLM_SERVER_SERVICE),
             check=True,
         )
 

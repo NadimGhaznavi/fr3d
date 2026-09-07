@@ -7,7 +7,7 @@ import zmq
 import zmq.asyncio
 
 from dialogue.learning_rate import Episode, Experiment, render_markdown
-from fr3d.app.SnakeLabTool import SnakeLabTool
+from fr3d.app_legacy.SnakeLabTool import SnakeLabTool
 from fr3d.constants.DSnakeLab import DSnakeLab
 from fr3d.server.Fr3dServer import Fr3dServer
 from fr3d.zmq.ZMQClient import ZMQClient
@@ -17,9 +17,9 @@ from snakelab_tool.server import mcp
 
 class LearningRateZMQTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        self.enterContext(patch("fr3d.app.LearningRateLoop.MyLog"))
-        self.enterContext(patch("fr3d.app.LearningRateReport.MyLog"))
-        self.enterContext(patch("fr3d.app.SnakeLabTool.MyLog"))
+        self.enterContext(patch("fr3d.app_legacy.LearningRateLoop.MyLog"))
+        self.enterContext(patch("fr3d.app_legacy.LearningRateReport.MyLog"))
+        self.enterContext(patch("fr3d.app_legacy.SnakeLabTool.MyLog"))
 
     async def test_report_to_tool_to_fr3d_to_snake_lab(self):
         context = zmq.asyncio.Context()
@@ -59,10 +59,10 @@ class LearningRateZMQTest(unittest.IsolatedAsyncioTestCase):
             await release_model.wait()
             return .003
 
-        with patch("fr3d.app.LearningRateLoop.release_replays", return_value=[]), patch("fr3d.app.LearningRateReport.LearningRateReport.find_completed_experiment", return_value=None), patch("fr3d.zmq.ZMQServer.MyLog"), patch.object(
+        with patch("fr3d.app_legacy.LearningRateLoop.release_replays", return_value=[]), patch("fr3d.app_legacy.LearningRateReport.LearningRateReport.find_completed_experiment", return_value=None), patch("fr3d.zmq.ZMQServer.MyLog"), patch.object(
             DSnakeLab, "ENDPOINT", f"tcp://127.0.0.1:{port}",
-        ), patch("fr3d.app.LearningRateReport.LearningRateReport.load_experiments", return_value=runs), patch(
-            "fr3d.app.LearningRateLoop.choose_learning_rate", side_effect=choose,
+        ), patch("fr3d.app_legacy.LearningRateReport.LearningRateReport.load_experiments", return_value=runs), patch(
+            "fr3d.app_legacy.LearningRateLoop.choose_learning_rate", side_effect=choose,
         ):
             server = Fr3dServer(port=0, log_file=None)
             responder = asyncio.create_task(respond())
@@ -113,7 +113,7 @@ class LearningRateZMQTest(unittest.IsolatedAsyncioTestCase):
         with patch("fr3d.zmq.ZMQServer.MyLog"):
             server = Fr3dServer(port=0, log_file=None, learning_rate_enabled=False)
         with patch.object(server, "snake_lab_request") as snake_request, patch(
-            "fr3d.app.LearningRateReport.LearningRateReport.load_experiments", return_value=runs,
+            "fr3d.app_legacy.LearningRateReport.LearningRateReport.load_experiments", return_value=runs,
         ) as load, patch(
             "snakelab_tool.server.SnakeLabTool", return_value=SnakeLabTool(server.endpoint),
         ):
@@ -153,7 +153,7 @@ class LearningRateZMQTest(unittest.IsolatedAsyncioTestCase):
         self.addAsyncCleanup(server.zmq_server.stop)
         pending = {"training": {"learning_rate": .003}}
         server.learning_rate_loop.pending_config = pending
-        with patch("fr3d.app.LearningRateReport.LearningRateReport.generate_latest_report", return_value="report") as generate:
+        with patch("fr3d.app_legacy.LearningRateReport.LearningRateReport.generate_latest_report", return_value="report") as generate:
             result = await server.view_latest_report(ZMQMsg("test", "view_latest_report", payload={"run_id": 1}))
             self.assertEqual(result["error"]["code"], "invalid_request")
             generate.assert_not_called()

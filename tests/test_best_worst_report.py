@@ -4,7 +4,7 @@ import unittest
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock
 
-from fr3d.app.BestWorstReport import generate_best_worst_report
+from fr3d.app_legacy.BestWorstReport import generate_best_worst_report
 from dialogue.learning_rate import format_duration, load_experiments, render_markdown
 
 

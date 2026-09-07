@@ -7,10 +7,10 @@ import uuid
 
 class DecisionTrace:
     def __init__(self, logger=None, *, prompt_logger=None, reasoning_logger=None):
-        self.log = logger if logger is not None else logging.getLogger("fr3d.app.LearningRateLLM")
+        self.log = logger if logger is not None else logging.getLogger("fr3d.learning_rate")
         self.prompt_log = prompt_logger if prompt_logger is not None else logging.getLogger("Fr3dPrompts")
         self.reasoning_log = reasoning_logger if reasoning_logger is not None else logging.getLogger("Fr3dReasoning")
-        self.decision_id = uuid.uuid4().hex[:8]
+        self.decision_id = uuid.uuid4().hex[:3]
         self.request_number = 0
 
     def next_request(self):

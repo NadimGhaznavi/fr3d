@@ -4,7 +4,7 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
-from fr3d.app.JournalApp import JournalApp, JournalRateLimitError, JournalValidationError
+from fr3d.app_legacy.JournalApp import JournalApp, JournalRateLimitError, JournalValidationError
 from fr3d.database.DbMgr import DbMgr
 from fr3d.database.JournalDb import JournalDb, JournalBusyError
 

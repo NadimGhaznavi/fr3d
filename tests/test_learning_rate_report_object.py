@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from fr3d.app.LearningRateReport import LearningRateReport, Experiment, Episode
+from fr3d.app_legacy.LearningRateReport import LearningRateReport, Experiment, Episode
 
 
 class LearningRateReportObjectTest(unittest.TestCase):

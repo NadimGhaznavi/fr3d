@@ -36,7 +36,7 @@ def is_healthy(
 def restart_server() -> None:
     """Ask systemd to restart the LLM server unit."""
     subprocess.run(
-        ("systemctl", "restart", DEFFILE.LLM_SERVER_SERVICE_NAME),
+        ("systemctl", "restart", DEFFILE.LLM_SERVER_SERVICE),
         check=True,
     )
 

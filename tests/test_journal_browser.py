@@ -3,7 +3,7 @@ import unittest
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
-from fr3d.app.JournalApp import JournalApp, JournalValidationError
+from fr3d.app_legacy.JournalApp import JournalApp, JournalValidationError
 from fr3d.database.JournalDb import JournalDb
 from fr3d.zmq.ZMQMsg import ZMQMsg
 from journal_tool.server import mcp
