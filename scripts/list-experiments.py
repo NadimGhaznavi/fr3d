@@ -8,11 +8,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from pymysql import MySQLError
+from pymysql import MySQLError, connect
+from pymysql.cursors import DictCursor
 
-from dialogue.poke_fr3d import load_database_environment
 from fr3d.constants.DDatabase import DDatabase
-from fr3d.database.DbMgr import DbMgr
 
 
 def render_table(rows):
@@ -31,14 +30,14 @@ def render_table(rows):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--env-file", type=Path, default=DDatabase.ENV_FILE,
-                        help="database credentials file (default: %(default)s)")
-    parser.add_argument("--unix-socket", help="optional local MariaDB socket path")
+    parser.add_argument("--unix-socket", default="/run/mysqld/mysqld.sock",
+                        help="local MariaDB socket path (default: %(default)s)")
     args = parser.parse_args(argv)
     try:
-        load_database_environment(args.env_file)
-        connection = DbMgr.connect(database_name=DDatabase.SNAKE_LAB_DB_NAME,
-                                   unix_socket=args.unix_socket)
+        connection = connect(user="root", password="",
+                             database=DDatabase.SNAKE_LAB_DB_NAME,
+                             unix_socket=args.unix_socket,
+                             charset="utf8mb4", cursorclass=DictCursor)
         try:
             with connection.cursor() as cursor:
                 # Include every status, including experiments without a score yet.
@@ -48,7 +47,8 @@ def main(argv=None):
             connection.close()
         print(render_table(rows), end="")
     except MySQLError:
-        print("Could not read Snake Lab data; check database credentials and connectivity.", file=sys.stderr)
+        print("Could not read Snake Lab data as root; check the socket path and run with sudo "
+              "if root uses Unix socket authentication.", file=sys.stderr)
         return 1
     except (OSError, ValueError) as error:
         print(str(error), file=sys.stderr)
