@@ -2,28 +2,35 @@
 
 ## LLM decision logs
 
-Automatic learning-rate decisions write a correlated trace to
-`/opt/fr3d/logs/llm-server.log`. Each event contains a `decision_id`; actual HTTP
-requests also have a `request_number` that increases across historical lookups
-and duplicate-rate retries within that decision.
+Automatic learning-rate decisions use three files under `/opt/fr3d/logs/`:
 
-- `decision_started` means checks have begun, not that the model was called.
-- `llm_request` includes the exact outgoing JSON payload: system/user messages,
-  tool definitions, and generation settings. Authorization headers are omitted.
-- `llm_response` includes the full response body, HTTP status, and elapsed seconds.
-  `llm_tool_call` extracts the finish reason, tool name, and arguments.
-- `lookup_started`, `lookup_result`, and `lookup_failed` describe automatic
-  historical report reads, including those that bypass the MCP wrapper.
-- `submission_started`, `submission_result`, `duplicate_rejected`, and
-  `simulation_submitted` connect proposals to the resulting run or retry.
-- `decision_failed` and `decision_finished` record the final outcome, including
-  cancellation and release initialization without a model call.
+- `llm-server.log`: terse activity summaries with run IDs, tool names, proposed
+  rates, timings, HTTP status, outcomes, and concise errors. No prompt, response
+  body, or full report is included in DecisionTrace activity lines.
+- `llm-prompts.log`: full outgoing request JSON, including system/user messages,
+  tool schemas, settings, and follow-up tool results. Lookup and submission
+  results are also retained here, including duplicate-run reports. Authorization
+  headers are omitted.
+- `llm-reasoning.log`: full returned response data, including any exposed
+  `reasoning_content` or `reasoning`, response text, and tool calls. A
+  `reasoning_status` field explicitly notes when no separate reasoning was
+  returned. Non-JSON error bodies are retained as text.
 
-Events are single-line JSON after the normal timestamp/level/logger prefix;
-embedded newlines are escaped. Search for a decision ID to follow its exchange.
-These traces capture automatic loop requests. Native llama-server diagnostics
-and web-chat request handling remain in `journalctl -u llm-server.service`;
-MCP wrapper logs alone do not capture the complete web-chat prompt.
+All three share the decision ID and, for HTTP exchanges, request number.
+Request numbers increase across historical lookups and duplicate-rate retries.
+The activity log uses short text after the usual timestamp/level/logger prefix;
+only prompt and reasoning details use JSON records with escaped newlines.
+Search for a decision ID to follow its exchange across files.
+
+`decision_started` means checks have begun. `llm_request` means an HTTP request
+is about to be sent. `decision_finished` identifies the final outcome, including
+release initialization without a model call, failure, or cancellation.
+
+These traces cover the automatic loop, not web-chat conversations. Native
+llama-server diagnostics remain in `journalctl -u llm-server.service`.
+After deploying, restart `fr3d-server.service` to load the split. Existing
+entries in `llm-server.log` remain as they were; subsequent traces use the new
+format. No service or database configuration change is needed.
 
 ```sh
 tail -f /opt/fr3d/logs/llm-server.log
