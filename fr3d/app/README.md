@@ -31,7 +31,9 @@ this flow does not replay three baseline experiments on a Snake Lab version chan
 
 Interactions and report snapshot URLs go to `llm-server.log`. A three-character
 main-loop ID joins the prompt conversations; IDs can recur, so use timestamps too.
-Readable model reasoning stays in `llm-reasoning.log` with the existing format.
+The current task, readable model reasoning, and the model’s response appear in
+`llm-reasoning.log`, including tool names and arguments. Input prompt text, report
+data, and response metadata stay in the interaction log. When no separate reasoning is returned, a short notice appears instead.
 
 The existing ZMQ server provides journal and archived report endpoints. Its old
 external LR submission endpoint rejects requests while the new loop is active;

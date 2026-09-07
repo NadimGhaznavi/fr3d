@@ -28,7 +28,8 @@ class Conversation:
         if key := os.environ.get('LLAMA_API_KEY'):
             headers['Authorization'] = f'Bearer {key}'
         url = os.environ.get('LLAMA_URL', 'http://127.0.0.1:51970').rstrip('/')
-        trace.record('prompt_started', prompt=prompt.number)
+        trace.record('prompt_started', prompt=prompt.number,
+                     task=prompt.text.splitlines()[0].lstrip('# ').strip())
         async with asyncio.timeout(240), httpx.AsyncClient(timeout=240) as client:
             # At most three report lookups, then require a submission. Report data
             # is kept intact; a fresh conversation begins with the next prompt.
