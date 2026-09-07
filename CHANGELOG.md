@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-09-07 @ 19:03
+
 - Updated the Snake Lab schemas
 - Replace the service's epsilon-only loop with modular whole-configuration search:
   schema-derived baseline and validation, comparable SQL history, least-explored
