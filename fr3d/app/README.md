@@ -14,7 +14,12 @@ An absent submission from prompt 01 restarts the loop after the polling interval
 
 Every prompt starts a fresh conversation. Tool requests and responses stay within
 that conversation. Each conversation allows three report lookups followed by a
-submission request and has a 240-second timeout. Cancellation stops the conversation
+submission request. `DFr3d.PROMPT_TIMEOUT` sets a 240-second deadline for the
+whole conversation, including report lookups. HTTP timeouts count as no submission
+too. The five-second `FR3D_POLL_INTERVAL` applies only after an iteration ends; it
+does not send new prompts while an HTTP request is pending. Early replies without
+a completed tool call log their finish reason and tool-call count before the loop
+follows its normal retry path. Cancellation stops the conversation
 and service transport. A prompt timeout counts as no submission.
 
 - `learning_rate/prompt_data/`: editable Markdown instructions.

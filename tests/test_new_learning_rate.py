@@ -1,6 +1,7 @@
 """Behavioral coverage of the replacement app, independent of archived behavior."""
 
 import json
+import asyncio
 import tempfile
 import sqlite3
 import unittest
@@ -70,6 +71,32 @@ class LoopTests(unittest.IsolatedAsyncioTestCase):
         self.conversation.run.side_effect = [.001, TimeoutError(), .002]
         self.assertEqual(await self.loop.run_once(), 'submitted')
 
+    async def test_http_timeout_counts_as_duplicate_attempt(self):
+        self.conversation.run.side_effect = [.001, httpx.ReadTimeout('slow response'), .002]
+        self.assertEqual(await self.loop.run_once(), 'submitted')
+        self.assertEqual(self.conversation.run.await_count, 3)
+
+    async def test_pending_conversation_is_not_reprompted_by_poll_interval(self):
+        entered, release = asyncio.Event(), asyncio.Event()
+
+        async def pending(*args):
+            entered.set()
+            await release.wait()
+            return .002
+
+        self.conversation.run.side_effect = pending
+        with patch('fr3d.app.learning_rate.main_loop.DFr3d.FR3D_POLL_INTERVAL', .001):
+            task = asyncio.create_task(self.loop.run())
+            try:
+                await asyncio.wait_for(entered.wait(), 1)
+                await asyncio.sleep(.02)
+                self.assertEqual(self.conversation.run.await_count, 1)
+                self.backend.is_simulation_running.assert_called_once()
+                self.backend.submit_simulation.assert_not_called()
+            finally:
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+
     async def test_checks_busy_again_before_submission(self):
         self.backend.is_simulation_running.side_effect = [False, True]
         self.conversation.run.return_value = .002
@@ -133,6 +160,39 @@ class ConversationTests(unittest.IsolatedAsyncioTestCase):
                          ['view_experiment_report', 'submit_learning_rate'])
         self.assertEqual([t['function']['name'] for t in sent[2]['tools']],
                          ['view_experiments_summary_report', 'submit_learning_rate'])
+
+    async def test_prompt_deadline_cancels_pending_http_request(self):
+        cancelled = asyncio.Event()
+        real_client = httpx.AsyncClient
+
+        async def respond(request):
+            try:
+                await asyncio.Event().wait()
+            finally:
+                cancelled.set()
+
+        client = real_client(transport=httpx.MockTransport(respond))
+        trace = Mock()
+        with patch('fr3d.app.learning_rate.conversation.DFr3d.PROMPT_TIMEOUT', .03), patch(
+            'fr3d.app.learning_rate.conversation.httpx.AsyncClient', return_value=client,
+        ) as factory:
+            with self.assertRaises(TimeoutError):
+                await Conversation(Mock()).run(outline_challenge(), trace)
+        factory.assert_called_once_with(timeout=.03)
+        self.assertTrue(cancelled.is_set())
+        self.assertTrue(client.is_closed)
+        self.assertTrue(any(c.args[0] == 'llm_request_interrupted' for c in trace.record.call_args_list))
+
+    async def test_early_stop_logs_finish_reason(self):
+        client = httpx.AsyncClient(transport=httpx.MockTransport(
+            lambda request: httpx.Response(200, json=response(finish='length')),
+        ))
+        trace = Mock()
+        with patch('fr3d.app.learning_rate.conversation.httpx.AsyncClient', return_value=client):
+            self.assertIsNone(await Conversation(Mock()).run(outline_challenge(), trace))
+        event = next(c for c in trace.record.call_args_list if c.args[0] == 'prompt_no_submission')
+        self.assertEqual(event.kwargs['finish_reason'], 'length')
+        self.assertEqual(event.kwargs['tool_call_count'], 0)
 
     async def test_invalid_or_absent_submission_does_not_escape(self):
         real_client = httpx.AsyncClient

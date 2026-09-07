@@ -3,6 +3,7 @@
 import asyncio
 from copy import deepcopy
 import signal
+import httpx
 
 from fr3d.constants.DDir import DDirDef
 from fr3d.constants.DFile import DFileDef
@@ -31,8 +32,9 @@ class LearningRateLoop:
     async def _prompt(self, prompt, trace):
         try:
             return await self.conversation.run(prompt, trace)
-        except (TimeoutError, ValueError) as error:
-            trace.record('prompt_incomplete', level='warning', prompt=prompt.number, message=str(error))
+        except (TimeoutError, httpx.TimeoutException, ValueError) as error:
+            trace.record('prompt_incomplete', level='warning', prompt=prompt.number,
+                         error_type=type(error).__name__, message=str(error))
             return None
 
     async def run_once(self):
