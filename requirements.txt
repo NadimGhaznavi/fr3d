@@ -3,6 +3,7 @@ mcp>=2,<3
 PyMySQL>=1.1,<2
 pyzmq>=26,<28
 httpx>=0.27,<1
+jsonschema>=4.18,<5
 # Nadim-facing report service and Markdown tables.
 starlette>=1,<2
 uvicorn>=0.30,<1
