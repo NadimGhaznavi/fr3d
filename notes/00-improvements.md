@@ -1,11 +1,4 @@
 High-level verdict
-Your current definitions are mostly fine, but I would improve:
-Add numeric bounds to the learning-rate schema, not only in the description.
-Make the no-argument tool safer for llama-server.
-Remove or de-emphasize OpenAI-specific strict: True for local llama-server, unless you also target OpenAI directly.
-Make descriptions more action-oriented and less state-dependent.
-Avoid relying on the model to enforce “available once” — enforce that in your backend.
-Reduce reasoning budget for tool-calling turns, or tool calls may become slow and verbose.
 Keep tool results compact, because 12k context can be eaten quickly by reasoning + report history.
 
 Additional Feedback

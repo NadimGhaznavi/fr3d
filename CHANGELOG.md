@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Split automatic decision logging into terse activity in `llm-server.log`,
+  full prompt/tool-result data in `llm-prompts.log`, and model responses in
+  `llm-reasoning.log`. Correlate files by decision ID and request number, and
+  explicitly identify responses with no separate reasoning returned.
+
 ## [0.13.0] - 2026-09-06 @ 18:33
 
 ### Added

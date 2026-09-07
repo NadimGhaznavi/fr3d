@@ -24,6 +24,8 @@ class DFileDef:
 
     # The LLM server log file
     LLM_SERVER_LOG: Final[str] = "llm-server.log"
+    LLM_PROMPTS_LOG: Final[str] = "llm-prompts.log"
+    LLM_REASONING_LOG: Final[str] = "llm-reasoning.log"
 
     # The watchdog log file
     WATCHDOG_LOG: Final[str] = "llm-watchdog.log"
