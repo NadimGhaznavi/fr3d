@@ -9,14 +9,16 @@ import httpx
 
 from fr3d.reporting.formats import to_json
 from fr3d.constants.DFr3d import DFr3d
+from fr3d.app.conversation_context import ConversationContext
 from .tools import SUBMIT_LR, validate_learning_rate
 from .prompts import invalid_lr, no_reruns
 
 
 class Conversation:
-    def __init__(self, reports, snapshots=None):
+    def __init__(self, reports, snapshots=None, context=None):
         self.reports = reports
         self.snapshots = snapshots
+        self.context = context if context is not None else ConversationContext()
 
     async def run(self, prompt, trace):
         summary = await asyncio.to_thread(self.reports.summary)
@@ -24,9 +26,13 @@ class Conversation:
             snapshot_id = await asyncio.to_thread(self.snapshots.save, summary)
             trace.record('report_snapshot', snapshot_id=snapshot_id,
                          report_url=f'/reports/{snapshot_id}/')
+        self.context.reset()
+        current_prompt = {'role': 'user',
+                          'content': prompt.text + '\n\nSummary report (JSON):\n' + to_json(summary)}
+        self.context.messages.append(current_prompt)
         payload = {
             'model': os.environ.get('LLAMA_MODEL', 'local-model'),
-            'messages': [{'role': 'user', 'content': prompt.text + '\n\nSummary report (JSON):\n' + to_json(summary)}],
+            'messages': self.context.messages,
             'temperature': 0.1, 'max_tokens': 4096, 'stream': False,
             'tools': [SUBMIT_LR], 'tool_choice': 'required',
             'parallel_tool_calls': False,
@@ -40,6 +46,7 @@ class Conversation:
                      timeout_s=DFr3d.PROMPT_TIMEOUT)
         async with asyncio.timeout(DFr3d.PROMPT_TIMEOUT), httpx.AsyncClient(timeout=DFr3d.PROMPT_TIMEOUT) as client:
             while True:
+                self.context.prepare(payload, current_prompt, trace)
                 number = trace.next_request()
                 trace.record('llm_request', request_number=number, payload=payload)
                 started = time.monotonic()
@@ -55,7 +62,9 @@ class Conversation:
                              http_status=response.status_code, body=response.text)
                 response.raise_for_status()
                 try:
-                    choice = response.json()['choices'][0]
+                    body = response.json()
+                    self.context.observe(body, payload, trace)
+                    choice = body['choices'][0]
                     message = choice['message']
                     calls = message.get('tool_calls', [])
                     if choice.get('finish_reason') != 'tool_calls' or len(calls) != 1:
@@ -86,11 +95,12 @@ class Conversation:
                     trace.record('invalid_lr_rejected', request_number=number, message=reason)
                 else:
                     if not await asyncio.to_thread(self.reports.already_used, rate):
+                        self.context.reset()
                         return rate
                     warning = no_reruns()
                     reason = f'Learning rate {rate} has already been used.'
                     trace.record('duplicate_rejected', request_number=number, learning_rate=rate)
-                payload['messages'].extend([
+                self.context.messages.extend([
                     {**message, 'role': 'assistant'},
                     {'role': 'tool', 'tool_call_id': call_id,
                      'content': warning.text + '\n\nRejection reason: ' + reason},

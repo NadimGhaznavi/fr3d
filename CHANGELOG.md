@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Reset epsilon conversation history after accepting a valid, unused config value;
+  carry the submission outcome and a fresh report into the next cycle.
+- Share context budgeting between epsilon and learning-rate conversations through
+  `fr3d/app/conversation_context.py`. Reserve response tokens and 1,024 tokens of
+  headroom within `DFr3d.CONTEXT_SIZE`, and evict oldest messages in complete
+  tool-call/result groups while preserving the current prompt and latest feedback.
+- Log estimated prompt budgets and server-reported token usage. Estimates include
+  tool schemas and adapt upward from reported usage; they are not exact tokenizer
+  counts. Stop locally if required context alone exceeds the estimated budget.
+
 ## [0.15.3] - 2026-09-07 @ 14:30
 
 ## [0.15.2] - 2026-09-07
