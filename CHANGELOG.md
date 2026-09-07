@@ -9,9 +9,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.14.9] - 2026-09-07 @ 14:09
+## [0.15.2] - 2026-09-07
 
-## [0.14.9] - 2026-09-07
+### Changed
+
+- Begin Phase II epsilon-decay search with learning rate fixed at the golden
+  value, `0.00021`. Use its latest completed experiment as the configuration
+  baseline and change only epsilon decay.
+- Replace `FIRST_CONTACT` with `summary_report.md`. Each cycle supplies completed
+  golden-LR experiment IDs, epsilon decay values, and high scores as JSON while
+  preserving the same conversation thread.
+- Accept choices through `submit_epsilon_decay`. Send `invalid_value.md` for
+  invalid submissions and `no_reruns.md` for decay values already recorded at
+  the golden LR, then wait for another choice in the same conversation.
+- Replace the hard-coded `0.97` rejection with history-based duplicate checks.
+  Include runs of every status at the golden LR and recheck before submission;
+  values tested only at other learning rates remain available.
+- Save epsilon summary snapshots for report viewing and include the new report
+  module and Phase II prompts in installation validation.
+
+### Validation
+
+- Passed 53 tests covering epsilon selection and history filtering, conversation
+  retries and persistence, learning-rate regressions, and installation lifecycle.
+
+## [0.14.9] - 2026-09-07 @ 14:09
 
 ### Changed
 

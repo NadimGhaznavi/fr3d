@@ -24,6 +24,4 @@ def validate_epsilon_decay(arguments):
     value = arguments['epsilon_decay']
     if type(value) not in (int, float) or not math.isfinite(value) or not 0 < value <= 1:
         raise ValueError('epsilon_decay must be finite, greater than zero and at most one')
-    if value == 0.97:
-        raise ValueError('Choose a value other than the extensively tested 0.97 baseline')
     return float(value)
