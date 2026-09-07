@@ -10,7 +10,7 @@ class DecisionTrace:
         self.log = logger if logger is not None else logging.getLogger("fr3d.app.LearningRateLLM")
         self.prompt_log = prompt_logger if prompt_logger is not None else logging.getLogger("Fr3dPrompts")
         self.reasoning_log = reasoning_logger if reasoning_logger is not None else logging.getLogger("Fr3dReasoning")
-        self.decision_id = uuid.uuid4().hex
+        self.decision_id = uuid.uuid4().hex[:8]
         self.request_number = 0
 
     def next_request(self):
@@ -34,16 +34,21 @@ class DecisionTrace:
             except (ValueError, TypeError, KeyError, StopIteration, AttributeError):
                 pass
         elif event == "llm_response":
+            reasoning_blocks = []
             try:
                 response = json.loads(fields["body"])
                 messages = [c.get("message", {}) for c in response.get("choices", [])]
                 reasoning = [m.get("reasoning_content") or m.get("reasoning") for m in messages]
                 record["reasoning_status"] = "returned" if any(reasoning) else "No separate reasoning returned"
+                for index, message in enumerate(messages):
+                    for key in ("reasoning_content", "reasoning"):
+                        if isinstance(message.get(key), str) and message[key]:
+                            reasoning_blocks.append(f"choice={index} {key}:\n{message.pop(key)}")
                 record["response"] = response
                 del record["body"]
             except (ValueError, TypeError, AttributeError):
                 record["reasoning_status"] = "No separate reasoning returned; response is not valid chat JSON"
-            self.reasoning_log.info(json.dumps(record, ensure_ascii=True))
+            self.reasoning_log.info("\n".join([json.dumps(record, ensure_ascii=True), *reasoning_blocks]))
         elif event in ("lookup_result", "submission_result"):
             self.prompt_log.info(json.dumps(record, ensure_ascii=True))
             result = fields.get("result", {})
