@@ -62,6 +62,7 @@ class Fr3dServer:
         self.endpoint = self.zmq_server.endpoint
         self._stop_event = asyncio.Event()
         self._running = False
+        self.experiment_loop = None
         self.learning_rate_loop = LearningRateLoop(self) if learning_rate_enabled else None
 
     async def submit_learning_rate(self, msg: ZMQMsg):
@@ -129,8 +130,9 @@ class Fr3dServer:
             self.zmq_server.start()
             listener = self.zmq_server.listen_task
             assert listener is not None
-            if self.learning_rate_loop is not None:
-                learning_task = asyncio.create_task(self.learning_rate_loop.run(), name="fr3d-learning-rate")
+            experiment_loop = self.experiment_loop or self.learning_rate_loop
+            if experiment_loop is not None:
+                learning_task = asyncio.create_task(experiment_loop.run(), name="fr3d-experiment")
             stop_task = asyncio.create_task(self._stop_event.wait(), name="fr3d-stop")
             completed, _ = await asyncio.wait(
                 [task for task in (listener, stop_task, learning_task) if task is not None],

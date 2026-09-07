@@ -19,6 +19,7 @@ from fr3d.zmq.ZMQMsg import ZMQMsg
 class SnakeLabStatusTest(unittest.TestCase):
     def setUp(self) -> None:
         self.enterContext(patch("fr3d.server.Fr3dServer.ZMQServer"))
+        self.enterContext(patch("fr3d.server.Fr3dServer.LearningRateReport"))
         self.server = Fr3dServer(log_file=None, learning_rate_enabled=False)
         self.context = MagicMock()
         self.socket = self.context.socket.return_value.__enter__.return_value
@@ -91,6 +92,7 @@ class SnakeLabStatusTest(unittest.TestCase):
 class Fr3dServerIntegrationTest(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
         self.enterContext(patch("fr3d.zmq.ZMQServer.MyLog"))
+        self.enterContext(patch("fr3d.server.Fr3dServer.LearningRateReport"))
         self.methods = {"echo": lambda request: request.payload}
         self.server = Fr3dServer(
             learning_rate_enabled=False,
