@@ -13,12 +13,14 @@ class DFr3d:
     ZMQ_HOST: Final[str] = "127.0.0.1"
     # SnakeLab uses 41970 for control and 41971 for telemetry.
     PORT: Final[int] = 61970
-    # Fr3d server sleep interval
+    # Pause between completed loop iterations; does not interrupt an LLM request.
     FR3D_POLL_INTERVAL: Final[int] = 5
     ZMQ_TIMEOUT: Final[int] = 3
 
     # LLM    
     LLM_PORT: Final[int] = 51970
+    # Whole prompt conversation, including report tool calls, in seconds.
+    PROMPT_TIMEOUT: Final[int] = 240
     CONTEXT_SIZE: Final[int] = 12_288
     REASONING_BUDGET: Final[int] = 4_096
 
