@@ -97,6 +97,10 @@ def validate_paths() -> None:
                 f"invalid server entry point: {entrypoint}:{error.lineno}: {error.msg}"
             ) from error
     for relative in (
+        "fr3d/app/epsilon/main_loop.py",
+        "fr3d/app/epsilon/conversation.py",
+        "fr3d/app/epsilon/prompts.py",
+        "fr3d/app/epsilon/tools.py",
         "fr3d/app/learning_rate/main_loop.py",
         "fr3d/app/learning_rate/conversation.py",
         "fr3d/reporting/experiments.py",
@@ -111,6 +115,10 @@ def validate_paths() -> None:
             raise ValueError(f"invalid runtime module: {entrypoint}:{error.lineno}: {error.msg}") from error
     for name in ("summary_report.md", "experiment_report.md", "no_reruns.md", "invalid_lr.md"):
         prompt = PROJECT_ROOT / "fr3d/app/learning_rate/prompt_data" / name
+        if not prompt.is_file():
+            raise FileNotFoundError(f"prompt not found: {prompt}")
+    for name in ("first_contact.md", "invalid_value.md"):
+        prompt = PROJECT_ROOT / "fr3d/app/epsilon/prompt_data" / name
         if not prompt.is_file():
             raise FileNotFoundError(f"prompt not found: {prompt}")
     report_page = PROJECT_ROOT / "fr3d" / "server" / "report.html"

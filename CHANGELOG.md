@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.9] - 2026-09-07 @ 14:09
+
+## [0.14.9] - 2026-09-07
+
+### Changed
+
+- Start the service through `fr3d.app.epsilon.main_loop` to choose epsilon decay
+  while holding the latest completed experiment's other settings fixed.
+- Keep one conversation across experiment cycles, retry invalid values using
+  `invalid_value.md`, and leave termination to the operator.
+- Validate and install the epsilon entry point and prompts.
+
 ## [0.14.8] - 2026-09-07 @ 13:32
 
 ## [0.14.7] - 2026-09-07 @ 13:29

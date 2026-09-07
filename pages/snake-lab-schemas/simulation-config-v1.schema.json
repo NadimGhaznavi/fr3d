@@ -197,7 +197,7 @@
         },
         "learning_rate": {
           "type": "number",
-          "default": 0.002,
+          "default": 0.00021,
           "exclusiveMinimum": 0.0,
           "maximum": 1.0,
           "x-snakelab-sweepable": true
