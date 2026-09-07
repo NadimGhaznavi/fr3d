@@ -12,6 +12,7 @@ class DecisionTrace:
         self.reasoning_log = reasoning_logger if reasoning_logger is not None else logging.getLogger("Fr3dReasoning")
         self.decision_id = uuid.uuid4().hex[:3]
         self.request_number = 0
+        self.current_task = "Learning-rate selection"
 
     def next_request(self):
         self.request_number += 1
@@ -24,7 +25,13 @@ class DecisionTrace:
     def record(self, event, *, level="info", **fields):
         record = {"decision_id": self.decision_id, "event": event, **fields}
         summary = {k: v for k, v in fields.items() if k not in ("payload", "body", "result", "arguments")}
-        if event == "llm_request":
+        if event == "prompt_started":
+            self.current_task = self._short(fields.get("task", "Learning-rate selection"))
+            self.reasoning_log.info(
+                f"decision={self.decision_id} prompt={fields.get('prompt', '?')}\n"
+                f"Task: {self.current_task}"
+            )
+        elif event == "llm_request":
             self.prompt_log.info(json.dumps(record, ensure_ascii=True))
             try:
                 content = next(m["content"] for m in fields["payload"]["messages"] if m["role"] == "user")
@@ -35,6 +42,7 @@ class DecisionTrace:
                 pass
         elif event == "llm_response":
             reasoning_blocks = []
+            response_blocks = []
             try:
                 response = json.loads(fields["body"])
                 messages = [c.get("message", {}) for c in response.get("choices", [])]
@@ -43,12 +51,33 @@ class DecisionTrace:
                 for index, message in enumerate(messages):
                     for key in ("reasoning_content", "reasoning"):
                         if isinstance(message.get(key), str) and message[key]:
-                            reasoning_blocks.append(f"choice={index} {key}:\n{message.pop(key)}")
+                            heading = "Reasoning:" if len(messages) == 1 else f"Reasoning (choice {index + 1}):"
+                            reasoning_blocks.append(f"{heading}\n{message.pop(key)}")
+                    answer = []
+                    if isinstance(message.get("content"), str) and message["content"]:
+                        answer.append(message["content"])
+                    for call in message.get("tool_calls") or []:
+                        if not isinstance(call, dict) or not isinstance(call.get("function"), dict):
+                            continue
+                        function = call["function"]
+                        answer.append(f"Tool: {function.get('name', 'unknown')}\n"
+                                      f"Arguments: {function.get('arguments', '{}')}")
+                    if answer:
+                        heading = "Response:" if len(messages) == 1 else f"Response (choice {index + 1}):"
+                        response_blocks.append("\n".join([heading, *answer]))
                 record["response"] = response
                 del record["body"]
             except (ValueError, TypeError, AttributeError):
                 record["reasoning_status"] = "No separate reasoning returned; response is not valid chat JSON"
-            self.reasoning_log.info("\n".join([json.dumps(record, ensure_ascii=True), *reasoning_blocks]))
+            # Keep the full response envelope with the interactions; show the
+            # actual answer and tool selections as readable text in the human log.
+            self.prompt_log.info(json.dumps(record, ensure_ascii=True))
+            self.reasoning_log.info("\n".join([
+                f"decision={self.decision_id} request={fields.get('request_number', self.request_number)}",
+                f"Task: {self.current_task}",
+                *(reasoning_blocks or ["No separate reasoning returned."]),
+                *(response_blocks or ["No response content returned."]),
+            ]))
         elif event in ("lookup_result", "submission_result"):
             self.prompt_log.info(json.dumps(record, ensure_ascii=True))
             result = fields.get("result", {})
