@@ -8,19 +8,20 @@ import httpx
 from fr3d.constants.DDir import DDirDef
 from fr3d.constants.DFile import DFileDef
 from fr3d.constants.DFr3d import DFr3d
-from fr3d.reporting.experiments import ExperimentReports
+from .reports import EpsilonReports
+from fr3d.reporting.snapshots import ReportSnapshots
 from fr3d.utils.DecisionTrace import DecisionTrace
 from fr3d.utils.MyLog import MyLog
 from .conversation import Conversation
-from .prompts import first_contact
+from .prompts import summary_report
 from .tools import validate_epsilon_decay
 
 
 class EpsilonLoop:
     def __init__(self, experiments, reports=None, conversation=None, trace_factory=None):
         self.experiments = experiments
-        self.reports = reports if reports is not None else ExperimentReports()
-        self.conversation = conversation if conversation is not None else Conversation()
+        self.reports = reports if reports is not None else EpsilonReports()
+        self.conversation = conversation if conversation is not None else Conversation(self.reports, ReportSnapshots())
         self.baseline_config = None
         self.trace_factory = trace_factory or self._trace
 
@@ -47,12 +48,19 @@ class EpsilonLoop:
         try:
             if self.baseline_config is None:
                 self.baseline_config = deepcopy(await asyncio.to_thread(self.reports.latest_config))
-            value = await self._prompt(first_contact(), trace)
+            value = await self._prompt(summary_report(), trace)
             if value is None:
                 outcome = 'no_submission'
                 return outcome
 
             value = validate_epsilon_decay({'epsilon_decay': value})
+
+            if await asyncio.to_thread(self.reports.already_used, value):
+                outcome = 'duplicate_rejected'
+                trace.record('duplicate_rejected', epsilon_decay=value)
+                self.conversation.record_outcome(
+                    f'Experiment not submitted: epsilon_decay={value} was used at the golden LR.')
+                return outcome
 
             # Recheck after the conversation in case an experiment was started elsewhere.
             if await asyncio.to_thread(self.experiments.is_simulation_running):

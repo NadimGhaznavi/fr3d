@@ -1,4 +1,4 @@
-"""Load the initial epsilon prompts from disk."""
+"""Load the epsilon prompts from disk."""
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -18,3 +18,11 @@ def first_contact():
 
 def invalid_value():
     return Prompt('invalid_value', (DATA / 'invalid_value.md').read_text())
+
+
+def summary_report():
+    return Prompt('summary_report', (DATA / 'summary_report.md').read_text())
+
+
+def no_reruns():
+    return Prompt('no_reruns', (DATA / 'no_reruns.md').read_text())
