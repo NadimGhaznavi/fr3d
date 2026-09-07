@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.3] - 2026-09-07 @ 06:19
+
 ### Added
 
 - Helper scripts to start and stop the 5 services
