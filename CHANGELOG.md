@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.1] - 2026-09-07 @ 09:50
+
 ### Changed
 
 - Limit the new LR reasoning log to the current task, loop/request identifiers,
