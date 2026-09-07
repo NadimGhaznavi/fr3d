@@ -51,7 +51,7 @@ class LoopTests(unittest.IsolatedAsyncioTestCase):
             {'seed': 42, 'training': {'learning_rate': .002, 'batch_size': 64}})
         self.assertEqual(self.config['training']['learning_rate'], .001)
 
-    async def test_duplicate_ends_cycle_without_reprompting(self):
+    async def test_final_duplicate_recheck_prevents_submission(self):
         self.conversation.run.return_value = .001
         self.assertEqual(await self.loop.run_once(), 'duplicate_rejected')
         self.conversation.run.assert_awaited_once()
@@ -124,6 +124,7 @@ class ConversationTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.reports = Mock()
         self.reports.summary.return_value = {'experiments': []}
+        self.reports.already_used.return_value = False
 
     async def test_summary_is_sent_upfront_in_one_fresh_request(self):
         sent = []
@@ -148,11 +149,56 @@ class ConversationTests(unittest.IsolatedAsyncioTestCase):
             saved = [json.loads(p.read_text()) for p in Path(directory).glob('*.json')]
             self.assertIn(self.reports.summary.return_value, saved)
 
+    async def test_warnings_keep_summary_and_rejected_choices(self):
+        replies = iter([
+            response('submit_learning_rate', {'learning_rate': 0}),
+            response('submit_learning_rate', {'learning_rate': .001}),
+            response('submit_learning_rate', {'learning_rate': .002}),
+        ])
+        sent = []
+        def handle(request):
+            sent.append(json.loads(request.content))
+            return httpx.Response(200, json=next(replies))
+        self.reports.already_used.side_effect = lambda rate: rate == .001
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handle))
+        with patch('fr3d.app.learning_rate.conversation.httpx.AsyncClient', return_value=client):
+            self.assertEqual(await Conversation(self.reports).run(summary_report(), Mock()), .002)
+        self.assertEqual([len(p['messages']) for p in sent], [1, 3, 5])
+        self.assertEqual(sent[0]['messages'], sent[2]['messages'][:1])
+        self.assertIn('# Invalid Learning Rate', sent[1]['messages'][-1]['content'])
+        self.assertIn('THIS SIMULATION HAS BEEN RUN!', sent[2]['messages'][-1]['content'])
+        self.assertIn('0.001', sent[2]['messages'][-1]['content'])
+        for payload in sent[1:]:
+            messages = payload['messages']
+            self.assertEqual(messages[-1]['role'], 'tool')
+            self.assertEqual(messages[-1]['tool_call_id'], messages[-2]['tool_calls'][0]['id'])
+        self.reports.summary.assert_called_once()
+        self.assertEqual([c.args[0] for c in self.reports.already_used.call_args_list], [.001, .002])
+
+    async def test_invalid_submissions_warn_then_missing_submission_ends_conversation(self):
+        real_client = httpx.AsyncClient
+        for value in (True, 0, -1, 1.1, float('inf'), float('nan'), '0.001', None):
+            replies = iter([response('submit_learning_rate', {'learning_rate': value}), response(finish='stop')])
+            sent = []
+            def handle(request):
+                sent.append(json.loads(request.content))
+                return httpx.Response(200, json=next(replies))
+            with self.subTest(value=value), patch('fr3d.app.learning_rate.conversation.httpx.AsyncClient',
+                    side_effect=lambda **kw: real_client(transport=httpx.MockTransport(handle), **kw)):
+                self.assertIsNone(await Conversation(self.reports).run(summary_report(), Mock()))
+            self.assertEqual(len(sent), 2)
+            self.assertIn('# Invalid Learning Rate', sent[-1]['messages'][-1]['content'])
+        self.reports.already_used.assert_not_called()
+
     async def test_prompt_deadline_cancels_pending_http_request(self):
         cancelled = asyncio.Event()
         real_client = httpx.AsyncClient
 
+        requests = []
         async def respond(request):
+            requests.append(json.loads(request.content))
+            if len(requests) == 1:
+                return httpx.Response(200, json=response('submit_learning_rate', {'learning_rate': 0}))
             try:
                 await asyncio.Event().wait()
             finally:
@@ -166,6 +212,8 @@ class ConversationTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(TimeoutError):
                 await Conversation(self.reports).run(summary_report(), trace)
         factory.assert_called_once_with(timeout=.03)
+        self.assertEqual(len(requests), 2)
+        self.assertIn('# Invalid Learning Rate', requests[-1]['messages'][-1]['content'])
         self.assertTrue(cancelled.is_set())
         self.assertTrue(client.is_closed)
         self.assertTrue(any(c.args[0] == 'llm_request_interrupted' for c in trace.record.call_args_list))
@@ -183,8 +231,7 @@ class ConversationTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_invalid_or_absent_submission_does_not_escape(self):
         real_client = httpx.AsyncClient
-        for reply in (response(finish='stop'), response('submit_learning_rate', {'learning_rate': True}),
-                      response('submit_learning_rate', {'learning_rate': 0}), response('unknown', {}), response('view_experiments_summary_report', {})):
+        for reply in (response(finish='stop'), response('unknown', {}), response('view_experiments_summary_report', {})):
             with self.subTest(reply=reply), patch('fr3d.app.learning_rate.conversation.httpx.AsyncClient',
                     side_effect=lambda **kw: real_client(transport=httpx.MockTransport(
                         lambda request: httpx.Response(200, json=reply)), **kw)):

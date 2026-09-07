@@ -22,3 +22,11 @@ def summary_report():
 
 def experiment_report():
     return Prompt('01', (DATA / 'experiment_report.md').read_text(), (EXPERIMENT_REPORT, SUBMIT_LR))
+
+
+def no_reruns():
+    return Prompt('no_reruns', (DATA / 'no_reruns.md').read_text(), (SUBMIT_LR,))
+
+
+def invalid_lr():
+    return Prompt('invalid_lr', (DATA / 'invalid_lr.md').read_text(), (SUBMIT_LR,))
