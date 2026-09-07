@@ -70,6 +70,22 @@ class ReadableTraceTest(unittest.TestCase):
         self.assertIn('Response:\nTool: view_experiment_report\nArguments: {"experiment_id": 12}',
                       self.reasoning.info.call_args.args[0])
 
+    def test_server_error_is_visible_without_response_envelope(self):
+        self.trace.record('llm_response', request_number=2, http_status=400, body=json.dumps({
+            'error': {'message': 'Request exceeds context size', 'type': 'exceed_context_size_error'},
+            'prompt': 'FULL INPUT PROMPT',
+        }))
+        readable = self.reasoning.info.call_args.args[0]
+        self.assertIn('Server error (HTTP 400): Request exceeds context size', readable)
+        self.assertNotIn('No response content returned.', readable)
+        self.assertNotIn('FULL INPUT PROMPT', readable)
+
+    def test_non_json_http_failure_shows_status_without_dumping_body(self):
+        self.trace.record('llm_response', http_status=500, body='<html>FULL ERROR PAGE</html>')
+        readable = self.reasoning.info.call_args.args[0]
+        self.assertIn('Server error (HTTP 500)', readable)
+        self.assertNotIn('FULL ERROR PAGE', readable)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Show concise server error messages and HTTP error status in the readable LLM
+  log instead of presenting failed requests as empty model responses.
+
+### Changed
+
+- Define the four-minute conversation deadline as `DFr3d.PROMPT_TIMEOUT`, separate
+  from Snake Lab polling. Handle HTTP timeouts as incomplete prompts and log why
+  a response produced no submission, including finish reason and tool-call count.
+
 ## [0.14.1] - 2026-09-07 @ 09:50
 
 ### Changed

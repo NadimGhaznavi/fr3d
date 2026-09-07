@@ -8,6 +8,7 @@ import time
 import httpx
 
 from fr3d.reporting.formats import to_json
+from fr3d.constants.DFr3d import DFr3d
 from .tools import SUBMIT_LR, validate_learning_rate, view_report
 
 
@@ -29,8 +30,9 @@ class Conversation:
             headers['Authorization'] = f'Bearer {key}'
         url = os.environ.get('LLAMA_URL', 'http://127.0.0.1:51970').rstrip('/')
         trace.record('prompt_started', prompt=prompt.number,
-                     task=prompt.text.splitlines()[0].lstrip('# ').strip())
-        async with asyncio.timeout(240), httpx.AsyncClient(timeout=240) as client:
+                     task=prompt.text.splitlines()[0].lstrip('# ').strip(),
+                     timeout_s=DFr3d.PROMPT_TIMEOUT)
+        async with asyncio.timeout(DFr3d.PROMPT_TIMEOUT), httpx.AsyncClient(timeout=DFr3d.PROMPT_TIMEOUT) as client:
             # At most three report lookups, then require a submission. Report data
             # is kept intact; a fresh conversation begins with the next prompt.
             for turn in range(4):
@@ -39,7 +41,13 @@ class Conversation:
                 number = trace.next_request()
                 trace.record('llm_request', request_number=number, payload=payload)
                 started = time.monotonic()
-                response = await client.post(url + '/v1/chat/completions', json=payload, headers=headers)
+                try:
+                    response = await client.post(url + '/v1/chat/completions', json=payload, headers=headers)
+                except (Exception, asyncio.CancelledError) as error:
+                    trace.record('llm_request_interrupted', level='warning', request_number=number,
+                                 elapsed_s=round(time.monotonic() - started, 3),
+                                 error_type=type(error).__name__, message=str(error))
+                    raise
                 trace.record('llm_response', request_number=number,
                              elapsed_s=round(time.monotonic() - started, 3),
                              http_status=response.status_code, body=response.text)
@@ -49,20 +57,26 @@ class Conversation:
                     message = choice['message']
                     calls = message.get('tool_calls', [])
                     if choice.get('finish_reason') != 'tool_calls' or len(calls) != 1:
+                        trace.record('prompt_no_submission', level='warning', prompt=prompt.number,
+                                     request_number=number, reason='Expected one completed tool call',
+                                     finish_reason=choice.get('finish_reason'), tool_call_count=len(calls))
                         return None
                     call = calls[0]
                     name = call['function']['name']
                     allowed = {t['function']['name'] for t in payload['tools']}
                     if call['type'] != 'function' or name not in allowed:
-                        return None
+                        raise ValueError(f'Tool is not available in this prompt: {name}')
                     arguments = json.loads(call['function']['arguments'])
                     trace.record('llm_tool_call', request_number=number, tool=name, arguments=arguments)
                     if name == 'submit_learning_rate':
                         return validate_learning_rate(arguments)
                     call_id = call['id']
                     if not isinstance(call_id, str) or not call_id:
-                        return None
-                except (KeyError, IndexError, TypeError, AttributeError, ValueError):
+                        raise ValueError('Report tool call has no valid ID')
+                except (KeyError, IndexError, TypeError, AttributeError, ValueError) as error:
+                    trace.record('prompt_no_submission', level='warning', prompt=prompt.number,
+                                 request_number=number, reason='Invalid tool response',
+                                 error_type=type(error).__name__, message=str(error))
                     return None
                 try:
                     result = await asyncio.to_thread(view_report, name, arguments, self.reports)
