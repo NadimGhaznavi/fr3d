@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Improved startup
+
+### Changed
+
+- Changed the sequencing in `start-all-services.sh` and added a sleep for a
+  smoother start.
+
 ## [0.13.3] - 2026-09-07 @ 06:19
 
 ### Added
