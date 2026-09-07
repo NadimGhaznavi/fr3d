@@ -45,6 +45,14 @@ class DecisionTrace:
             response_blocks = []
             try:
                 response = json.loads(fields["body"])
+                if isinstance(response, dict) and response.get("error"):
+                    error = response["error"]
+                    message = error.get("message", "Unspecified server error") if isinstance(error, dict) else error
+                    # A short error belongs in the readable log, not its full envelope.
+                    response_blocks.append(
+                        f"Server error (HTTP {fields.get('http_status', '?')}): "
+                        + " ".join(str(message).split())[:500]
+                    )
                 messages = [c.get("message", {}) for c in response.get("choices", [])]
                 reasoning = [m.get("reasoning_content") or m.get("reasoning") for m in messages]
                 record["reasoning_status"] = "returned" if any(reasoning) else "No separate reasoning returned"
@@ -69,6 +77,10 @@ class DecisionTrace:
                 del record["body"]
             except (ValueError, TypeError, AttributeError):
                 record["reasoning_status"] = "No separate reasoning returned; response is not valid chat JSON"
+            if not response_blocks and fields.get("http_status", 200) >= 400:
+                response_blocks.append(
+                    f"Server error (HTTP {fields['http_status']}); see llm-server.log for the response body."
+                )
             # Keep the full response envelope with the interactions; show the
             # actual answer and tool selections as readable text in the human log.
             self.prompt_log.info(json.dumps(record, ensure_ascii=True))
