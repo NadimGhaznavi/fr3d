@@ -31,7 +31,7 @@ class DeploymentConfigurationTest(unittest.TestCase):
 
     def test_service_paths_match_refactored_layout(self) -> None:
         for filename, module in (
-            (DEFFILE.FR3D_SERVER_SERVICE, "fr3d.server.Fr3dServer"),
+            (DEFFILE.FR3D_SERVER_SERVICE, "fr3d.app.learning_rate.main_loop"),
             (DEFFILE.FR3D_REPORT_SERVICE, "fr3d.server.ReportServer"),
             (DEFFILE.LLM_SERVER_SERVICE, "fr3d.server.LLMServer"),
             (DEFFILE.LLM_WATCHDOG_SERVICE, "fr3d.server.LLMWatchdog"),
@@ -112,8 +112,12 @@ class InstallationLifecycleTest(unittest.TestCase):
         self.assertTrue((self.prefix / "fr3d/server/LLMServer.py").is_file())
         self.assertTrue((self.prefix / "fr3d/mcp-tools/journal_tool/__main__.py").is_file())
         self.assertTrue((self.prefix / "fr3d/mcp-tools/snakelab_tool/__main__.py").is_file())
-        self.assertTrue((self.prefix / "fr3d/app/LearningRateLoop.py").is_file())
-        self.assertTrue((self.prefix / "fr3d/app/learning-rate.md").is_file())
+        self.assertTrue((self.prefix / "fr3d/app_legacy/LearningRateLoop.py").is_file())
+        self.assertTrue((self.prefix / "fr3d/app/learning_rate/main_loop.py").is_file())
+        self.assertTrue((self.prefix / "fr3d/app/learning_rate/prompt_data/01.md").is_file())
+        self.assertTrue((self.prefix / "fr3d/app/learning_rate/prompt_data/02.md").is_file())
+        self.assertTrue((self.prefix / "fr3d/reporting/experiments.py").is_file())
+        self.assertTrue((self.prefix / "fr3d/app_legacy/learning-rate.md").is_file())
         self.assertTrue((self.prefix / "fr3d/server/ReportServer.py").is_file())
         self.assertTrue((self.prefix / "fr3d/server/report.html").is_file())
         self.assertTrue((self.prefix / "fr3dnet/index.md").is_file())

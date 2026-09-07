@@ -11,12 +11,12 @@ from fr3d.constants.DModule import DModule as MODULE
 from fr3d.constants.DDir import DDirDef as DEFDIR
 from fr3d.constants.DFile import DFileDef as DEFILE
 
-from fr3d.app.LearningRateLLM import choose_learning_rate
-from fr3d.app.LearningRateReport import LearningRateReport
-from fr3d.app.ReleaseInitialization import release_replays
-from fr3d.app.SnakeLabTool import SnakeLabTool, validate_learning_rate
+from fr3d.app_legacy.LearningRateLLM import choose_learning_rate
+from fr3d.app_legacy.LearningRateReport import LearningRateReport
+from fr3d.app_legacy.ReleaseInitialization import release_replays
+from fr3d.app_legacy.SnakeLabTool import SnakeLabTool, validate_learning_rate
 from fr3d.utils.MyLog import MyLog
-from fr3d.app.DecisionTrace import DecisionTrace
+from fr3d.app_legacy.DecisionTrace import DecisionTrace
 
 
 

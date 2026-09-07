@@ -4,7 +4,7 @@ import json
 from collections import Counter
 from copy import deepcopy
 
-from fr3d.app.LearningRateReport import LearningRateReport
+from fr3d.app_legacy.LearningRateReport import LearningRateReport
 
 
 def release_replays(version, *, connection_factory=LearningRateReport.connect_snake_lab):

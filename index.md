@@ -8,7 +8,15 @@ layout: single
 
 # The Fr3D Project
 
-At the center of this project is **Fr3d**, a locally run LLM based on the Qwen3.5 model.
+This project is about tuning the parameters and hyperparameters of an AI Snake Game configuration. 
+
+# Components
+
+- Qwen3.5 4B LLM running locally with `llama-server`
+- LLM watchdog service
+- The Fr3d agent service
+- A Fr3d report service
+- MariaDB for data persistence
 
 # Development Style
 

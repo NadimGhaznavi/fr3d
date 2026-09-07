@@ -4,12 +4,12 @@ from dataclasses import replace
 from datetime import datetime, timedelta
 from unittest.mock import patch
 
-from fr3d.app.LearningRateReport import LearningRateReport, Episode, Experiment
+from fr3d.app_legacy.LearningRateReport import LearningRateReport, Episode, Experiment
 
 
 class LearningRateJsonTest(unittest.TestCase):
     def setUp(self):
-        self.enterContext(patch("fr3d.app.LearningRateReport.MyLog"))
+        self.enterContext(patch("fr3d.app_legacy.LearningRateReport.MyLog"))
         self.report = LearningRateReport()
         start = datetime(2026, 9, 6)
         self.run = Experiment(1, "test", {"epochs": 5, "seed": 1970, "training": {"learning_rate": .003}},

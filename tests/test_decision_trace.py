@@ -9,8 +9,8 @@ from unittest.mock import MagicMock, patch
 
 import httpx
 
-from fr3d.app.DecisionTrace import DecisionTrace
-from fr3d.app.LearningRateLLM import choose_learning_rate
+from fr3d.app_legacy.DecisionTrace import DecisionTrace
+from fr3d.app_legacy.LearningRateLLM import choose_learning_rate
 from fr3d.utils.MyLog import MyLog
 
 
@@ -80,9 +80,9 @@ class DecisionTraceTest(unittest.IsolatedAsyncioTestCase):
             return httpx.Response(200, json=lookup if len(payloads) == 1 else proposal)
 
         clients = [httpx.AsyncClient(transport=httpx.MockTransport(respond)) for _ in range(2)]
-        with patch("fr3d.app.LearningRateLLM.httpx.AsyncClient", side_effect=clients), patch.dict(
+        with patch("fr3d.app_legacy.LearningRateLLM.httpx.AsyncClient", side_effect=clients), patch.dict(
             "os.environ", {"LLAMA_API_KEY": "secret-key"},
-        ), patch("fr3d.app.LearningRateLLM.generate_best_worst_report", return_value={"top_10": [], "bottom_10": []}):
+        ), patch("fr3d.app_legacy.LearningRateLLM.generate_best_worst_report", return_value={"top_10": [], "bottom_10": []}):
             self.assertEqual(await choose_learning_rate('{"runs": []}', trace=self.trace), .003)
             self.assertEqual(await choose_learning_rate('SECOND PROPOSAL', trace=self.trace), .003)
         records = self.records()
@@ -105,7 +105,7 @@ class DecisionTraceTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_error_response_is_logged_before_raising(self):
         client = httpx.AsyncClient(transport=httpx.MockTransport(lambda request: httpx.Response(500, text="backend failed")))
-        with patch("fr3d.app.LearningRateLLM.httpx.AsyncClient", return_value=client):
+        with patch("fr3d.app_legacy.LearningRateLLM.httpx.AsyncClient", return_value=client):
             with self.assertRaises(httpx.HTTPStatusError):
                 await choose_learning_rate("PROMPT", trace=self.trace)
         self.assertEqual(self.records()[-1]["body"], "backend failed")
@@ -145,7 +145,7 @@ class DecisionTraceTest(unittest.IsolatedAsyncioTestCase):
         async def respond(request):
             raise asyncio.CancelledError()
         client = httpx.AsyncClient(transport=httpx.MockTransport(respond))
-        with patch("fr3d.app.LearningRateLLM.httpx.AsyncClient", return_value=client):
+        with patch("fr3d.app_legacy.LearningRateLLM.httpx.AsyncClient", return_value=client):
             with self.assertRaises(asyncio.CancelledError):
                 await choose_learning_rate("PROMPT", trace=self.trace)
         self.assertIn("llm_request_interrupted", self.log.warning.call_args.args[0])

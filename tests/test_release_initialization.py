@@ -3,7 +3,7 @@ import unittest
 from copy import deepcopy
 from unittest.mock import MagicMock
 
-from fr3d.app.ReleaseInitialization import release_replays
+from fr3d.app_legacy.ReleaseInitialization import release_replays
 
 
 def row(id, version='old', rate=.001, status='completed'):

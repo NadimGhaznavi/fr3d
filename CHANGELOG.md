@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-09-07 @ 09:36
+
+### Changed
+
+- Archive the previous application in `fr3d/app_legacy` and select
+  `fr3d.app.learning_rate.main_loop` as the FR3D systemd entry point.
+- Keep the experiment flow, prompt definitions, Markdown instructions, and LLM
+  tools separate. Each prompt starts a fresh conversation; duplicate LR choices
+  get at most three prompt 02 attempts before the main loop restarts.
+- Share database report data through `fr3d/reporting`, with complete episode data
+  in JSON and Markdown. Serve new experiment and summary views, preserving the
+  old comparison at `/legacy/`.
+- Save exact LLM report snapshots for viewing through the report server. Join
+  interactions with a three-character main-loop ID and preserve readable reasoning.
+
+### Fixed
+
+- Use the existing service-name constant when the LLM watchdog requests a restart.
+
 ## [0.13.5] - 2026-09-07 @ 06:37
 
 ### Added

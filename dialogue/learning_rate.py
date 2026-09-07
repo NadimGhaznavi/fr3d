@@ -1,6 +1,6 @@
 """Compatibility adapter for the standalone report API; runtime uses the object."""
 
-from fr3d.app.LearningRateReport import DEFAULT_TEMPLATE, Episode, Experiment, LearningRateReport
+from fr3d.app_legacy.LearningRateReport import DEFAULT_TEMPLATE, Episode, Experiment, LearningRateReport
 
 connect_snake_lab = LearningRateReport.connect_snake_lab
 format_number = LearningRateReport.format_number
