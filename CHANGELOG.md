@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.5] - 2026-09-08 @ 01:41
+
 ### Changed
 
 - Separate parameter selection's direct database queries from conversation report
