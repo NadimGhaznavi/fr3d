@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Upgrade now follows the working `start-all-services.sh` startup sequence:
+  start the LLM, wait seven seconds, then start the watchdog, report service,
+  and Fr3d agent.
+
 ## [0.18.3] - 2026-09-08 @ 01:22
 
 ### Fixed

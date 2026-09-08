@@ -8,6 +8,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -154,10 +155,16 @@ def update_services() -> None:
         shutil.copy2(source, destination)
         destination.chmod(0o644)
     run("systemctl", "daemon-reload")
-    for service_name in DFr3d.SERVICE_NAMES:
-        if service_name == DEFFILE.FR3D_REPORT_SERVICE:
-            run("systemctl", "enable", service_name)
-        run("systemctl", "restart", service_name)
+    run("systemctl", "enable", DEFFILE.FR3D_REPORT_SERVICE)
+    # Match start-all-services.sh: let the LLM load before its clients start.
+    run("systemctl", "start", DEFFILE.LLM_SERVER_SERVICE)
+    time.sleep(7)
+    for service_name in (
+        DEFFILE.LLM_WATCHDOG_SERVICE,
+        DEFFILE.FR3D_REPORT_SERVICE,
+        DEFFILE.FR3D_SERVER_SERVICE,
+    ):
+        run("systemctl", "start", service_name)
 
 
 def main() -> int:
