@@ -1,6 +1,7 @@
 """Assess matching database values, then choose the next round-robin dimension."""
 
 from dataclasses import dataclass
+from collections import deque
 
 from .configuration import PAIR_PATHS
 from .value_space import availability
@@ -49,22 +50,56 @@ def assess_parameters(configuration, store, gold, trace=None):
     return assessments
 
 
+class ParameterConvergence:
+    """Rolling three-tweak windows, retained across baseline changes in one process."""
+
+    def __init__(self):
+        self.windows = {}
+        self.converged = set()
+
+    def completed(self, parameter, score_before, high_score, trace=None):
+        window = self.windows.setdefault(parameter, deque(maxlen=3))
+        window.append(score_before)
+        improvement = high_score - window[0]
+        if len(window) == 3 and improvement < 2:
+            self.converged.add(parameter)
+            if trace is not None:
+                trace.record('parameter_converged', parameter=parameter, status='CONVERGED',
+                             tweaks=3, starting_high_score=window[0],
+                             high_score=high_score, improvement=improvement)
+
+    def reopen_if_needed(self, assessments, trace=None):
+        eligible = {item.parameter for item in assessments if item.eligible}
+        if eligible and eligible <= self.converged:
+            self.windows.clear()
+            self.converged.clear()
+            if trace is not None:
+                trace.record('parameter_convergence_reset', reason='all_eligible_parameters_converged')
+
+
 class RoundRobinSelector:
     """One in-memory cursor per search loop; baseline changes preserve position."""
 
-    def __init__(self):
+    def __init__(self, convergence=None):
         self.next_index = 0
+        self.convergence = convergence if convergence is not None else ParameterConvergence()
 
-    def choose(self, assessments):
+    def choose(self, assessments, trace=None):
+        self.convergence.reopen_if_needed(assessments, trace)
         for offset in range(len(assessments)):
             index = (self.next_index + offset) % len(assessments)
-            if assessments[index].eligible:
+            if assessments[index].parameter in self.convergence.converged and trace is not None:
+                trace.record('parameter_skipped', parameter=assessments[index].parameter,
+                             status='CONVERGED')
+            if (assessments[index].eligible
+                    and assessments[index].parameter not in self.convergence.converged):
                 self.next_index = (index + 1) % len(assessments)
                 return assessments[index]
         return None
 
     def __call__(self, configuration, store, gold, trace=None):
-        return select_parameter(configuration, store, gold, self.choose, trace)
+        return select_parameter(configuration, store, gold,
+                                lambda items: self.choose(items, trace), trace)
 
 
 def choose_parameter(assessments):

@@ -9,7 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.1] - 2026-09-08 @ 19:36
+
 ## [0.22.0] - 2026-09-08 @ 19:22
+
+### Added
+
+- Mark a parameter `CONVERGED` when its last three completed LLM tweaks yield
+  less than two points of best `high_score` improvement since before the first
+  tweak. Skip it in round-robin until all eligible dimensions converge, then
+  clear convergence windows and resume the cycle. Track pairs as single dimensions
+  and preserve this in-memory state across gold promotion and backtracking.
+- Log convergence, skipped turns, and reopening. Unconfirmed submissions,
+  duplicates, failures, and automatic pair submissions do not count as LLM tweaks.
 
 ## [0.21.0] - 2026-09-08 @ 19:08
 

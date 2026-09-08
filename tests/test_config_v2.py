@@ -154,6 +154,7 @@ class V2Tests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
             await self.loop.run_once()
         self.assertEqual(self.conversation.run.call_args.args[0], ORDER[0])
         self.assertIsNone(self.loop.pending_run_id)
+        self.assertIsNone(self.loop.pending_tweak)
         self.assertFalse(any(c.args[0] == 'experiment_submitted' for c in self.trace.record.call_args_list))
         self.assertFalse(self.reports.already_used(self.conversation.run.return_value))
 
@@ -165,6 +166,7 @@ class V2Tests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
                                                                    self.configuration.pair_arguments('reward_pair', pair)))
         self.assertEqual(await self.loop.run_once(), 'submitted')
         self.conversation.run.assert_not_awaited()
+        self.assertIsNone(self.loop.pending_tweak)
         self.add_run(200, self.backend.submit_simulation.call_args.args[0])
         self.loop.pending_run_id = '200'
         self.conversation.run.return_value = self.configuration.candidate(self.baseline, 'epsilon_pair',
