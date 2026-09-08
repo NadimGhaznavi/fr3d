@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Increased the LLM conversation timeout from 240 to 660 seconds to allow more
+  time for response generation and invalid or duplicate proposal corrections.
+
 ## [0.18.1] - 2026-09-07 @ 23:32
 
 ### Fixed
