@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.5] - 2026-09-08 @ 01:41
+
+### Changed
+
+- Separate parameter selection's direct database queries from conversation report
+  building. Assess matching values and remaining legal choices before choosing
+  the least-explored eligible parameter; fetch episode scores only for its report.
+- Log the selected gold run and each parameter's used values, legal count,
+  remaining count, and eligibility. Exhaustion explicitly refers to single-parameter
+  changes from the current gold configuration.
+
 ## [0.18.4] - 2026-09-08 @ 01:27
 
 ### Fixed

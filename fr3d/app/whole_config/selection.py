@@ -1,59 +1,66 @@
-"""Choose the least explored eligible parameter relative to current gold."""
+"""Assess matching database values, then choose the least explored parameter."""
 
-from fractions import Fraction
-import math
+from dataclasses import dataclass
 import random
 
 from .configuration import get_value
+from .value_space import availability, exhausted
 
 
-def exhausted(field, used):
-    if 'enum' in field:
-        return all(value in used for value in field['enum'])
-    if field['type'] not in ('integer', 'number'):
-        return False
-    if field['type'] == 'number' and 'multipleOf' not in field:
-        return False
-    if not (('minimum' in field or 'exclusiveMinimum' in field)
-            and ('maximum' in field or 'exclusiveMaximum' in field)):
-        return False
-    # Count legal multiples using exact decimal arithmetic, without enumerating
-    # potentially large ranges. Integer multiples of p/q are multiples of p.
-    step = Fraction(str(field.get('multipleOf', 1)))
-    if field['type'] == 'integer':
-        step = Fraction(step.numerator)
-    lower = math.ceil(Fraction(str(field['minimum'])) / step) if 'minimum' in field else math.floor(
-        Fraction(str(field['exclusiveMinimum'])) / step) + 1
-    if 'exclusiveMinimum' in field:
-        lower = max(lower, math.floor(Fraction(str(field['exclusiveMinimum'])) / step) + 1)
-    upper = math.floor(Fraction(str(field['maximum'])) / step) if 'maximum' in field else math.ceil(
-        Fraction(str(field['exclusiveMaximum'])) / step) - 1
-    if 'exclusiveMaximum' in field:
-        upper = min(upper, math.ceil(Fraction(str(field['exclusiveMaximum'])) / step) - 1)
-    indices = {Fraction(str(value)) / step for value in used}
-    count = sum(index.denominator == 1 and lower <= index <= upper for index in indices)
-    return count == max(0, upper - lower + 1)
+@dataclass(frozen=True)
+class ParameterAssessment:
+    parameter: str
+    used: frozenset
+    completed: frozenset
+    legal_count: int | None
+    remaining_count: int | None
+
+    @property
+    def eligible(self):
+        return self.remaining_count != 0
 
 
-def select_parameter(configuration, reports, gold, choose=random.choice):
-    candidates = []
+def assess_parameters(configuration, store, gold, trace=None):
+    assessments = []
     for parameter, field in configuration.parameters.items():
-        history = reports.history(gold, parameter)
-        if exhausted(field, {row['value'] for row in history}):
-            continue
-        completed = [row for row in history if row['status'] == 'completed']
-        if not any(row['run_id'] == gold['run_id'] for row in completed):
-            raise ValueError('Gold is missing from matching configuration history')
-        values = {row['value'] for row in completed}
-        report = {
-            'parameter': parameter, 'constraints': field,
-            'gold': gold,
-            'experiments': [{key: row[key] for key in ('run_id', 'value', 'high_score')} for row in completed],
-        }
-        first_contact = values == {get_value(gold['config'], parameter)}
-        candidates.append((len(values), parameter, first_contact, report))
+        rows = store.parameter_values(gold, parameter)
+        # Missing gold is inconsistent data, never evidence of exhaustion.
+        if not any(row['gold_count'] for row in rows):
+            raise ValueError(f'Gold is missing from matching configuration history: {parameter}')
+        used = frozenset(row['value'] for row in rows)
+        completed = frozenset(row['value'] for row in rows if row['completed_count'])
+        total, remaining = availability(field, used)
+        assessment = ParameterAssessment(parameter, used, completed, total, remaining)
+        assessments.append(assessment)
+        if trace is not None:
+            trace.record(
+                'parameter_assessed', parameter=parameter, gold_run_id=gold['run_id'],
+                used_values=sorted(used), completed_values=sorted(completed),
+                legal_count=total, remaining_count=remaining,
+                status='eligible' if assessment.eligible else 'exhausted',
+            )
+    return assessments
+
+
+def choose_parameter(assessments, choose=random.choice):
+    candidates = [item for item in assessments if item.eligible]
     if not candidates:
         return None
-    minimum = min(item[0] for item in candidates)
-    _, parameter, first_contact, report = choose([item for item in candidates if item[0] == minimum])
-    return parameter, first_contact, report
+    minimum = min(len(item.completed) for item in candidates)
+    return choose([item for item in candidates if len(item.completed) == minimum])
+
+
+def select_parameter(configuration, store, gold, choose=random.choice, trace=None):
+    if trace is not None:
+        trace.record('selection_started', gold_run_id=gold['run_id'],
+                     searchable_parameters=len(configuration.parameters))
+    assessments = assess_parameters(configuration, store, gold, trace)
+    selected = choose_parameter(assessments, choose)
+    if selected is None:
+        if trace is not None:
+            trace.record('selection_exhausted', gold_run_id=gold['run_id'],
+                         assessed_parameters=len(assessments),
+                         scope='single_parameter_changes_from_current_gold')
+        return None
+    initial = selected.completed == {get_value(gold['config'], selected.parameter)}
+    return selected.parameter, initial
