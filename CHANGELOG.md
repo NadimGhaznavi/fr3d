@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-09-07 @ 22:10
+
+### Changed
+
+- Customize initial and follow-up parameter prompts from the JSON schema: state
+  numeric types, inclusive and exclusive bounds, `multipleOf` divisibility, and
+  exact `enum` choices, including single-choice enums.
+- Exclude fields with `const` from parameter selection.
+- The simulation configuration schema now defines a finite, bounded experimental 
+  search space using fixed values, enums, and constrained parameter ranges.
+- Updated sample config based on the new schema
+
+### Fixed
+
+- Allow integer enum fields without numeric bounds to reach the prompt without
+  failing the range-based exhaustion check.
+
 ## [0.17.0] - 2026-09-07 @ 19:03
 
 - Updated the Snake Lab schemas

@@ -42,7 +42,8 @@ class Configuration:
         Draft202012Validator.check_schema(self.schema)
         self.validator = Draft202012Validator(self.schema)
         self.fields = dict(leaves(self.schema))
-        self.parameters = {path: field for path, field in self.fields.items() if path not in FIXED}
+        self.parameters = {path: field for path, field in self.fields.items()
+                           if path not in FIXED and 'const' not in field}
 
     def validate(self, config):
         try:
