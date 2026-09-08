@@ -11,7 +11,7 @@ import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, call, patch
 
 from fr3d.constants.DDatabase import DDatabase
 from fr3d.constants.DDir import DDirDef as DEFDIR
@@ -188,12 +188,42 @@ class InstallationLifecycleTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "uninstall and reinstall"):
                 upgrade.validate_installation()
 
-    def test_upgrade_installs_enables_and_restarts_report_service(self) -> None:
-        with patch("scripts.upgrade.run") as run:
+    def test_upgrade_starts_llm_and_waits_before_starting_clients(self) -> None:
+        operations = Mock()
+        with (
+            patch("scripts.upgrade.run", operations.run),
+            patch("scripts.upgrade.time.sleep", operations.sleep),
+        ):
             upgrade.update_services()
-        self.assertTrue((self.units / DEFFILE.FR3D_REPORT_SERVICE).is_file())
-        run.assert_any_call("systemctl", "enable", DEFFILE.FR3D_REPORT_SERVICE)
-        run.assert_any_call("systemctl", "restart", DEFFILE.FR3D_REPORT_SERVICE)
+        for service_name in DFr3d.SERVICE_NAMES:
+            self.assertEqual(
+                (self.units / service_name).read_bytes(),
+                (self.source / "systemd" / service_name).read_bytes(),
+            )
+        self.assertEqual(operations.mock_calls, [
+            call.run("systemctl", "daemon-reload"),
+            call.run("systemctl", "enable", DEFFILE.FR3D_REPORT_SERVICE),
+            call.run("systemctl", "start", DEFFILE.LLM_SERVER_SERVICE),
+            call.sleep(7),
+            call.run("systemctl", "start", DEFFILE.LLM_WATCHDOG_SERVICE),
+            call.run("systemctl", "start", DEFFILE.FR3D_REPORT_SERVICE),
+            call.run("systemctl", "start", DEFFILE.FR3D_SERVER_SERVICE),
+        ])
+
+    def test_upgrade_does_not_start_clients_when_llm_start_fails(self) -> None:
+        def run(*command):
+            if command == ("systemctl", "start", DEFFILE.LLM_SERVER_SERVICE):
+                raise subprocess.CalledProcessError(1, command)
+
+        with (
+            patch("scripts.upgrade.run", side_effect=run) as commands,
+            patch("scripts.upgrade.time.sleep") as sleep,
+        ):
+            with self.assertRaises(subprocess.CalledProcessError):
+                upgrade.update_services()
+        sleep.assert_not_called()
+        self.assertEqual(commands.call_args_list[-1],
+                         call("systemctl", "start", DEFFILE.LLM_SERVER_SERVICE))
 
     def test_uninstall_removes_installation_and_credentials_not_other_config(self) -> None:
         install.recreate_installation()
