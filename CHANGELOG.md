@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.6] - 2026-09-08 @ 01:52
+
+### Changed
+
+- Mark exhausted search baselines as local dead ends and backtrack through previous
+  gold configurations, recovered from completed-run history. Keep best-ever gold
+  separate and validate each proposal against its active search baseline.
+- Stop when gold history is exhausted; exploration of non-gold configurations
+  remains outside this search strategy.
+
 ## [0.18.5] - 2026-09-08 @ 01:41
 
 ### Changed
