@@ -46,21 +46,19 @@ submissions belong to that loop's prompt conversation. No second decision loop r
 
 ## Report server
 
-- `/`: latest completed experiment.
-- `/experiments/`: completed experiments summary.
-- `/experiments/123/`: experiment 123.
-- `/reports/<snapshot-id>/`: exact report data supplied to an LLM conversation.
-- Add `?format=json` to these URLs to read the underlying JSON.
-- `/legacy/`, `/best-worst/`, and `/journal/`: retained existing views.
+- `/`: most recent saved parameter summary supplied to the LLM, displayed as
+  indented JSON. Refresh loads the newest available summary.
+- `/reports/<snapshot-id>/`: the saved report for a particular conversation.
+- Add `?format=json` to either URL for a JSON response.
 
-Markdown displays the same values without rounding. `null` displays as
-“Not available”; all episode rows remain present. Runtime is elapsed seconds from
-start to completion, including pauses and excluding queue time.
+The page preserves the report's fields and values, including `null`; it does not
+convert JSON to Markdown, regenerate a report, or query the database. Before a
+parameter summary has been saved, the homepage displays a waiting message.
+Older learning-rate snapshots do not replace the latest parameter summary.
 
-Snapshot JSON files live under `/opt/fr3d/logs/reports/` and survive normal upgrades.
-They are created only when a prompt requests a report. Current database views can
-change over time; snapshot views do not. There is no automatic snapshot retention
-policy yet.
+Snapshot files remain in `/opt/fr3d/logs/reports/` and survive upgrades. Removed
+experiment, legacy, best/worst, and journal web routes return 404; their stored
+data is preserved.
 
 ## Archived implementation
 

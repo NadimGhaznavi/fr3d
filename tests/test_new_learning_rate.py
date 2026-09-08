@@ -313,26 +313,11 @@ class ReportingTests(unittest.TestCase):
                 html = client.get(f'/reports/{identity}/')
                 self.assertEqual(html.status_code, 200)
                 self.assertIn('0.001', html.text)
-                self.assertIn('Not available', html.text)
+                self.assertIn('null', html.text)
                 self.assertEqual(client.get(f'/reports/{identity}/?format=json').json()['learning_rate'], .001)
                 self.assertEqual(client.get('/reports/bad/').status_code, 404)
             with self.assertRaises(ValueError):
                 store.load('../secret')
-
-    def test_live_routes_share_report_objects_and_hide_db_errors(self):
-        reports = Mock()
-        reports.experiment.return_value = {'id': 9, 'learning_rate': .003}
-        reports.summary.return_value = {'experiments': [{'id': 9, 'learning_rate': .003, 'high_score': 8}]}
-        with patch('fr3d.server.ReportServer.ExperimentReports', return_value=reports), TestClient(app) as client:
-            self.assertEqual(client.get('/?format=json').json(), reports.experiment.return_value)
-            self.assertIn('<table>', client.get('/experiments/').text)
-            self.assertEqual(client.get('/experiments/9/').status_code, 200)
-            reports.experiment.assert_called_with(9)
-            reports.experiment.side_effect = RuntimeError('secret password')
-            with self.assertLogs('fr3d.server.ReportServer', level='ERROR'):
-                result = client.get('/')
-            self.assertEqual(result.status_code, 503)
-            self.assertNotIn('secret password', result.text)
 
     def test_trace_keeps_three_character_id_and_readable_reasoning(self):
         interactions, reasoning = Mock(), Mock()
