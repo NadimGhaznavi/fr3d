@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.2] - 2026-09-08 @ 00:42
+
 ### Changed
 
 - Increased the LLM conversation timeout from 240 to 660 seconds to allow more
