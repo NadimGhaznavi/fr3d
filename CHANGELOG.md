@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Skip enum parameters once every listed value exists in matching configuration
+  history, including numeric and single-choice enums.
+
 ## [0.18.0] - 2026-09-07 @ 22:10
 
 ### Changed

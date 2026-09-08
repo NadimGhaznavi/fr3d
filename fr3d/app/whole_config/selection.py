@@ -7,9 +7,10 @@ from .configuration import get_value
 
 
 def exhausted(field, used):
+    if 'enum' in field:
+        return all(value in used for value in field['enum'])
     if field['type'] != 'integer':
         return False
-    # Enum fields need no range-based exhaustion check (including single choices).
     if not (('minimum' in field or 'exclusiveMinimum' in field)
             and ('maximum' in field or 'exclusiveMaximum' in field)):
         return False
