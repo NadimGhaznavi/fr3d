@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Explore `game.rewards.closer_to_food` and `game.rewards.further_from_food` as
+  one reward pair, replacing their individual search dimensions. Derive its grid
+  from the schema and submit both values atomically through `submit_reward_pair`.
+- Share pair history, reports, validation, retries, automatic sole-candidate
+  submission, and gold backtracking between reward and epsilon exploration.
+- Prepare reward-pair deployment for a clean reinstall of Snake Lab and Fr3d;
+  no data migration is required or introduced.
+
 ## [0.20.0] - 2026-09-08 @ 17:21
 
 ### Changed

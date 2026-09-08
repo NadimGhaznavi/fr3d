@@ -24,6 +24,8 @@
 
 ## 3. The Reward Gravity
 
+Implementation requirements: [Food-distance reward pair](food-reward-pair.md).
+
 **Parameters**
 
 - `game.rewards.closer_to_food`

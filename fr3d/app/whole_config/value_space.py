@@ -15,7 +15,7 @@ def finite_values(field):
     else:
         total, _ = availability(field, set())
         if total is None:
-            raise ValueError('Epsilon fields require finite enumerable value sets')
+            raise ValueError('Paired fields require finite enumerable value sets')
         step = Fraction(str(field.get('multipleOf', 1)))
         if field['type'] == 'integer':
             step = Fraction(step.numerator)

@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 import httpx
 
 from fr3d.app.whole_config.archive import GoldArchive
-from fr3d.app.whole_config.configuration import Configuration, EPSILON_PAIR, FIXED, get_value, set_value
+from fr3d.app.whole_config.configuration import Configuration, EPSILON_PAIR, REWARD_PAIR, FIXED, get_value, set_value
 from fr3d.app.whole_config.conversation import Conversation
 from fr3d.app.whole_config.main_loop import SearchLoop
 from fr3d.app.whole_config.reports import SearchReports
@@ -62,7 +62,7 @@ class ConfigurationTests(unittest.TestCase):
 
     def test_all_parameters_are_schema_driven_and_fixed_defaults_are_applied(self):
         self.assertEqual(set(self.configuration.parameters), {
-            'game.rewards.closer_to_food', 'game.rewards.further_from_food', 'model.hidden_size',
+            REWARD_PAIR, 'model.hidden_size',
             'training.sequence_length', 'training.batch_size', 'training.learning_rate', EPSILON_PAIR})
         for path, value in FIXED.items():
             self.assertEqual(get_value(self.baseline, path), value)
@@ -145,13 +145,13 @@ class HistoryTests(HistoryFixture, unittest.TestCase):
         self.assertEqual([row['run_id'] for row in report['experiments']], ['2', '3', '5'])
         self.assertNotEqual(parameter, 'training.sequence_length')
 
-    def test_reward_exhaustion_counts_only_legal_multiples_relative_to_gold(self):
-        parameter = 'game.rewards.further_from_food'
+    def test_scalar_exhaustion_is_relative_to_gold(self):
+        parameter = 'training.batch_size'
         self.configuration.parameters = {parameter: self.configuration.parameters[parameter]}
         self.add_run(1)
-        self.add_run(2, self.configuration.candidate(self.baseline, parameter, {'value': -4}))
+        self.add_run(2, self.configuration.candidate(self.baseline, parameter, {'value': 8}))
         self.assertIsNotNone(select_parameter(self.configuration, self.reports, self.reports.gold()))
-        self.add_run(3, self.configuration.candidate(self.baseline, parameter, {'value': 0}), status='failed')
+        self.add_run(3, self.configuration.candidate(self.baseline, parameter, {'value': 48}), status='failed')
         self.assertIsNone(select_parameter(self.configuration, self.reports, self.reports.gold()))
         new_gold = deepcopy(self.baseline)
         set_value(new_gold, 'model.hidden_size', 256)
@@ -220,7 +220,7 @@ class LoopTests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await self.loop.run_once(), 'waiting')
         self.backend.submit_simulation.assert_not_called()
         self.add_run(1)
-        self.conversation.run.return_value = self.configuration.candidate(self.baseline, 'game.rewards.closer_to_food', {'value': 4})
+        self.conversation.run.return_value = self.configuration.candidate(self.baseline, 'model.hidden_size', {'value': 256})
         self.backend.is_simulation_running.side_effect = [False, True]
         self.assertEqual(await self.loop.run_once(), 'waiting')
         self.backend.submit_simulation.assert_not_called()
@@ -251,7 +251,7 @@ class LoopTests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(TimeoutError):
             await self.loop.run_once()
         self.conversation.run.side_effect = None
-        self.conversation.run.return_value = self.configuration.candidate(self.baseline, 'model.hidden_size', {'value': 256})
+        self.conversation.run.return_value = self.configuration.candidate(self.baseline, 'training.learning_rate', {'value': .002})
         with self.assertRaisesRegex(ValueError, 'exactly'):
             await self.loop.run_once()
         self.backend.submit_simulation.assert_not_called()
@@ -283,7 +283,7 @@ class LoopTests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
         self.add_run(1)
 
         async def propose(parameter, initial, report, trace):
-            candidate = self.configuration.candidate(self.baseline, parameter, {'value': 4})
+            candidate = self.configuration.candidate(self.baseline, parameter, {'value': 256})
             self.add_run(2, candidate)
             return candidate
 
@@ -313,7 +313,7 @@ class ConversationTests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
                      side_effect=lambda **kw: real(transport=httpx.MockTransport(handler), **kw))
 
     async def test_corrections_share_context_and_report_snapshot_matches(self):
-        replies = iter([self.reply(1), self.reply(2), self.reply(4)])
+        replies = iter([self.reply(1), self.reply(224), self.reply(256)])
         sent = []
 
         def handler(request):
@@ -324,7 +324,7 @@ class ConversationTests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
             conversation = Conversation(self.configuration, self.reports, snapshots)
             trace = Mock()
             config = await conversation.run(self.report['parameter'], True, self.report, trace)
-            self.assertEqual(config['game']['rewards']['closer_to_food'], 4)
+            self.assertEqual(config['model']['hidden_size'], 256)
             self.assertEqual(conversation.context.messages, [])
             identity = next(call.kwargs['snapshot_id'] for call in trace.record.call_args_list if call.args[0] == 'report_snapshot')
             self.assertEqual(snapshots.load(identity), self.report)
