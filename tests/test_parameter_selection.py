@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 from test_whole_config import HistoryFixture
 from fr3d.app.whole_config.main_loop import SearchLoop
-from fr3d.app.whole_config.configuration import get_value, set_value
+from fr3d.app.whole_config.configuration import EPSILON_PAIR, set_value
 from fr3d.app.whole_config.selection import select_parameter
 from fr3d.app.whole_config.store import SearchStore
 
@@ -58,7 +58,7 @@ class SelectionTests(HistoryFixture, unittest.TestCase):
         assessed = next(c.kwargs for c in trace.record.call_args_list if c.args[0] == 'parameter_assessed')
         self.assertEqual(assessed['used_values'], [-4, -2, 0])
         self.assertEqual((assessed['legal_count'], assessed['remaining_count'], assessed['status']), (3, 0, 'exhausted'))
-        self.assertEqual(trace.record.call_args.kwargs['scope'], 'single_parameter_changes_from_current_gold')
+        self.assertEqual(trace.record.call_args.kwargs['scope'], 'search_dimension_changes_from_current_gold')
         new_gold = deepcopy(self.baseline)
         set_value(new_gold, 'model.hidden_size', 256)
         self.add_run(4, new_gold, score=50)
@@ -90,11 +90,13 @@ class SelectionTests(HistoryFixture, unittest.TestCase):
         self.add_run(1)
         identity = 2
         for parameter, field in self.configuration.parameters.items():
-            values = field.get('enum', range(field.get('minimum', 0), field.get('maximum', 0) + 1, field.get('multipleOf', 1)))
+            values = (self.configuration.legal_pairs(self.baseline) if parameter == EPSILON_PAIR else
+                      field.get('enum', range(field.get('minimum', 0), field.get('maximum', 0) + 1, field.get('multipleOf', 1))))
             for value in values:
-                if value == get_value(self.baseline, parameter):
+                if value == self.configuration.value(self.baseline, parameter):
                     continue
-                self.add_run(identity, self.configuration.candidate(self.baseline, parameter, {'value': value}))
+                arguments = {'initial': value[0], 'decay': value[1]} if parameter == EPSILON_PAIR else {'value': value}
+                self.add_run(identity, self.configuration.candidate(self.baseline, parameter, arguments))
                 identity += 1
         self.assertIsNone(select_parameter(self.configuration, self.store, self.store.gold()))
         untested = deepcopy(self.baseline)

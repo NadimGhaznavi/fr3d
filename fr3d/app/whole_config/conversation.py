@@ -12,6 +12,7 @@ from fr3d.constants.DFr3d import DFr3d
 from fr3d.reporting.formats import to_json
 from .initial_conversation import first_contact
 from .prompts import parameter_instructions, prompt
+from .configuration import EPSILON_PAIR
 
 
 class Conversation:
@@ -25,11 +26,16 @@ class Conversation:
         self.context.messages.append({'role': 'user', 'content': outcome})
 
     async def run(self, parameter, initial, report, trace):
-        opening = first_contact() if initial else prompt('summary_report')
+        pair = parameter == EPSILON_PAIR
+        opening = prompt('epsilon_pair') if pair else (first_contact() if initial else prompt('summary_report'))
         if self.snapshots is not None:
             identity = await asyncio.to_thread(self.snapshots.save, report)
             trace.record('report_snapshot', snapshot_id=identity, report_url=f'/reports/{identity}/')
-        instructions = parameter_instructions(parameter, self.configuration.parameters[parameter])
+        instructions = ('Allowed values (JSON):\n' + to_json(report['allowed_values'])
+                        + '\n\n' + report['table']) if pair else parameter_instructions(
+                            parameter, self.configuration.parameters[parameter])
+        tool = self.configuration.tool(parameter)
+        tool_name = tool['function']['name']
         current = {'role': 'user', 'content': opening.text + '\n\n' + instructions
                    + '\n\nSummary report (JSON):\n' + to_json(report)}
         self.context.messages.append(current)
@@ -37,7 +43,7 @@ class Conversation:
             'model': os.environ.get('LLAMA_MODEL', 'local-model'),
             'messages': self.context.messages,
             'temperature': 0.1, 'max_tokens': 4096, 'stream': False,
-            'tools': [self.configuration.tool(parameter)], 'tool_choice': 'required',
+            'tools': [tool], 'tool_choice': 'required',
             'parallel_tool_calls': False,
         }
         headers = {}
@@ -65,23 +71,25 @@ class Conversation:
                 if choice.get('finish_reason') != 'tool_calls' or len(calls) != 1:
                     raise ValueError('Expected exactly one completed parameter tool call')
                 call = calls[0]
-                if call['type'] != 'function' or call['function']['name'] != 'submit_parameter':
-                    raise ValueError('Expected submit_parameter')
+                if call['type'] != 'function' or call['function']['name'] != tool_name:
+                    raise ValueError(f'Expected {tool_name}')
                 if not isinstance(call['id'], str) or not call['id']:
                     raise ValueError('Submission has no valid tool call ID')
                 try:
                     arguments = json.loads(call['function']['arguments'])
-                    trace.record('llm_tool_call', request_number=number, tool='submit_parameter', arguments=arguments)
+                    trace.record('llm_tool_call', request_number=number, tool=tool_name, arguments=arguments)
                     config = self.configuration.candidate(report['gold']['config'], parameter, arguments)
+                    if pair:
+                        self.configuration.validate_changes(report['gold']['config'], config, parameter)
                 except (KeyError, TypeError, ValueError) as error:
-                    correction = prompt('invalid_value')
+                    correction = prompt('epsilon_pair_invalid' if pair else 'invalid_value')
                     reason = str(error)
                     trace.record('invalid_value_rejected', parameter=parameter, message=reason)
                 else:
                     if not await asyncio.to_thread(self.reports.already_used, config):
                         self.context.reset()
                         return config
-                    correction = prompt('no_reruns')
+                    correction = prompt('epsilon_pair_no_reruns' if pair else 'no_reruns')
                     reason = 'The complete proposed configuration already exists.'
                     trace.record('duplicate_rejected', parameter=parameter)
                 self.context.messages.extend([

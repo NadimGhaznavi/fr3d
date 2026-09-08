@@ -9,7 +9,7 @@ from fr3d.constants.DFr3d import DFr3d
 from fr3d.reporting.snapshots import ReportSnapshots
 from fr3d.utils.DecisionTrace import DecisionTrace
 from fr3d.utils.MyLog import MyLog
-from .configuration import Configuration, get_value
+from .configuration import Configuration, EPSILON_PAIR, get_value
 from .archive import GoldArchive
 from .conversation import Conversation
 from .reports import SearchReports
@@ -51,7 +51,9 @@ class SearchLoop:
         if result.get('state') != 'queued' or not isinstance(result.get('run_id'), str) or not result['run_id']:
             raise ValueError('Invalid Snake Lab submission confirmation')
         self.pending_run_id = result['run_id']
-        trace.record('experiment_submitted', parameter=parameter, run_id=self.pending_run_id)
+        pair_values = ({'initial': get_value(config, 'epsilon.initial'),
+                        'decay': get_value(config, 'epsilon.decay')} if parameter == EPSILON_PAIR else {})
+        trace.record('experiment_submitted', parameter=parameter, run_id=self.pending_run_id, **pair_values)
         self.conversation.record_outcome(f'Experiment submitted: run_id={self.pending_run_id}, parameter={parameter}.')
         return 'submitted'
 
@@ -69,7 +71,7 @@ class SearchLoop:
                     return selected
                 self.dead_ends.add(run_id)
                 trace.record('local_dead_end', run_id=run_id,
-                             scope='single_parameter_changes_from_this_baseline')
+                             scope='search_dimension_changes_from_this_baseline')
             previous = await asyncio.to_thread(self.store.previous_gold, self.baseline)
             if previous is None:
                 trace.record('gold_history_exhausted', best_gold_run_id=self.gold['run_id'])
@@ -126,14 +128,30 @@ class SearchLoop:
                 report['search_context'] = (
                     'The gold field is the previous gold used as the active search baseline. '
                     'Best-ever gold is retained separately in best_gold. Change only the '
-                    'selected parameter from the active search baseline.')
-            config = await self.conversation.run(parameter, initial, report, trace)
-            # Revalidate at the submission boundary, including exactly one change.
-            self.configuration.validate(config)
-            changed = [path for path in self.configuration.fields
-                       if get_value(config, path) != get_value(self.baseline['config'], path)]
-            if changed != [parameter]:
-                raise ValueError('The proposal must change exactly the selected parameter')
+                    'selected search dimension from the active search baseline.')
+            source = 'llm'
+            if parameter == EPSILON_PAIR and len(report['eligible_pairs']) <= 1:
+                if not report['eligible_pairs']:
+                    trace.record('dimension_exhausted', parameter=parameter, baseline_run_id=self.baseline['run_id'])
+                    outcome = 'dimension_exhausted'
+                    return outcome
+                source = 'automatic'
+                config = self.configuration.candidate(self.baseline['config'], parameter, report['eligible_pairs'][0])
+            else:
+                config = await self.conversation.run(parameter, initial, report, trace)
+            # Both decision paths must satisfy the same submission boundary.
+            try:
+                self.configuration.validate_changes(self.baseline['config'], config, parameter)
+            except ValueError as error:
+                trace.record('candidate_validation', parameter=parameter, status='invalid', message=str(error),
+                             source=source)
+                raise
+            trace.record('candidate_validation', parameter=parameter, status='valid', source=source,
+                         baseline_run_id=self.baseline['run_id'], best_gold_run_id=self.gold['run_id'])
+            if parameter == EPSILON_PAIR:
+                trace.record('epsilon_pair_selected', initial=get_value(config, 'epsilon.initial'),
+                             decay=get_value(config, 'epsilon.decay'), source=source,
+                             baseline_run_id=self.baseline['run_id'], best_gold_run_id=self.gold['run_id'])
             outcome = await self._submit(config, trace, parameter)
             return outcome
         finally:

@@ -3,6 +3,31 @@
 from fractions import Fraction
 import math
 
+from jsonschema import Draft202012Validator
+
+
+def finite_values(field):
+    """Enumerate a finite numeric field, respecting all its schema constraints."""
+    if 'const' in field:
+        values = [field['const']]
+    elif 'enum' in field:
+        values = field['enum']
+    else:
+        total, _ = availability(field, set())
+        if total is None:
+            raise ValueError('Epsilon fields require finite enumerable value sets')
+        step = Fraction(str(field.get('multipleOf', 1)))
+        if field['type'] == 'integer':
+            step = Fraction(step.numerator)
+        lower = math.ceil(Fraction(str(field['minimum'])) / step) if 'minimum' in field else math.floor(
+            Fraction(str(field['exclusiveMinimum'])) / step) + 1
+        if 'exclusiveMinimum' in field:
+            lower = max(lower, math.floor(Fraction(str(field['exclusiveMinimum'])) / step) + 1)
+        values = [int(index * step) if field['type'] == 'integer' else float(index * step)
+                  for index in range(lower, lower + total)]
+    validator = Draft202012Validator(field)
+    return tuple(sorted({value for value in values if validator.is_valid(value)}))
+
 
 def availability(field, used):
     if 'enum' in field:
