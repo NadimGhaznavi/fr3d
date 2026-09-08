@@ -9,7 +9,7 @@ from fr3d.constants.DFr3d import DFr3d
 from fr3d.reporting.snapshots import ReportSnapshots
 from fr3d.utils.DecisionTrace import DecisionTrace
 from fr3d.utils.MyLog import MyLog
-from .configuration import Configuration, EPSILON_PAIR, get_value
+from .configuration import Configuration, PAIR_PATHS
 from .archive import GoldArchive
 from .conversation import Conversation
 from .reports import SearchReports
@@ -51,8 +51,8 @@ class SearchLoop:
         if result.get('state') != 'queued' or not isinstance(result.get('run_id'), str) or not result['run_id']:
             raise ValueError('Invalid Snake Lab submission confirmation')
         self.pending_run_id = result['run_id']
-        pair_values = ({'initial': get_value(config, 'epsilon.initial'),
-                        'decay': get_value(config, 'epsilon.decay')} if parameter == EPSILON_PAIR else {})
+        pair_values = (self.configuration.pair_arguments(parameter, self.configuration.value(config, parameter))
+                       if parameter in PAIR_PATHS else {})
         trace.record('experiment_submitted', parameter=parameter, run_id=self.pending_run_id, **pair_values)
         self.conversation.record_outcome(f'Experiment submitted: run_id={self.pending_run_id}, parameter={parameter}.')
         return 'submitted'
@@ -130,7 +130,7 @@ class SearchLoop:
                     'Best-ever gold is retained separately in best_gold. Change only the '
                     'selected search dimension from the active search baseline.')
             source = 'llm'
-            if parameter == EPSILON_PAIR and len(report['eligible_pairs']) <= 1:
+            if parameter in PAIR_PATHS and len(report['eligible_pairs']) <= 1:
                 if not report['eligible_pairs']:
                     trace.record('dimension_exhausted', parameter=parameter, baseline_run_id=self.baseline['run_id'])
                     outcome = 'dimension_exhausted'
@@ -148,9 +148,10 @@ class SearchLoop:
                 raise
             trace.record('candidate_validation', parameter=parameter, status='valid', source=source,
                          baseline_run_id=self.baseline['run_id'], best_gold_run_id=self.gold['run_id'])
-            if parameter == EPSILON_PAIR:
-                trace.record('epsilon_pair_selected', initial=get_value(config, 'epsilon.initial'),
-                             decay=get_value(config, 'epsilon.decay'), source=source,
+            if parameter in PAIR_PATHS:
+                trace.record(f'{parameter}_selected',
+                             **self.configuration.pair_arguments(parameter, self.configuration.value(config, parameter)),
+                             source=source,
                              baseline_run_id=self.baseline['run_id'], best_gold_run_id=self.gold['run_id'])
             outcome = await self._submit(config, trace, parameter)
             return outcome

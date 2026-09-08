@@ -84,10 +84,7 @@ class SchemaPromptTests(unittest.IsolatedAsyncioTestCase):
         for initial in (True, False):
             for parameter, value, phrases in (
                 ('training.sequence_length', 16, ['MUST be an integer', 'one of:\n- 4\n- 8\n- 16\n- 32']),
-                ('game.rewards.closer_to_food', 4,
-                 ['greater than or equal to 0', 'less than or equal to 4', 'divisible by 2']),
-                ('game.rewards.further_from_food', -4,
-                 ['greater than or equal to -4', 'less than or equal to 0', 'divisible by 2']),
+                ('training.batch_size', 48, ['MUST be an integer', 'one of:\n- 8\n- 24\n- 48']),
             ):
                 with self.subTest(initial=initial, parameter=parameter):
                     sent = []

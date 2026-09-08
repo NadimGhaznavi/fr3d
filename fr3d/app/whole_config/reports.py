@@ -1,7 +1,7 @@
 """Build the conversation report after a parameter has been selected."""
 
 from .store import SearchStore
-from .configuration import EPSILON_PAIR, EPSILON_PATHS
+from .configuration import EPSILON_PAIR, PAIR_PATHS
 
 
 class SearchReports(SearchStore):
@@ -17,13 +17,13 @@ class SearchReports(SearchStore):
         )
         for row in rows:
             values = tuple(row.pop(f'value_{index}') for index in range(len(columns)))
-            row['value'] = values if parameter == EPSILON_PAIR else values[0]
+            row['value'] = values if parameter in PAIR_PATHS else values[0]
         return rows
 
     def parameter_report(self, gold, parameter):
         history = self.history(gold, parameter)
-        if parameter == EPSILON_PAIR:
-            return self.pair_report(gold, history)
+        if parameter in PAIR_PATHS:
+            return self.pair_report(gold, history, parameter)
         return {
             'parameter': parameter,
             'constraints': self.configuration.parameters[parameter],
@@ -34,18 +34,21 @@ class SearchReports(SearchStore):
             ],
         }
 
-    def pair_report(self, gold, history):
-        initial_values, decay_values = (self.configuration.epsilon_values[path] for path in EPSILON_PATHS)
-        legal = set(self.configuration.legal_pairs(gold['config']))
+    def pair_report(self, gold, history, parameter=EPSILON_PAIR):
+        row_values, column_values = (self.configuration.pair_values[parameter][path]
+                                     for path in self.configuration.paths(parameter))
+        names = self.configuration.parameters[parameter]['required']
+        axes = ' / '.join(name.replace('_', ' ').capitalize() for name in names)
+        legal = set(self.configuration.legal_pairs(gold['config'], parameter))
         used = {row['value'] for row in history}
-        baseline_pair = self.configuration.value(gold['config'], EPSILON_PAIR)
+        baseline_pair = self.configuration.value(gold['config'], parameter)
         eligible = sorted(legal - used - {baseline_pair})
-        table = ['| Initial / Decay | ' + ' | '.join(map(str, decay_values)) + ' |',
-                 '| --- | ' + ' | '.join('---' for _ in decay_values) + ' |']
-        for initial in initial_values:
+        table = [f'| {axes} | ' + ' | '.join(map(str, column_values)) + ' |',
+                 '| --- | ' + ' | '.join('---' for _ in column_values) + ' |']
+        for row_value in row_values:
             cells = []
-            for decay in decay_values:
-                pair = (initial, decay)
+            for column_value in column_values:
+                pair = (row_value, column_value)
                 rows = [row for row in history if row['value'] == pair]
                 results = []
                 for row in rows:
@@ -59,16 +62,16 @@ class SearchReports(SearchStore):
                         label += ' (baseline)'
                     results.append(label)
                 cells.append('; '.join(results) if results else ('Untested' if pair in legal else 'Invalid'))
-            table.append(f'| {initial} | ' + ' | '.join(cells) + ' |')
+            table.append(f'| {row_value} | ' + ' | '.join(cells) + ' |')
         return {
-            'parameter': EPSILON_PAIR,
-            'constraints': self.configuration.parameters[EPSILON_PAIR],
+            'parameter': parameter,
+            'constraints': self.configuration.parameters[parameter],
             'gold': gold,
-            'allowed_values': {'initial': initial_values, 'decay': decay_values},
-            'eligible_pairs': [{'initial': initial, 'decay': decay} for initial, decay in eligible],
+            'allowed_values': dict(zip(names, (row_values, column_values))),
+            'eligible_pairs': [self.configuration.pair_arguments(parameter, pair) for pair in eligible],
             'table': '\n'.join(table),
             'experiments': [
-                {'run_id': row['run_id'], 'initial': row['value'][0], 'decay': row['value'][1],
+                {'run_id': row['run_id'], **self.configuration.pair_arguments(parameter, row['value']),
                  'status': row['status'],
                  'high_score': row['high_score'] if row['status'] == 'completed' else None}
                 for row in history

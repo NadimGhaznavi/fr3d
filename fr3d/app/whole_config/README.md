@@ -2,7 +2,10 @@
 
 The search loop selects a search dimension before building the LLM report.
 `epsilon_pair` replaces the individual `epsilon.initial` and `epsilon.decay`
-dimensions. Every other searchable parameter remains an individual dimension.
+dimensions. `reward_pair` replaces `game.rewards.closer_to_food` and
+`game.rewards.further_from_food`. Every other searchable parameter remains an
+individual dimension. `PAIR_PATHS` defines the two supported pairs; each pair has
+its own submission tool and prompt, with shared search and reporting behavior.
 
 1. `SearchStore.gold()` reads the best completed run from MariaDB, using maximum
    episode score and the existing completion-time and run-ID tie breakers.
@@ -13,25 +16,26 @@ dimensions. Every other searchable parameter remains an individual dimension.
    reserve configurations, as in the final duplicate check.
 3. `assess_parameters()` checks that the baseline is present and compares used
    choices with the schema. Missing baseline history is an error, not exhaustion.
-   The epsilon pair enumerates both fields and validates each complete candidate.
-   Non-enumerable epsilon schemas fail during configuration loading. Fixed epsilon
+   Each pair enumerates both fields and validates each complete candidate.
+   Non-enumerable paired-field schemas fail during configuration loading. Fixed paired
    fields remain part of the pair, with their required values.
 4. `choose_parameter()` keeps eligible dimensions with the fewest distinct
-   completed choices, choosing randomly among ties. A completed epsilon pair
+   completed choices, choosing randomly among ties. A completed pair
    counts as one choice.
 5. Only then does `SearchReports.parameter_report()` fetch matching episode scores.
    Individual-parameter reports retain their existing format. The pair report adds
    schema-derived axes, an explicit eligible-pair list, and a Markdown score table.
    Untested cells have no recorded experiment; used cells without scores show
    status. Multiple runs in a cell retain individual results and run IDs.
-6. For epsilon, the sole remaining eligible pair bypasses the LLM. Multiple pairs
-   use a dedicated prompt and `submit_epsilon_pair(initial, decay)` tool. Both
+6. The sole remaining eligible pair bypasses the LLM. Multiple pairs use a
+   dedicated prompt and either `submit_epsilon_pair(initial, decay)` or
+   `submit_reward_pair(closer_to_food, further_from_food)`. Both
    arguments are required, at least one value must change, and every field outside
    the pair stays fixed. Invalid or duplicate calls retry the entire pair within
    the existing dialogue timeout and context bounds.
 7. Both decision paths validate the complete configuration and permitted changes,
    recheck whether Snake Lab is busy, and reject duplicate configurations at the
-   submission boundary. The trace records both epsilon values, selection source,
+   submission boundary. The trace records both selected values, selection source,
    validation, baseline and best-ever gold IDs, and confirmed submission run ID.
 
 Selection logs include used and completed choices, legal and remaining counts,
@@ -56,5 +60,6 @@ it with score history and report construction; no HTTP report server participate
 in selection. SQL identifiers come from the bundled schema and values are bound
 parameters. The schema remains the source of legal-value rules.
 
-Release 0.20.0 is planned to start with a system reset. This implementation adds no
-data migration or automatic deletion of experiment history.
+Reward-pair deployment is planned as an uninstall/install of both Snake Lab and
+Fr3d, starting with fresh data. This implementation adds no data migration or
+automatic deletion of experiment history.
