@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-09-08 @ 17:21
+
 ### Changed
 
 - Explore epsilon initial and decay as one schema-derived pair, with matching
