@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 import random
 
-from .configuration import get_value
+from .configuration import EPSILON_PAIR
 from .value_space import availability, exhausted
 
 
@@ -29,7 +29,11 @@ def assess_parameters(configuration, store, gold, trace=None):
             raise ValueError(f'Gold is missing from matching configuration history: {parameter}')
         used = frozenset(row['value'] for row in rows)
         completed = frozenset(row['value'] for row in rows if row['completed_count'])
-        total, remaining = availability(field, used)
+        if parameter == EPSILON_PAIR:
+            legal = set(configuration.legal_pairs(gold['config']))
+            total, remaining = len(legal), len(legal - used)
+        else:
+            total, remaining = availability(field, used)
         assessment = ParameterAssessment(parameter, used, completed, total, remaining)
         assessments.append(assessment)
         if trace is not None:
@@ -60,7 +64,7 @@ def select_parameter(configuration, store, gold, choose=random.choice, trace=Non
         if trace is not None:
             trace.record('selection_exhausted', gold_run_id=gold['run_id'],
                          assessed_parameters=len(assessments),
-                         scope='single_parameter_changes_from_current_gold')
+                         scope='search_dimension_changes_from_current_gold')
         return None
-    initial = selected.completed == {get_value(gold['config'], selected.parameter)}
+    initial = selected.completed == {configuration.value(gold['config'], selected.parameter)}
     return selected.parameter, initial
