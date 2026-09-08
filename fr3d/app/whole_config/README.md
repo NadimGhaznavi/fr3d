@@ -19,9 +19,20 @@ The conversation and its prompts do not select which parameter to explore.
 
 The decision log records gold, used and completed values, legal and remaining
 counts, and eligibility for every parameter. `selection_exhausted` means all
-single-parameter changes from the current gold are already used. It does not
-mean every combination in the schema has been tested. The existing loop behavior
-of waiting indefinitely after exhaustion is preserved.
+single-parameter changes from the active baseline are already used. It does not
+mean every combination in the schema has been tested. The loop marks that
+baseline as a local dead end and tries the previous gold.
+Previous golds are strict record highs reconstructed in completion order from
+completed runs; tied scores and non-gold runs are not backtracking targets.
+Best-ever gold stays unchanged until beaten. The active baseline stays in use
+across iterations, and a new best-ever gold becomes the active baseline.
+Dead-end flags are held for the process lifetime and logged; after restart they
+are recomputed from database history. Once all previous golds are exhausted,
+the loop waits until stopped. It does not explore non-gold baselines.
+
+During backtracking the existing report `gold` field holds the active baseline
+used by candidate construction. `best_gold` and `search_context` identify the
+best-ever result separately. Conversation code and prompts are unchanged.
 
 `SearchStore` owns the direct database connection and SQL. `SearchReports` extends
 it with the score history and report builder; no HTTP report server participates

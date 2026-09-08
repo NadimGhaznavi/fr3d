@@ -31,6 +31,8 @@ class SearchLoop:
         self.trace_factory = trace_factory or self._trace
         self.selector = selector
         self.gold = None
+        self.baseline = None
+        self.dead_ends = set()
         self.pending_run_id = None
 
     @staticmethod
@@ -52,6 +54,29 @@ class SearchLoop:
         trace.record('experiment_submitted', parameter=parameter, run_id=self.pending_run_id)
         self.conversation.record_outcome(f'Experiment submitted: run_id={self.pending_run_id}, parameter={parameter}.')
         return 'submitted'
+
+    async def _select_baseline(self, trace):
+        if self.baseline is None:
+            self.baseline = self.gold
+        while self.baseline is not None:
+            run_id = self.baseline['run_id']
+            trace.record('search_baseline_selected', run_id=run_id,
+                         high_score=self.baseline['high_score'], best_gold_run_id=self.gold['run_id'])
+            if run_id not in self.dead_ends:
+                selected = await asyncio.to_thread(
+                    self.selector, self.configuration, self.store, self.baseline, trace=trace)
+                if selected is not None:
+                    return selected
+                self.dead_ends.add(run_id)
+                trace.record('local_dead_end', run_id=run_id,
+                             scope='single_parameter_changes_from_this_baseline')
+            previous = await asyncio.to_thread(self.store.previous_gold, self.baseline)
+            if previous is None:
+                trace.record('gold_history_exhausted', best_gold_run_id=self.gold['run_id'])
+                return None
+            trace.record('gold_backtracked', from_run_id=run_id, to_run_id=previous['run_id'])
+            self.baseline = previous
+        return None
 
     async def run_once(self):
         if await asyncio.to_thread(self.experiments.is_simulation_running):
@@ -83,22 +108,30 @@ class SearchLoop:
                     await asyncio.to_thread(self.archive.save, best, previous)
                     trace.record('gold_promoted', run_id=best['run_id'], high_score=best['high_score'])
                 self.gold = best
+                self.baseline = best
             self.pending_run_id = None
 
             trace.record('gold_selected', run_id=self.gold['run_id'], high_score=self.gold['high_score'])
-            selected = await asyncio.to_thread(
-                self.selector, self.configuration, self.store, self.gold, trace=trace)
+            selected = await self._select_baseline(trace)
             if selected is None:
                 outcome = 'exhausted'
                 return outcome
             parameter, initial = selected
-            trace.record('parameter_selected', parameter=parameter, gold_run_id=self.gold['run_id'])
-            report = await asyncio.to_thread(self.reports.parameter_report, self.gold, parameter)
+            trace.record('parameter_selected', parameter=parameter, baseline_run_id=self.baseline['run_id'],
+                         best_gold_run_id=self.gold['run_id'])
+            report = await asyncio.to_thread(self.reports.parameter_report, self.baseline, parameter)
+            if self.baseline['run_id'] != self.gold['run_id']:
+                # Keep the conversation's candidate base in its existing gold field.
+                report['best_gold'] = self.gold
+                report['search_context'] = (
+                    'The gold field is the previous gold used as the active search baseline. '
+                    'Best-ever gold is retained separately in best_gold. Change only the '
+                    'selected parameter from the active search baseline.')
             config = await self.conversation.run(parameter, initial, report, trace)
             # Revalidate at the submission boundary, including exactly one change.
             self.configuration.validate(config)
             changed = [path for path in self.configuration.fields
-                       if get_value(config, path) != get_value(self.gold['config'], path)]
+                       if get_value(config, path) != get_value(self.baseline['config'], path)]
             if changed != [parameter]:
                 raise ValueError('The proposal must change exactly the selected parameter')
             outcome = await self._submit(config, trace, parameter)
