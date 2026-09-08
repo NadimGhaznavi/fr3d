@@ -122,9 +122,6 @@
           "type": "integer",
           "default": 224,
           "enum": [ 224, 256 ],
-          "minimum": 128,
-          "maximum": 256,
-          "multipleOf": 32,
           "x-snakelab-unit": "neurons"
         },
         "layers": {

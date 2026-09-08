@@ -11,7 +11,7 @@ from fr3d.app.conversation_context import ConversationContext
 from fr3d.constants.DFr3d import DFr3d
 from fr3d.reporting.formats import to_json
 from .initial_conversation import first_contact
-from .prompts import prompt
+from .prompts import parameter_instructions, prompt
 
 
 class Conversation:
@@ -29,7 +29,9 @@ class Conversation:
         if self.snapshots is not None:
             identity = await asyncio.to_thread(self.snapshots.save, report)
             trace.record('report_snapshot', snapshot_id=identity, report_url=f'/reports/{identity}/')
-        current = {'role': 'user', 'content': opening.text + '\n\nSummary report (JSON):\n' + to_json(report)}
+        instructions = parameter_instructions(parameter, self.configuration.parameters[parameter])
+        current = {'role': 'user', 'content': opening.text + '\n\n' + instructions
+                   + '\n\nSummary report (JSON):\n' + to_json(report)}
         self.context.messages.append(current)
         payload = {
             'model': os.environ.get('LLAMA_MODEL', 'local-model'),
