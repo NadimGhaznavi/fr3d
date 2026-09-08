@@ -24,8 +24,7 @@ class SchemaPromptTests(unittest.IsolatedAsyncioTestCase):
         field['enum'] = [224]
         gold = {'run_id': '1', 'config': self.configuration.baseline()}
         reports = Mock()
-        reports.history.return_value = [{'run_id': '1', 'value': 224,
-                                         'status': 'completed', 'high_score': 10}]
+        reports.parameter_values.return_value = [{'value': 224, 'completed_count': 1, 'gold_count': 1}]
         self.configuration.parameters = {'model.hidden_size': field}
         self.assertIsNone(select_parameter(self.configuration, reports, gold))
         self.assertIn('The value must be one of:\n- 224', parameter_instructions('model.hidden_size', field))
@@ -64,14 +63,13 @@ class SchemaPromptTests(unittest.IsolatedAsyncioTestCase):
         self.configuration.parameters = {'model.hidden_size': field}
         gold = {'run_id': '1', 'config': self.configuration.baseline()}
         reports = Mock()
-        baseline = {'run_id': '1', 'value': 224, 'status': 'completed', 'high_score': 10}
-        reports.history.return_value = [baseline]
+        baseline = {'value': 224, 'completed_count': 1, 'gold_count': 1}
+        reports.parameter_values.return_value = [baseline]
         self.assertEqual(select_parameter(self.configuration, reports, gold)[0], 'model.hidden_size')
-        reports.history.assert_called_with(gold, 'model.hidden_size')
+        reports.parameter_values.assert_called_with(gold, 'model.hidden_size')
         for status in ('completed', 'failed', 'cancelled', 'queued', 'running'):
             with self.subTest(status=status):
-                reports.history.return_value = [baseline, {'run_id': '2', 'value': 256,
-                                                           'status': status, 'high_score': None}]
+                reports.parameter_values.return_value = [baseline, {'value': 256, 'completed_count': int(status == 'completed'), 'gold_count': 0}]
                 self.assertIsNone(select_parameter(self.configuration, reports, gold))
 
     def test_exclusive_bounds_and_numeric_enum(self):

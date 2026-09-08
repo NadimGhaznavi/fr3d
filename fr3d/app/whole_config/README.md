@@ -1,36 +1,29 @@
-# Whole-configuration search
+# Parameter selection
 
-`fr3d-server.service` runs `fr3d.app.whole_config.main_loop`. The server keeps
-its journal and report interfaces; the experiment task performs serial searches
-over the complete Snake Lab configuration. The previous epsilon and learning-rate
-modules remain available for historical reference and their existing tests.
+The search loop selects one parameter before building the LLM conversation report.
+The conversation and its prompts do not select which parameter to explore.
 
-- `configuration.py` reads schema defaults, exposes searchable fields, and
-  validates complete candidates while enforcing the five fixed settings.
-- `reports.py` queries Snake Lab's `configurations` columns for comparable
-  history and duplicates, and episode scores for gold ranking.
-- `selection.py` chooses among the least explored parameters, excluding
-  exhausted integer ranges relative to current gold.
-- `conversation.py` sends one parameter's task and report to the LLM. It uses
-  the shared conversation context budget and report snapshots. Invalid values
-  and duplicates receive corrective prompts within the same conversation.
-- `archive.py` appends the initial gold and subsequent promotions to
-  `/opt/fr3d/logs/gold.jsonl`, including the previous gold run ID.
-- `main_loop.py` submits the baseline, observes completion, promotes strictly
-  better scores, and submits candidates changing one parameter from gold.
+1. `SearchStore.gold()` reads the best completed run from MariaDB, using maximum
+   episode score and the existing completion-time and run-ID tie breakers.
+2. `SearchStore.parameter_values()` queries each searchable parameter directly.
+   SQL matches every other configuration column to gold, groups by the parameter
+   value, and counts completed runs and the gold row. It does not read episode
+   scores. All run statuses reserve values, as in the duplicate check.
+3. `assess_parameters()` checks that gold is present and compares used values with
+   the schema. `value_space.py` handles enums, integer ranges, and `multipleOf`
+   with inclusive or exclusive bounds. Missing gold is an error, not exhaustion.
+4. `choose_parameter()` keeps eligible parameters with the fewest distinct
+   completed values, choosing randomly among ties.
+5. Only then does `SearchReports.parameter_report()` fetch matching episode scores
+   and build the existing report for the unchanged conversation.
 
-The runtime requires Snake Lab's v1, v2, and v3 database schemas and the complete
-configuration schema. Installation and upgrade copy `pages/snake-lab-schemas`
-alongside the Python packages; the schema is read from that installed location.
-Fr3d reads Snake Lab's database and submits configurations through its existing
-ZMQ control client. It does not apply Snake Lab database migrations.
+The decision log records gold, used and completed values, legal and remaining
+counts, and eligibility for every parameter. `selection_exhausted` means all
+single-parameter changes from the current gold are already used. It does not
+mean every combination in the schema has been tested. The existing loop behavior
+of waiting indefinitely after exhaustion is preserved.
 
-Unexpected errors crash the experiment task and service. The service unit uses
-`Restart=no`; there is no recovery or submission retry. A search with no eligible
-parameters waits until the operator stops the service.
-
-Run the focused tests with:
-
-```sh
-venv/bin/python -m unittest discover -s tests -p test_whole_config.py -v
-```
+`SearchStore` owns the direct database connection and SQL. `SearchReports` extends
+it with the score history and report builder; no HTTP report server participates
+in selection. SQL identifiers come from the bundled schema and values are bound
+parameters. The schema remains the source of legal-value rules.
