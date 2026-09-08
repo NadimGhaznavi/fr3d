@@ -10,9 +10,8 @@
       "title": "Number of epochs",
       "description": "Number of complete Snake episodes to execute.",
       "type": "integer",
+      "const": 1500,
       "default": 1500,
-      "minimum": 50,
-      "maximum": 5000,
       "x-snakelab-unit": "episodes"
     },
     "seed": {
@@ -20,8 +19,7 @@
       "description": "Master seed used to derive independent model, exploration, replay, and episode seeds.",
       "type": "integer",
       "default": 1970,
-      "minimum": 0,
-      "maximum": 9223372036854775807
+      "enum": [1970, 42]
     },
     "game": {
       "title": "Game environment",
@@ -30,77 +28,70 @@
       "properties": {
         "board_width": {
           "type": "integer",
+          "const": 20,
           "default": 20,
-          "minimum": 2,
-          "maximum": 100,
           "x-snakelab-unit": "cells"
         },
         "board_height": {
           "type": "integer",
+          "const": 20,
           "default": 20,
-          "minimum": 1,
-          "maximum": 100,
           "x-snakelab-unit": "cells"
         },
         "initial_snake_length": {
           "type": "integer",
+          "const": 3,
           "default": 3,
-          "minimum": 1,
-          "maximum": 100,
           "x-snakelab-unit": "cells"
         },
         "max_moves_multiplier": {
           "description": "An episode ends when moves exceed this value times the current snake length.",
           "type": "integer",
-          "default": 100,
-          "minimum": 1,
-          "maximum": 10000
+          "const": 100,
+          "default": 100
         },
         "rewards": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
             "food": {
-              "type": "number",
-              "default": 10.0,
-              "minimum": -1000.0,
-              "maximum": 1000.0
+              "type": "integer",
+              "const": 10,
+              "default": 10
             },
             "wall": {
-              "type": "number",
-              "default": -10.0,
-              "minimum": -1000.0,
-              "maximum": 1000.0
+              "type": "integer",
+              "const": -10,
+              "default": -10
             },
             "snake": {
-              "type": "number",
-              "default": -10.0,
-              "minimum": -1000.0,
-              "maximum": 1000.0
+              "type": "integer",
+              "const": -10,
+              "default": -10
             },
             "max_moves": {
-              "type": "number",
-              "default": -10.0,
-              "minimum": -1000.0,
-              "maximum": 1000.0
+              "type": "integer",
+              "const": -10,
+              "default": -10
             },
             "empty": {
-              "type": "number",
-              "default": 0.0,
-              "minimum": -1000.0,
-              "maximum": 1000.0
+              "type": "integer",
+              "const": 0,
+              "default": 0
             },
             "closer_to_food": {
-              "type": "number",
-              "default": 0.1,
-              "minimum": -1000.0,
-              "maximum": 1000.0
+              "type": "integer",
+              "default": 2,
+              "minimum": 0,
+              "maximum": 4,
+              "multipleOf": 2
             },
             "further_from_food": {
-              "type": "number",
-              "default": -0.1,
-              "minimum": -1000.0,
-              "maximum": 1000.0
+              "type": "integer",
+              "default": -2,
+              "minimum": -4,
+              "maximum": 0,
+              "multipleOf": 2
             }
           },
           "required": [
@@ -129,22 +120,22 @@
       "properties": {
         "hidden_size": {
           "type": "integer",
-          "default": 192,
-          "minimum": 1,
-          "maximum": 4096,
+          "default": 224,
+          "enum": [ 224, 256 ],
+          "minimum": 128,
+          "maximum": 256,
+          "multipleOf": 32,
           "x-snakelab-unit": "neurons"
         },
         "layers": {
           "type": "integer",
-          "default": 3,
-          "minimum": 1,
-          "maximum": 16
+          "const": 4,
+          "default": 4
         },
         "dropout": {
           "type": "number",
+          "const": 0.1,
           "default": 0.1,
-          "minimum": 0.0,
-          "exclusiveMaximum": 1.0,
           "x-snakelab-unit": "probability"
         }
       },
@@ -158,47 +149,39 @@
         "sequence_length": {
           "type": "integer",
           "default": 8,
-          "minimum": 1,
-          "maximum": 256,
+          "enum": [4, 8, 16, 32],
           "x-snakelab-unit": "frames"
         },
         "batch_size": {
           "type": "integer",
-          "default": 64,
-          "minimum": 1,
-          "maximum": 4096,
+          "default": 24,
+          "enum": [8, 24, 48],
           "x-snakelab-unit": "sequences"
         },
         "replay_max_frames": {
           "type": "integer",
-          "default": 150000,
-          "minimum": 1,
-          "maximum": 10000000,
-          "x-snakelab-unit": "frames"
+          "const": 100000,
+          "default": 100000
         },
         "learning_rate": {
           "type": "number",
           "default": 0.0021,
-          "exclusiveMinimum": 0.0,
-          "maximum": 1.0
+          "enum": [0.0020, 0.0021, 0.0022]
         },
         "gamma": {
           "type": "number",
-          "default": 0.96,
-          "minimum": 0.0,
-          "maximum": 1.0
+          "const": 0.96,
+          "default": 0.96
         },
         "tau": {
           "type": "number",
-          "default": 0.001,
-          "exclusiveMinimum": 0.0,
-          "maximum": 1.0
+          "const": 0.001,
+          "default": 0.001
         },
         "max_gradient_norm": {
           "type": "number",
-          "default": 1.0,
-          "exclusiveMinimum": 0.0,
-          "maximum": 1000.0
+          "const": 1.0,
+          "default": 1.0
         }
       },
       "required": [
@@ -220,22 +203,19 @@
         "initial": {
           "type": "number",
           "default": 0.96,
-          "minimum": 0.0,
-          "maximum": 1.0,
+          "enum": [0.91, 0.96, 0.99],
           "x-snakelab-unit": "probability"
         },
         "minimum": {
           "type": "number",
           "default": 0.0,
-          "minimum": 0.0,
-          "maximum": 1.0,
+          "const": 0.0,
           "x-snakelab-unit": "probability"
         },
         "decay": {
           "type": "number",
           "default": 0.97,
-          "exclusiveMinimum": 0.0,
-          "maximum": 1.0,
+          "enum": [0.95, 0.97, 0.99],
           "x-snakelab-unit": "multiplier-per-episode"
         }
       },
