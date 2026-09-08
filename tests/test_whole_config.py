@@ -128,12 +128,13 @@ class HistoryTests(HistoryFixture, unittest.TestCase):
         choices = []
         selected = select_parameter(self.configuration, self.reports, gold,
                                     lambda options: choices.extend(options) or options[0])
-        self.assertNotIn('model.layers', [item[1] for item in choices])
-        self.assertIn('model.hidden_size', [item[1] for item in choices])
+        self.assertNotIn('model.layers', [item.parameter for item in choices])
+        self.assertIn('model.hidden_size', [item.parameter for item in choices])
         self.assertTrue(selected[1])
         self.add_run(5, alternative, score=20)
         gold = self.reports.gold()
-        parameter, initial, report = select_parameter(self.configuration, self.reports, gold, lambda items: items[0])
+        parameter, initial = select_parameter(self.configuration, self.reports, gold, lambda items: items[0])
+        report = self.reports.parameter_report(gold, parameter)
         self.assertTrue(initial)
         self.assertEqual([row['run_id'] for row in report['experiments']], ['2', '3', '5'])
         self.assertNotEqual(parameter, 'model.layers')
@@ -171,7 +172,7 @@ class LoopTests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
         self.archive = Mock()
         self.loop = SearchLoop(self.backend, self.configuration, self.reports, self.conversation,
                                self.archive, Mock(return_value=Mock()))
-        self.loop.selector = lambda config, reports, gold: select_parameter(config, reports, gold, lambda rows: rows[0])
+        self.loop.selector = lambda config, store, gold, **kw: select_parameter(config, store, gold, lambda rows: rows[0], **kw)
 
     async def test_baseline_promotions_ties_and_no_startup_repromotion(self):
         self.assertEqual(await self.loop.run_once(), 'submitted')
@@ -287,7 +288,9 @@ class ConversationTests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.setup_history()
         self.add_run(1)
-        self.report = select_parameter(self.configuration, self.reports, self.reports.gold(), lambda rows: rows[0])[2]
+        gold = self.reports.gold()
+        parameter, _ = select_parameter(self.configuration, self.reports, gold, lambda rows: rows[0])
+        self.report = self.reports.parameter_report(gold, parameter)
 
     @staticmethod
     def reply(value):

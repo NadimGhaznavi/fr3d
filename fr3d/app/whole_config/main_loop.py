@@ -14,14 +14,17 @@ from .archive import GoldArchive
 from .conversation import Conversation
 from .reports import SearchReports
 from .selection import select_parameter
+from .store import SearchStore
 
 
 class SearchLoop:
     def __init__(self, experiments, configuration=None, reports=None, conversation=None,
-                 archive=None, trace_factory=None, selector=select_parameter):
+                 archive=None, trace_factory=None, selector=select_parameter, store=None):
         self.experiments = experiments
         self.configuration = configuration if configuration is not None else Configuration()
-        self.reports = reports if reports is not None else SearchReports(self.configuration)
+        connection_factory = reports.connect if reports is not None else None
+        self.store = store if store is not None else SearchStore(self.configuration, connection_factory)
+        self.reports = reports if reports is not None else SearchReports(self.configuration, self.store.connect)
         self.conversation = conversation if conversation is not None else Conversation(
             self.configuration, self.reports, ReportSnapshots())
         self.archive = archive if archive is not None else GoldArchive()
@@ -39,7 +42,7 @@ class SearchLoop:
     async def _submit(self, config, trace, parameter=None):
         if await asyncio.to_thread(self.experiments.is_simulation_running):
             return 'waiting'
-        if await asyncio.to_thread(self.reports.already_used, config):
+        if await asyncio.to_thread(self.store.already_used, config):
             trace.record('duplicate_rejected', parameter=parameter)
             return 'duplicate_rejected'
         result = await asyncio.to_thread(self.experiments.submit_simulation, config)
@@ -53,7 +56,7 @@ class SearchLoop:
     async def run_once(self):
         if await asyncio.to_thread(self.experiments.is_simulation_running):
             return 'waiting'
-        runs = await asyncio.to_thread(self.reports.runs)
+        runs = await asyncio.to_thread(self.store.runs)
         if self.pending_run_id is not None:
             pending = next((row for row in runs if row['run_id'] == self.pending_run_id), None)
             if pending is None or pending['status'] != 'completed':
@@ -71,7 +74,7 @@ class SearchLoop:
                 outcome = await self._submit(self.configuration.baseline(), trace)
                 return outcome
 
-            best = await asyncio.to_thread(self.reports.gold)
+            best = await asyncio.to_thread(self.store.gold)
             previous = self.gold
             if previous is None or best['high_score'] > previous['high_score']:
                 # Startup selection is not a promotion. A baseline submitted by
@@ -82,12 +85,15 @@ class SearchLoop:
                 self.gold = best
             self.pending_run_id = None
 
-            selected = await asyncio.to_thread(self.selector, self.configuration, self.reports, self.gold)
+            trace.record('gold_selected', run_id=self.gold['run_id'], high_score=self.gold['high_score'])
+            selected = await asyncio.to_thread(
+                self.selector, self.configuration, self.store, self.gold, trace=trace)
             if selected is None:
                 outcome = 'exhausted'
                 return outcome
-            parameter, initial, report = selected
+            parameter, initial = selected
             trace.record('parameter_selected', parameter=parameter, gold_run_id=self.gold['run_id'])
+            report = await asyncio.to_thread(self.reports.parameter_report, self.gold, parameter)
             config = await self.conversation.run(parameter, initial, report, trace)
             # Revalidate at the submission boundary, including exactly one change.
             self.configuration.validate(config)
