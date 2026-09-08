@@ -23,7 +23,7 @@ from fr3d.reporting.snapshots import ReportSnapshots
 
 class HistoryFixture:
     def setup_history(self):
-        self.configuration = Configuration()
+        self.configuration = Configuration(getattr(self, 'schema_path', 'pages/snake-lab-schemas/simulation-config-v1.schema.json'))
         self.baseline = self.configuration.baseline()
         self.db = sqlite3.connect(':memory:', check_same_thread=False)
         self.addCleanup(self.db.close)
@@ -57,7 +57,7 @@ class HistoryFixture:
 
 class ConfigurationTests(unittest.TestCase):
     def setUp(self):
-        self.configuration = Configuration()
+        self.configuration = Configuration('pages/snake-lab-schemas/simulation-config-v1.schema.json')
         self.baseline = self.configuration.baseline()
 
     def test_all_parameters_are_schema_driven_and_fixed_defaults_are_applied(self):
@@ -70,7 +70,7 @@ class ConfigurationTests(unittest.TestCase):
             self.assertEqual(get_value(self.baseline, path), field['default'])
 
     def test_bounds_types_and_full_candidate_validation(self):
-        for path, value in [('epsilon.decay', 0), ('model.dropout', 1), ('training.learning_rate', 0),
+        for path, value in [('epsilon.decay', 0), ('model.dropout', 1), ('training.learning_rate', 'bad'),
                             ('training.sequence_length', 1.5), ('training.sequence_length', True), ('epsilon.initial', '0.5'),
                             ('epsilon.initial', float('nan')), ('epsilon.initial', float('inf'))]:
             with self.subTest(path=path, value=value), self.assertRaises(ValueError):
@@ -123,7 +123,7 @@ class HistoryTests(HistoryFixture, unittest.TestCase):
             reordered = self.configuration.candidate(reordered, 'training.learning_rate', {'value': .002})
             self.assertFalse(self.reports.already_used(reordered))
 
-    def test_selection_counts_distinct_completed_comparable_values_and_resets(self):
+    def test_selection_preserves_order_and_matches_active_baseline_history(self):
         self.add_run(1)
         alternative = self.configuration.candidate(self.baseline, 'training.sequence_length', {'value': 4})
         self.add_run(2, alternative, score=9)
@@ -134,7 +134,7 @@ class HistoryTests(HistoryFixture, unittest.TestCase):
         choices = []
         selected = select_parameter(self.configuration, self.reports, gold,
                                     lambda options: choices.extend(options) or options[0])
-        self.assertNotIn('training.sequence_length', [item.parameter for item in choices])
+        self.assertIn('training.sequence_length', [item.parameter for item in choices])
         self.assertIn('training.batch_size', [item.parameter for item in choices])
         self.assertTrue(selected[1])
         self.add_run(5, alternative, score=20)
@@ -179,7 +179,7 @@ class LoopTests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
         self.archive = Mock()
         self.loop = SearchLoop(self.backend, self.configuration, self.reports, self.conversation,
                                self.archive, Mock(return_value=Mock()))
-        self.loop.selector = lambda config, store, gold, **kw: select_parameter(config, store, gold, lambda rows: rows[0], **kw)
+        self.loop.selector = lambda config, store, gold, **kw: select_parameter(config, store, gold, lambda rows: next((row for row in rows if row.eligible), None), **kw)
 
     async def test_baseline_promotions_ties_and_no_startup_repromotion(self):
         self.assertEqual(await self.loop.run_once(), 'submitted')
@@ -271,7 +271,8 @@ class LoopTests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
         transport.start.side_effect = start
         transport.stop = AsyncMock(side_effect=stop)
         self.backend.submit_simulation.side_effect = TimeoutError('unconfirmed')
-        with patch('fr3d.server.Fr3dServer.ZMQServer', return_value=transport):
+        with patch('fr3d.server.Fr3dServer.ZMQServer', return_value=transport), patch(
+                'fr3d.server.Fr3dServer.LearningRateReport'):
             server = Fr3dServer(log_file=None, learning_rate_enabled=False)
             server.experiment_loop = self.loop
             with self.assertRaises(TimeoutError):
@@ -313,7 +314,7 @@ class ConversationTests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
                      side_effect=lambda **kw: real(transport=httpx.MockTransport(handler), **kw))
 
     async def test_corrections_share_context_and_report_snapshot_matches(self):
-        replies = iter([self.reply(1), self.reply(224), self.reply(256)])
+        replies = iter([self.reply('bad'), self.reply(224), self.reply(256)])
         sent = []
 
         def handler(request):
@@ -351,7 +352,7 @@ class ArchiveTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'gold.jsonl'
             archive = GoldArchive(path)
-            first = {'run_id': '1', 'config': Configuration().baseline(), 'high_score': 10}
+            first = {'run_id': '1', 'config': Configuration('pages/snake-lab-schemas/simulation-config-v1.schema.json').baseline(), 'high_score': 10}
             second = {**first, 'run_id': '2', 'high_score': 11}
             archive.save(first, None)
             archive.save(second, first)

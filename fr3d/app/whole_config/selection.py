@@ -1,10 +1,9 @@
-"""Assess matching database values, then choose the least explored parameter."""
+"""Assess matching database values, then choose the next round-robin dimension."""
 
 from dataclasses import dataclass
-import random
 
 from .configuration import PAIR_PATHS
-from .value_space import availability, exhausted
+from .value_space import availability
 
 
 @dataclass(frozen=True)
@@ -30,8 +29,12 @@ def assess_parameters(configuration, store, gold, trace=None):
         used = frozenset(row['value'] for row in rows)
         completed = frozenset(row['value'] for row in rows if row['completed_count'])
         if parameter in PAIR_PATHS:
-            legal = set(configuration.legal_pairs(gold['config'], parameter))
-            total, remaining = len(legal), len(legal - used)
+            pairs = configuration.legal_pairs(gold['config'], parameter)
+            if pairs is None:
+                total, remaining = None, None
+            else:
+                legal = set(pairs)
+                total, remaining = len(legal), len(legal - used)
         else:
             total, remaining = availability(field, used)
         assessment = ParameterAssessment(parameter, used, completed, total, remaining)
@@ -46,20 +49,34 @@ def assess_parameters(configuration, store, gold, trace=None):
     return assessments
 
 
-def choose_parameter(assessments, choose=random.choice):
-    candidates = [item for item in assessments if item.eligible]
-    if not candidates:
+class RoundRobinSelector:
+    """One in-memory cursor per search loop; baseline changes preserve position."""
+
+    def __init__(self):
+        self.next_index = 0
+
+    def choose(self, assessments):
+        for offset in range(len(assessments)):
+            index = (self.next_index + offset) % len(assessments)
+            if assessments[index].eligible:
+                self.next_index = (index + 1) % len(assessments)
+                return assessments[index]
         return None
-    minimum = min(len(item.completed) for item in candidates)
-    return choose([item for item in candidates if len(item.completed) == minimum])
+
+    def __call__(self, configuration, store, gold, trace=None):
+        return select_parameter(configuration, store, gold, self.choose, trace)
 
 
-def select_parameter(configuration, store, gold, choose=random.choice, trace=None):
+def choose_parameter(assessments):
+    return next((item for item in assessments if item.eligible), None)
+
+
+def select_parameter(configuration, store, gold, choose=choose_parameter, trace=None):
     if trace is not None:
         trace.record('selection_started', gold_run_id=gold['run_id'],
                      searchable_parameters=len(configuration.parameters))
     assessments = assess_parameters(configuration, store, gold, trace)
-    selected = choose_parameter(assessments, choose)
+    selected = choose(assessments)
     if selected is None:
         if trace is not None:
             trace.record('selection_exhausted', gold_run_id=gold['run_id'],

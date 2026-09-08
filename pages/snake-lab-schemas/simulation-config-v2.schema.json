@@ -1,0 +1,233 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://snake-lab.local/schemas/simulation-config-v2.schema.json",
+  "title": "Snake Lab simulation configuration",
+  "description": "Configuration for one serial Snake Lab simulation run.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "epochs": {
+      "title": "Number of epochs",
+      "description": "Number of complete Snake episodes to execute.",
+      "type": "integer",
+      "const": 1500,
+      "default": 1500,
+      "x-snakelab-unit": "episodes"
+    },
+    "seed": {
+      "title": "Simulation seed",
+      "description": "Master seed used to derive independent model, exploration, replay, and episode seeds.",
+      "type": "integer",
+      "default": 1970,
+      "enum": [42, 123, 456, 789, 1970, 2024]
+    },
+    "game": {
+      "title": "Game environment",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "board_width": {
+          "type": "integer",
+          "const": 20,
+          "default": 20,
+          "x-snakelab-unit": "cells"
+        },
+        "board_height": {
+          "type": "integer",
+          "const": 20,
+          "default": 20,
+          "x-snakelab-unit": "cells"
+        },
+        "initial_snake_length": {
+          "type": "integer",
+          "const": 3,
+          "default": 3,
+          "x-snakelab-unit": "cells"
+        },
+        "max_moves_multiplier": {
+          "description": "An episode ends when moves exceed this value times the current snake length.",
+          "type": "integer",
+          "const": 100,
+          "default": 100
+        },
+        "rewards": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "food": {
+              "type": "integer",
+              "const": 10,
+              "default": 10
+            },
+            "wall": {
+              "type": "integer",
+              "const": -10,
+              "default": -10
+            },
+            "snake": {
+              "type": "integer",
+              "const": -10,
+              "default": -10
+            },
+            "max_moves": {
+              "type": "integer",
+              "const": -10,
+              "default": -10
+            },
+            "empty": {
+              "type": "integer",
+              "const": 0,
+              "default": 0
+            },
+            "closer_to_food": {
+              "type": "integer",
+              "default": 2,
+              "minimum": 0,
+              "maximum": 6,
+              "multipleOf": 1
+            },
+            "further_from_food": {
+              "type": "integer",
+              "default": -2,
+              "minimum": -6,
+              "maximum": 0,
+              "multipleOf": 1
+            }
+          },
+          "required": [
+            "food",
+            "wall",
+            "snake",
+            "max_moves",
+            "empty",
+            "closer_to_food",
+            "further_from_food"
+          ]
+        }
+      },
+      "required": [
+        "board_width",
+        "board_height",
+        "initial_snake_length",
+        "max_moves_multiplier",
+        "rewards"
+      ]
+    },
+    "model": {
+      "title": "Recurrent model",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "hidden_size": {
+          "type": "integer",
+          "default": 224,
+          "minimum": 64,
+          "maximum": 512,
+          "multipleOf": 32,
+          "x-snakelab-unit": "neurons"
+        },
+        "layers": {
+          "type": "integer",
+          "const": 4,
+          "default": 4
+        },
+        "dropout": {
+          "type": "number",
+          "const": 0.1,
+          "default": 0.1,
+          "x-snakelab-unit": "probability"
+        }
+      },
+      "required": ["hidden_size", "layers", "dropout"]
+    },
+    "training": {
+      "title": "Replay and training",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sequence_length": {
+          "type": "integer",
+          "default": 8,
+          "minimum": 4,
+          "maximum": 64,
+          "multipleOf": 4,
+          "x-snakelab-unit": "frames"
+        },
+        "batch_size": {
+          "type": "integer",
+          "default": 24,
+          "minimum": 8,
+          "maximum": 128,
+          "multipleOf": 8,
+          "x-snakelab-unit": "sequences"
+        },
+        "replay_max_frames": {
+          "type": "integer",
+          "const": 100000,
+          "default": 100000
+        },
+        "learning_rate": {
+          "type": "number",
+          "default": 0.0021,
+          "minimum": 0.0005,
+          "maximum": 0.0050
+        },
+        "gamma": {
+          "type": "number",
+          "default": 0.96,
+          "minimum": 0.90,
+          "maximum": 0.99
+        },
+        "tau": {
+          "type": "number",
+          "const": 0.001,
+          "default": 0.001
+        },
+        "max_gradient_norm": {
+          "type": "number",
+          "const": 1.0,
+          "default": 1.0
+        }
+      },
+      "required": [
+        "sequence_length",
+        "batch_size",
+        "replay_max_frames",
+        "learning_rate",
+        "gamma",
+        "tau",
+        "max_gradient_norm"
+      ]
+    },
+    "epsilon": {
+      "title": "Epsilon-greedy exploration",
+      "description": "Episode-based epsilon-greedy exploration schedule.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "initial": {
+          "type": "number",
+          "default": 0.96,
+          "minimum": 0.85,
+          "maximum": 0.99,
+          "x-snakelab-unit": "probability"
+        },
+        "minimum": {
+          "type": "number",
+          "default": 0.0,
+          "const": 0.0,
+          "x-snakelab-unit": "probability"
+        },
+        "decay": {
+          "type": "number",
+          "default": 0.97,
+          "minimum": 0.90,
+          "maximum": 0.99,
+          "x-snakelab-unit": "multiplier-per-episode"
+        }
+      },
+      "required": ["initial", "minimum", "decay"]
+    }
+  },
+  "required": ["epochs", "seed", "game", "model", "training", "epsilon"]
+}

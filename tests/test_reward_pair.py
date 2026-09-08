@@ -49,10 +49,10 @@ class RewardPairTests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
         self.assertEqual(set(pairs), {(c, f) for c in (0, 2, 4) for f in (-4, -2, 0)})
         tool = self.configuration.tool(REWARD_PAIR)['function']
         self.assertEqual(tool['name'], 'submit_reward_pair')
-        self.assertEqual(tool['parameters']['properties']['closer_to_food']['multipleOf'], 2)
+        self.assertNotIn('multipleOf', tool['parameters']['properties']['closer_to_food'])
         for values in ({'closer_to_food': 4}, {'further_from_food': -4},
                        {'closer_to_food': 4, 'further_from_food': -4, 'decay': .99},
-                       {'closer_to_food': 1, 'further_from_food': -4},
+                       {'closer_to_food': -1, 'further_from_food': -4},
                        {'closer_to_food': 4, 'further_from_food': 2},
                        {'closer_to_food': True, 'further_from_food': -4},
                        {'closer_to_food': '4', 'further_from_food': -4}):
@@ -140,7 +140,7 @@ class RewardPairTests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
     async def test_reward_prompt_and_corrections_submit_whole_pair(self):
         self.add_run(2, self.candidate(0, 0), score=10)
         report = self.reports.parameter_report(self.reports.gold(), REWARD_PAIR)
-        replies = iter([{'closer_to_food': 4}, {'closer_to_food': 1, 'further_from_food': -4},
+        replies = iter([{'closer_to_food': 4}, {'closer_to_food': -1, 'further_from_food': -4},
                         {'closer_to_food': 0, 'further_from_food': 0},
                         {'closer_to_food': 2, 'further_from_food': -4}])
         sent = []

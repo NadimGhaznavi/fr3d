@@ -31,9 +31,14 @@ class Conversation:
         if self.snapshots is not None:
             identity = await asyncio.to_thread(self.snapshots.save, report)
             trace.record('report_snapshot', snapshot_id=identity, report_url=f'/reports/{identity}/')
-        instructions = ('Allowed values (JSON):\n' + to_json(report['allowed_values'])
-                        + '\n\n' + report['table']) if pair else parameter_instructions(
-                            parameter, self.configuration.parameters[parameter])
+        if pair:
+            if report['allowed_values'] is None:
+                instructions = 'Continuous pair bounds (JSON):\n' + to_json(report['constraints'])
+            else:
+                instructions = 'Planned grid values (JSON):\n' + to_json(report['allowed_values'])
+            instructions += '\n\n' + report['table']
+        else:
+            instructions = parameter_instructions(parameter, self.configuration.parameters[parameter])
         tool = self.configuration.tool(parameter)
         tool_name = tool['function']['name']
         current = {'role': 'user', 'content': opening.text + '\n\n' + instructions

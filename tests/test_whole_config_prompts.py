@@ -9,12 +9,14 @@ import httpx
 from fr3d.app.whole_config.configuration import Configuration
 from fr3d.app.whole_config.conversation import Conversation
 from fr3d.app.whole_config.prompts import parameter_instructions
-from fr3d.app.whole_config.selection import exhausted, select_parameter
+from fr3d.app.whole_config.selection import select_parameter
+from fr3d.app.whole_config.value_space import exhausted
+from fr3d.app.whole_config.validation import submission_schema
 
 
 class SchemaPromptTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        self.configuration = Configuration()
+        self.configuration = Configuration('pages/snake-lab-schemas/simulation-config-v1.schema.json')
 
     def test_constants_are_excluded_and_single_choice_enums_exhaust_normally(self):
         for path, field in self.configuration.fields.items():
@@ -27,7 +29,7 @@ class SchemaPromptTests(unittest.IsolatedAsyncioTestCase):
         reports.parameter_values.return_value = [{'value': 224, 'completed_count': 1, 'gold_count': 1}]
         self.configuration.parameters = {'model.hidden_size': field}
         self.assertIsNone(select_parameter(self.configuration, reports, gold))
-        self.assertIn('The value must be one of:\n- 224', parameter_instructions('model.hidden_size', field))
+        self.assertIn('The planned search grid contains:\n- 224', parameter_instructions('model.hidden_size', field))
 
     def test_enum_exhaustion_requires_every_choice(self):
         for field, partial, complete in (
@@ -83,8 +85,8 @@ class SchemaPromptTests(unittest.IsolatedAsyncioTestCase):
     async def test_schema_wording_reaches_both_opening_prompts(self):
         for initial in (True, False):
             for parameter, value, phrases in (
-                ('training.sequence_length', 16, ['MUST be an integer', 'one of:\n- 4\n- 8\n- 16\n- 32']),
-                ('training.batch_size', 48, ['MUST be an integer', 'one of:\n- 8\n- 24\n- 48']),
+                ('training.sequence_length', 16, ['MUST be an integer', 'grid contains:\n- 4\n- 8\n- 16\n- 32']),
+                ('training.batch_size', 48, ['MUST be an integer', 'grid contains:\n- 8\n- 24\n- 48']),
             ):
                 with self.subTest(initial=initial, parameter=parameter):
                     sent = []
@@ -106,4 +108,4 @@ class SchemaPromptTests(unittest.IsolatedAsyncioTestCase):
                     for phrase in phrases:
                         self.assertIn(phrase, content)
                     self.assertEqual(sent[0]['tools'][0]['function']['parameters']['properties']['value'],
-                                     self.configuration.parameters[parameter])
+                                     submission_schema(self.configuration.parameters[parameter]))

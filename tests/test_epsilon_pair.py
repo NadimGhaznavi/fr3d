@@ -16,11 +16,12 @@ from fr3d.app.whole_config.main_loop import SearchLoop
 from fr3d.app.whole_config.selection import assess_parameters, select_parameter
 from fr3d.app.whole_config.value_space import finite_values
 from fr3d.reporting.snapshots import ReportSnapshots
+from fr3d.app.whole_config.validation import submission_schema
 
 
 class PairConfigurationTests(unittest.TestCase):
     def setUp(self):
-        self.configuration = Configuration()
+        self.configuration = Configuration('pages/snake-lab-schemas/simulation-config-v1.schema.json')
         self.baseline = self.configuration.baseline()
 
     def test_pair_replaces_individual_dimensions_and_tool_uses_schema(self):
@@ -31,7 +32,7 @@ class PairConfigurationTests(unittest.TestCase):
         self.assertEqual(function['name'], 'submit_epsilon_pair')
         self.assertEqual(function['parameters']['required'], ['initial', 'decay'])
         self.assertFalse(function['parameters']['additionalProperties'])
-        self.assertEqual(function['parameters']['properties']['initial'], self.configuration.fields['epsilon.initial'])
+        self.assertEqual(function['parameters']['properties']['initial'], submission_schema(self.configuration.fields['epsilon.initial']))
         self.assertEqual(len(self.configuration.legal_pairs(self.baseline)), 9)
 
     def test_pair_is_atomic_and_one_or_both_values_may_change(self):
@@ -44,7 +45,7 @@ class PairConfigurationTests(unittest.TestCase):
         for arguments in ({}, {'initial': .99}, {'decay': .99}, {'initial': .99, 'decay': .99, 'value': 1},
                           {'initial': True, 'decay': .99}, {'initial': .99, 'decay': '0.99'},
                           {'initial': float('nan'), 'decay': .99}, {'initial': .99, 'decay': float('inf')},
-                          {'initial': .90, 'decay': .99}):
+                          {'initial': 'bad', 'decay': .99}):
             with self.subTest(arguments=arguments), self.assertRaises(ValueError):
                 self.configuration.candidate(self.baseline, EPSILON_PAIR, arguments)
         with self.assertRaises(ValueError):
@@ -72,10 +73,12 @@ class PairConfigurationTests(unittest.TestCase):
             config.candidate(config.baseline(), EPSILON_PAIR, {'initial': .99, 'decay': .99})
         initial.pop('const')
         initial.update(minimum=0, maximum=1)
+        self.assertIsNone(self.load_schema(schema).legal_pairs(self.baseline))
+        initial.pop('minimum')
         with self.assertRaisesRegex(ValueError, 'epsilon.initial.*finite enumerable'):
             self.load_schema(schema)
 
-    def test_numeric_ranges_and_whole_config_constraints_filter_pairs(self):
+    def test_numeric_ranges_and_server_constraints_do_not_filter_pairs(self):
         self.assertEqual(finite_values({'type': 'number', 'minimum': .25, 'maximum': .75, 'multipleOf': .25}),
                          (.25, .5, .75))
         self.assertEqual(finite_values({'type': 'integer', 'exclusiveMinimum': 0, 'maximum': 4, 'multipleOf': 2}), (2, 4))
@@ -84,7 +87,7 @@ class PairConfigurationTests(unittest.TestCase):
         schema['not'] = {'properties': {'epsilon': {'properties': {
             'initial': {'const': .99}, 'decay': {'const': .99}}}}}
         config = self.load_schema(schema)
-        self.assertEqual(len(config.legal_pairs(config.baseline())), 8)
+        self.assertEqual(len(config.legal_pairs(config.baseline())), 9)
 
 
 class PairHistoryTests(HistoryFixture, unittest.TestCase):
@@ -145,7 +148,7 @@ class PairHistoryTests(HistoryFixture, unittest.TestCase):
         self.add_run(20, new, score=40)
         self.assertEqual(select_parameter(self.configuration, self.reports, self.reports.gold()), (EPSILON_PAIR, True))
 
-    def test_pair_and_scalar_ranking_preserves_completed_count_and_ties(self):
+    def test_pair_and_scalar_selection_preserves_dimension_order(self):
         self.configuration.parameters = {name: self.configuration.parameters[name]
                                          for name in ('model.hidden_size', EPSILON_PAIR)}
         choose = Mock(side_effect=lambda items: items[0])
@@ -239,7 +242,7 @@ class PairConversationTests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
         self.report = self.reports.parameter_report(self.reports.gold(), EPSILON_PAIR)
 
     async def test_retry_entire_pair_and_snapshot_exact_report(self):
-        arguments = iter([{'initial': .99}, {'initial': .99, 'decay': .90},
+        arguments = iter([{'initial': .99}, {'initial': .99, 'decay': True},
                           {'initial': .96, 'decay': .97}, {'initial': .91, 'decay': .95},
                           {'initial': .96, 'decay': .99}])
         duplicate = self.configuration.candidate(self.baseline, EPSILON_PAIR, {'initial': .91, 'decay': .95})
