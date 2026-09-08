@@ -4,11 +4,11 @@ author_profile: true
 layout: single
 ---
 
-![Fr3d Logo](/pages/images/fr3d.png)
+![Architecture](/pages/images/architecture.png)
 
 # The Fr3D Project
 
-This project is about tuning the parameters and hyperparameters of an AI Snake Game configuration. 
+This project is about tuning the parameters and hyperparameters of an AI Snake Game configuration using a custom agent back by a small 4B LLM.
 
 # Components
 
