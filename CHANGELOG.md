@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-09-08 @ 08:04
+
+### Changed
+
+- Replace outdated ReportServer pages with the latest saved parameter summary
+  supplied to the LLM as indented JSON, with a refresh button. Keep saved report
+  links and JSON access; show a waiting message before the first summary is available.
+- Remove old experiment, learning-rate, best/worst, and journal web pages from
+  ReportServer. Stored reports, journal data, and database history are preserved.
+
 ## [0.18.6] - 2026-09-08 @ 01:52
 
 ### Changed
