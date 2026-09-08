@@ -1,193 +1,98 @@
-"""Exercise HTTP responses with the real report renderer and representative runs."""
+"""Show saved summary JSON without regenerating or converting it to Markdown."""
 
+import html
+import json
+import os
+from pathlib import Path
+import tempfile
 import unittest
-from datetime import datetime
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from starlette.testclient import TestClient
 
-from fr3d.app_legacy.LearningRateReport import Episode, Experiment
-from fr3d.app_legacy.JournalApp import JournalApp
-from fr3d.database.JournalDb import JournalDb
+from fr3d.reporting.snapshots import ReportSnapshots
 from fr3d.server.ReportServer import app
-
-
-def experiments():
-    return [
-        Experiment(
-            id=run_id, project_version="test",
-            config={"epochs": 2, "seed": 42, "training": {"learning_rate": rate}},
-            episodes=(Episode(1, 2, None), Episode(2, 5, 0.25)),
-        )
-        for run_id, rate in ((101, 0.001), (102, 0.002), (103, 0.004))
-    ]
 
 
 class ReportServerTest(unittest.TestCase):
     def setUp(self):
-        self.client = TestClient(app)
-
-    def test_report_renders_tables_and_refresh_loads_latest_history(self):
-        with patch("fr3d.app_legacy.LearningRateReport.LearningRateReport.load_experiments", return_value=experiments()) as load:
-            response = self.client.get("/legacy/")
-            self.assertEqual(response.status_code, 200)
-            self.assertEqual(response.headers["cache-control"], "no-store")
-            self.assertIn("text/html", response.headers["content-type"])
-            for text in ("<table>", "<td>101</td>", "Runs 101, 102, 103", "UTC", "Refresh report", "Response Tool"):
-                self.assertIn(text, response.text)
-            load.assert_called_once_with(limit=3)
-            load.return_value = []
-            refreshed = self.client.get("/legacy/")
-            self.assertEqual(refreshed.status_code, 503)
-            self.assertIn("Three completed Snake Lab runs are required", refreshed.text)
-            self.assertNotIn("<td>101</td>", refreshed.text)
-
-    def test_incompatible_and_incomplete_runs_explain_unavailability(self):
-        for kind in ("incompatible", "incomplete"):
-            runs = experiments()
-            if kind == "incompatible":
-                runs[0].config["seed"] = 99
-            else:
-                runs[0].config["epochs"] = 3
-            with self.subTest(kind=kind), patch("fr3d.app_legacy.LearningRateReport.LearningRateReport.load_experiments", return_value=runs):
-                response = self.client.get("/legacy/")
-                self.assertEqual(response.status_code, 503)
-                self.assertIn("Waiting for comparable results", response.text)
-                self.assertIn("parameters other than learning_rate" if kind == "incompatible" else "incomplete episode data", response.text)
-
-    def test_database_failure_is_logged_without_exposing_credentials(self):
-        with patch("fr3d.app_legacy.LearningRateReport.LearningRateReport.load_experiments", side_effect=RuntimeError("secret database detail")):
-            with self.assertLogs("fr3d.server.ReportServer", level="ERROR"):
-                response = self.client.get("/legacy/")
-        self.assertEqual(response.status_code, 503)
-        self.assertIn("Could not load the report", response.text)
-        self.assertNotIn("secret database detail", response.text)
-
-    def test_markdown_html_and_validation_messages_are_escaped(self):
-        with patch("fr3d.app_legacy.LearningRateReport.LearningRateReport.load_experiments", return_value=experiments()):
-            with patch("fr3d.app_legacy.LearningRateReport.LearningRateReport.render_markdown", return_value="<script>alert(1)</script>"):
-                response = self.client.get("/legacy/")
-        self.assertNotIn("<script>", response.text)
-        self.assertIn("&lt;script&gt;", response.text)
-        with patch("fr3d.app_legacy.LearningRateReport.LearningRateReport.load_experiments", side_effect=ValueError("<script>")):
-            response = self.client.get("/legacy/")
-        self.assertNotIn("<script>", response.text)
-
-    def test_other_routes_and_writes_do_not_load_reports(self):
-        with patch("fr3d.app_legacy.LearningRateReport.LearningRateReport.load_experiments") as load:
-            self.assertEqual(self.client.get("/missing").status_code, 404)
-            self.assertEqual(self.client.post("/").status_code, 405)
-            load.assert_not_called()
-
-    def test_best_worst_page_refresh_and_failure(self):
-        with patch("fr3d.server.ReportServer.generate_best_worst_report", return_value={"top_10": [{"run_id": 1, "duration_s": 60, "project_version": "<script>"}], "bottom_10": []}) as generate:
-            response = self.client.get("/best-worst/")
-            self.assertEqual(response.status_code, 200)
-            self.assertIn("<pre>", response.text)
-            self.assertIn("&quot;top_10&quot;", response.text)
-            self.assertNotIn("<script>", response.text)
-            self.assertIn('href="/best-worst/">Refresh', response.text)
-            self.assertEqual(response.headers["cache-control"], "no-store")
-            self.assertEqual(self.client.post("/best-worst/").status_code, 405)
-            generate.assert_called_once_with()
-            generate.side_effect = RuntimeError("secret")
-            with self.assertLogs("fr3d.server.ReportServer", level="ERROR"):
-                response = self.client.get("/best-worst/")
-            self.assertEqual(response.status_code, 503)
-            self.assertNotIn("secret", response.text)
-
-
-class JournalWebTest(unittest.TestCase):
-    def setUp(self):
-        self.client = TestClient(app)
-        self.repository = MagicMock(spec=JournalDb)
-        self.enterContext(patch("fr3d.server.ReportServer.JournalApp", return_value=JournalApp(self.repository)))
-        self.rows = [
-            {"id": i, "title": f"Entry {i}", "created_at": datetime(2026, 9, 6, 15, 30)}
-            for i in range(11, 0, -1)
-        ]
-
-    def tearDown(self):
-        self.repository.add_entry.assert_not_called()
-        self.repository.transaction.assert_not_called()
-
-    def test_list_pagination_refresh_and_report_navigation(self):
-        self.repository.get_page.return_value = self.rows
-        response = self.client.get("/journal/")
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.headers["cache-control"], "no-store")
-        self.assertIn('href="/">Learning-rate report', response.text)
-        self.assertIn("2026-09-06 15:30:00 UTC", response.text)
-        self.assertEqual(response.text.count('href="/journal/entries/'), 10)
-        self.assertLess(response.text.index('/entries/11"'), response.text.index('/entries/2"'))
-        self.assertNotIn('href="/journal/entries/1"', response.text)
-        self.assertIn('href="/journal/page/2">Next page', response.text)
-        self.assertNotIn("Previous page", response.text)
-        self.repository.get_page.assert_called_once_with(1)
-
-        self.repository.get_page.return_value = self.rows[-1:]
-        response = self.client.get("/journal/page/2")
-        self.assertEqual(response.status_code, 200)
-        self.repository.get_page.assert_called_with(2)
-        self.assertIn('href="/journal/">Previous page', response.text)
-        self.assertNotIn("Next page", response.text)
-        self.assertIn('href="/journal/page/2">Refresh', response.text)
-
-        self.repository.get_page.return_value = []
-        self.assertIn("No journal entries yet", self.client.get("/journal/").text)
-        self.assertIn("No entries on this page", self.client.get("/journal/page/3").text)
-
-    def test_entry_renders_markdown_and_escapes_html(self):
-        self.repository.get_entry.return_value = {
-            **self.rows[0], "title": '<script>alert("title")</script>',
-            "entry": '**A thought**\nAnother line\n\n<script>alert("entry")</script>\n\n'
-                     '[bad](javascript:alert(1))\n\n![remote](https://example.com/tracker.png)',
+        directory = self.enterContext(tempfile.TemporaryDirectory())
+        self.store = ReportSnapshots(directory)
+        self.enterContext(patch('fr3d.server.ReportServer.ReportSnapshots', return_value=self.store))
+        self.client = self.enterContext(TestClient(app))
+        self.data = {
+            'parameter': 'training.learning_rate',
+            'constraints': {'type': 'number', 'enum': [0.002, 0.0021]},
+            'gold': {'run_id': 'gold', 'config': {'training': {'learning_rate': 0.0021}}, 'high_score': 44},
+            'experiments': [{'run_id': 'one', 'value': 0.002, 'high_score': None}],
         }
-        response = self.client.get("/journal/entries/11")
+
+    def save(self, data, timestamp):
+        identity = self.store.save(data)
+        os.utime(self.store.directory / (identity + '.json'), (timestamp, timestamp))
+        return identity
+
+    def rendered_json(self, response):
+        return json.loads(html.unescape(response.text.split('<pre>', 1)[1].split('</pre>', 1)[0]))
+
+    def test_latest_json_is_exact_and_refresh_picks_up_new_summary(self):
+        self.save(self.data, 100)
+        result = self.client.get('/')
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(self.rendered_json(result), self.data)
+        self.assertIn('href="/">Refresh report</a>', result.text)
+        self.assertIn('no-store', result.headers['cache-control'])
+        self.assertNotIn('<table>', result.text)
+        self.assertNotIn('Journal', result.text)
+        self.assertEqual(self.client.get('/?format=json').json(), self.data)
+        newer = {**self.data, 'parameter': 'epsilon.decay', 'search_context': 'Use previous gold', 'best_gold': {'high_score': 50}}
+        self.save(newer, 200)
+        self.assertEqual(self.rendered_json(self.client.get('/')), newer)
+
+    def test_legacy_snapshots_and_partial_writes_do_not_replace_latest_summary(self):
+        identity = self.save(self.data, 100)
+        self.save({'learning_rate': .001, 'experiments': []}, 200)
+        (self.store.directory / 'partial.tmp').write_text('{')
+        (self.store.directory / 'invalid-name.json').write_text('{')
+        self.assertEqual(self.store.latest_summary()[0], identity)
+        self.assertEqual(self.client.get('/?format=json').json(), self.data)
+
+    def test_snapshot_links_stay_fixed_and_keep_nulls(self):
+        identity = self.save(self.data, 100)
+        self.save({**self.data, 'parameter': 'epsilon.decay'}, 200)
+        self.assertEqual(self.rendered_json(self.client.get(f'/reports/{identity}/')), self.data)
+        self.assertEqual(self.client.get(f'/reports/{identity}/?format=json').json(), self.data)
+        self.assertIn('null', self.client.get(f'/reports/{identity}/').text)
+
+    def test_empty_state_and_removed_pages(self):
+        response = self.client.get('/')
         self.assertEqual(response.status_code, 200)
-        self.repository.get_entry.assert_called_once_with(11)
-        self.assertIn("<strong>A thought</strong><br", response.text)
-        self.assertIn('\n\n<p class="signature">--Fr3d</p>', response.text)
-        self.assertNotIn("--Fr3d", self.repository.get_entry.return_value["entry"])
-        self.assertIn("Fr3d's Journal", response.text)
-        self.assertIn("2026-09-06 15:30:00 UTC", response.text)
-        self.assertIn("Back to journal entries", response.text)
-        self.assertIn("&lt;script&gt;", response.text)
-        self.assertNotIn("<script>", response.text)
-        self.assertNotIn('href="javascript:', response.text)
-        self.assertNotIn("<img", response.text)
+        self.assertIn('No summary report has been saved yet', response.text)
+        self.assertIn('Refresh report', response.text)
+        for path in ('/experiments/', '/experiments/1/', '/legacy/', '/best-worst/', '/journal/', '/reports/bad/'):
+            self.assertEqual(self.client.get(path).status_code, 404)
+        self.assertEqual(self.client.get('/?format=json').status_code, 404)
+        self.assertEqual(self.client.get('/reports/' + 'a' * 32 + '/').status_code, 404)
 
-    def test_index_titles_are_plain_escaped_text(self):
-        self.repository.get_page.return_value = [{**self.rows[0], "title": '<img src=x onerror="alert(1)">'}]
-        response = self.client.get("/journal/")
-        self.assertIn("&lt;img", response.text)
-        self.assertNotIn("<img", response.text)
+    def test_json_text_is_escaped_not_interpreted_as_html(self):
+        data = {**self.data, 'search_context': '</pre><script>alert(1)</script>&'}
+        self.save(data, 100)
+        response = self.client.get('/')
+        self.assertNotIn('<script>', response.text)
+        self.assertEqual(self.rendered_json(response), data)
 
-    def test_invalid_missing_entries_and_unsupported_writes(self):
-        for path in ("/journal/page/0", "/journal/page/1000001", "/journal/entries/0",
-                     "/journal/entries/18446744073709551616", "/journal/unknown"):
-            with self.subTest(path=path):
-                self.assertEqual(self.client.get(path).status_code, 404)
-        self.repository.get_page.assert_not_called()
-        self.repository.get_entry.assert_not_called()
-        self.repository.get_entry.return_value = None
-        response = self.client.get("/journal/entries/42")
-        self.assertEqual(response.status_code, 404)
-        self.assertIn("Back to journal entries", response.text)
-        for path in ("/journal/", "/journal/entries/42"):
-            self.assertEqual(self.client.post(path).status_code, 405)
-
-    def test_database_errors_are_recoverable_and_do_not_expose_details(self):
-        self.repository.get_page.side_effect = RuntimeError("private database details")
-        with self.assertLogs("fr3d.server.ReportServer", level="ERROR"):
-            response = self.client.get("/journal/")
+    def test_corrupt_latest_report_shows_error_instead_of_silently_serving_old_data(self):
+        self.save(self.data, 100)
+        identity = self.save(self.data, 200)
+        (self.store.directory / (identity + '.json')).write_text('{broken')
+        with self.assertLogs('fr3d.server.ReportServer', level='ERROR'):
+            response = self.client.get('/')
         self.assertEqual(response.status_code, 503)
-        self.assertIn("Journal unavailable", response.text)
-        self.assertNotIn("private database details", response.text)
-        self.repository.get_page.side_effect = None
-        self.repository.get_page.return_value = self.rows
-        self.assertEqual(self.client.get("/journal/").status_code, 200)
+        self.assertNotIn('{broken', response.text)
 
-
-if __name__ == "__main__":
-    unittest.main()
+    def test_load_failure_does_not_expose_internal_details(self):
+        with patch.object(self.store, 'latest_summary', side_effect=RuntimeError('private credentials')):
+            with self.assertLogs('fr3d.server.ReportServer', level='ERROR'):
+                response = self.client.get('/?format=json')
+        self.assertEqual(response.status_code, 503)
+        self.assertNotIn('private credentials', response.text)

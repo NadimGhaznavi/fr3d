@@ -1,4 +1,4 @@
-"""Serve Nadim's learning-rate report and journal browser."""
+"""Show the latest saved parameter summary supplied to Fr3d's LLM."""
 
 from __future__ import annotations
 
@@ -10,197 +10,91 @@ import os
 from pathlib import Path
 from string import Template
 
-from markdown_it import MarkdownIt
 from starlette.applications import Starlette
 from starlette.responses import HTMLResponse, JSONResponse
 from starlette.routing import Route
 import uvicorn
 
-from fr3d.app_legacy.LearningRateReport import LearningRateReport
-from fr3d.app_legacy.JournalApp import JournalApp, JournalValidationError
-from fr3d.app_legacy.BestWorstReport import generate_best_worst_report
-
-
-from fr3d.reporting.experiments import ExperimentReports
-from fr3d.reporting.formats import to_markdown
 from fr3d.reporting.snapshots import ReportSnapshots
 
 
 LOG = logging.getLogger(__name__)
-PAGE = Template(Path(__file__).with_name("report.html").read_text(encoding="utf-8"))
+PAGE = Template(Path(__file__).with_name('report.html').read_text(encoding='utf-8'))
+HEADERS = {'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff'}
 
 
-def page_response(*, title, description, metadata, content, refresh_url,
-                  refresh_label="Refresh", status=200):
+def page_response(*, title, metadata, content, refresh_url='/', status=200):
     return HTMLResponse(
         PAGE.substitute(
-            title=escape(title), description=escape(description),
+            title=escape(title),
+            description='The saved summary report supplied to Fr3d for parameter exploration.',
             metadata=escape(metadata), content=content,
-            refresh_url=escape(refresh_url, quote=True), refresh_label=escape(refresh_label),
-        ),
-        status_code=status,
-        headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"},
+            refresh_url=escape(refresh_url, quote=True), refresh_label='Refresh report',
+        ), status_code=status, headers=HEADERS,
     )
 
 
-def latest_report(request):
-    """Run synchronous database/report work in Starlette's worker thread pool."""
-    status = 200
+def summary_report(request):
+    """Load snapshots in Starlette's worker thread; no database or LLM calls."""
+    identity = request.path_params.get('identity')
+    title = 'Summary report' if identity else 'Latest summary report'
+    wants_json = request.query_params.get('format') == 'json'
+    refresh_url = request.url.path
     try:
-        report = LearningRateReport()
-        experiments = report.load_experiments(limit=3)
-        if len(experiments) != 3:
-            raise ValueError("Three completed Snake Lab runs are required.")
-        markdown = report.render_markdown(experiments)
-        content = MarkdownIt("commonmark", {"html": False}).enable("table").render(markdown)
-        metadata = "Runs " + ", ".join(str(experiment.id) for experiment in experiments)
-        metadata += " · Generated " + datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-    except ValueError as error:
-        status = 503
-        metadata = "Report unavailable"
-        content = f"<h2>Waiting for comparable results</h2><p>{escape(str(error))}</p>"
-    except Exception:
-        LOG.exception("Could not generate learning-rate report")
-        status = 503
-        metadata = "Report unavailable"
-        content = "<h2>Could not load the report</h2><p>Please try refreshing in a moment. If this continues, check the report service logs.</p>"
-    return page_response(
-        title="Learning-rate report",
-        description="The current report from the latest three completed Snake Lab runs.",
-        metadata=metadata, content=content, refresh_url="/legacy/",
-        refresh_label="Refresh report", status=status,
-    )
-
-
-def best_worst_report(request):
-    status = 200
-    try:
-        report = generate_best_worst_report()
-        content = "<pre>" + escape(json.dumps(report, indent=2, allow_nan=False)) + "</pre>"
-        metadata = "Generated " + datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-    except Exception:
-        LOG.exception("Could not generate best/worst report")
-        status = 503
-        metadata = "Report unavailable"
-        content = "<p>Could not load the report. Please try refreshing in a moment.</p>"
-    return page_response(
-        title="Best and worst simulations", description="Top and bottom ten completed runs by high score.",
-        metadata=metadata, content=content, refresh_url="/best-worst/", status=status,
-    )
-
-
-def journal(request):
-    """Reuse the journal application's validation and read-only pagination."""
-    path = request.path_params.get("path", "")
-    url = "/" + path
-    title = "Fr3d's Journal"
-    metadata = ""
-    status = 200
-    back = '<p><a href="/journal/">Back to journal entries</a></p>'
-    try:
-        result = JournalApp().view_entries(url)
-        if result["kind"] == "entry":
-            entry = result["entry"]
-            title = entry["title"]
-            metadata = f"Entry {entry['id']} · {entry['created_at'].replace('T', ' ').replace('+00:00', ' UTC')}"
-            content = back + MarkdownIt(
-                "commonmark", {"html": False, "breaks": True},
-            ).enable("table").disable("image").render(entry["entry"]) + '\n\n<p class="signature">--Fr3d</p>' + back
+        snapshots = ReportSnapshots()
+        if identity:
+            data = snapshots.load(identity)
+            metadata = f'Saved report {identity}'
         else:
-            page = result["page"]
-            metadata = f"Page {page} · Newest first · All timestamps in UTC"
-            rows = []
-            for entry in result["entries"]:
-                timestamp = escape(entry["created_at"].replace("T", " ").replace("+00:00", " UTC"))
-                rows.append(
-                    f'<li><a href="/journal/entries/{entry["id"]}">{escape(entry["title"])}</a>'
-                    f'<div class="metadata"><time datetime="{escape(entry["created_at"], quote=True)}">'
-                    f'{timestamp}</time> · Entry {entry["id"]}</div></li>'
-                )
-            content = '<ul class="entries">' + "".join(rows) + '</ul>' if rows else (
-                "<p>No journal entries yet.</p>" if page == 1 else "<p>No entries on this page.</p>"
-            )
-            links = []
-            if page > 1:
-                previous = "/journal/" if page == 2 else f"/journal/page/{page - 1}"
-                links.append(f'<a href="{previous}">Previous page</a>')
-            if result["has_next"]:
-                links.append(f'<a href="/journal/page/{page + 1}">Next page</a>')
-            content += '<nav aria-label="Journal pages">' + " ".join(links) + '</nav>'
-    except JournalValidationError:
-        status = 404
-        metadata = "Not found"
-        content = "<p>This journal page or entry could not be found.</p>" + back
+            identity, data, modified = snapshots.latest_summary()
+            saved = datetime.fromtimestamp(modified, timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
+            metadata = f'Saved {saved} · Report {identity}'
+        if wants_json:
+            return JSONResponse(data, headers=HEADERS)
+        content = '<pre>' + escape(json.dumps(data, ensure_ascii=False, allow_nan=False, indent=2)) + '</pre>'
+    except FileNotFoundError:
+        if request.path_params.get('identity'):
+            status, message = 404, 'This saved report could not be found.'
+        else:
+            status, message = 200, 'No summary report has been saved yet. Refresh after Fr3d starts its next parameter exploration.'
+        if wants_json:
+            return JSONResponse({'detail': message}, status_code=404, headers=HEADERS)
+        return page_response(title=title, metadata='No saved report',
+                             content='<p>' + escape(message) + '</p>',
+                             refresh_url=refresh_url, status=status)
+    except ValueError:
+        # A malformed ID is a missing page; malformed saved JSON is a service error.
+        if request.path_params.get('identity') and not snapshots.valid_identity(identity):
+            if wants_json:
+                return JSONResponse({'detail': 'Report not found'}, status_code=404, headers=HEADERS)
+            return page_response(title=title, metadata='Report unavailable',
+                                 content='<p>Report not found</p>', refresh_url='/', status=404)
+        LOG.exception('Could not read saved summary report')
+        return unavailable(title, wants_json, refresh_url)
     except Exception:
-        LOG.exception("Could not load journal")
-        status = 503
-        metadata = "Journal unavailable"
-        content = "<p>Could not load the journal. Please try refreshing in a moment.</p>" + back
-    return page_response(
-        title=title, description="Journal entries from Fr3d.", metadata=metadata,
-        content=content, refresh_url="/journal/" + path, status=status,
-    )
+        LOG.exception('Could not read saved summary report')
+        return unavailable(title, wants_json, refresh_url)
+    return page_response(title=title, metadata=metadata, content=content, refresh_url=refresh_url)
 
 
-def experiment_report(request):
-    return shared_report(request, 'Experiment report', lambda: ExperimentReports().experiment(
-        request.path_params.get('experiment_id')
-    ))
-
-
-def experiments_summary(request):
-    return shared_report(request, 'Experiments summary', lambda: ExperimentReports().summary())
-
-
-def report_snapshot(request):
-    return shared_report(request, 'Report supplied to the LLM', lambda: ReportSnapshots().load(
-        request.path_params['identity']
-    ))
-
-
-def shared_report(request, title, load):
-    status = 200
-    try:
-        data = load()
-        if request.query_params.get('format') == 'json':
-            return JSONResponse(data, headers={'Cache-Control': 'no-store'})
-        content = MarkdownIt('commonmark', {'html': False}).enable('table').render(to_markdown(data, title))
-        metadata = 'JSON and Markdown use the same report fields and values.'
-    except (ValueError, FileNotFoundError) as error:
-        status = 404
-        metadata = 'Report unavailable'
-        content = '<p>' + escape(str(error)) + '</p>'
-    except Exception:
-        LOG.exception('Could not load report')
-        status = 503
-        metadata = 'Report unavailable'
-        content = '<p>Could not load the report. Please try again later.</p>'
-    content = ('<nav><a href="/">Latest experiment</a> · '
-               '<a href="/experiments/">Experiments summary</a> · '
-               '<a href="/journal/">Journal</a></nav>') + content
-    return page_response(title=title, description='Snake Lab experiment data.',
-                         metadata=metadata, content=content, refresh_url=request.url.path, status=status)
+def unavailable(title, wants_json, refresh_url):
+    message = 'Could not load the saved report. Please try refreshing in a moment.'
+    if wants_json:
+        return JSONResponse({'detail': message}, status_code=503, headers=HEADERS)
+    return page_response(title=title, metadata='Report unavailable',
+                         content='<p>' + message + '</p>', refresh_url=refresh_url, status=503)
 
 
 app = Starlette(routes=[
-    Route("/", experiment_report, methods=["GET"]),
-    Route("/experiments/", experiments_summary, methods=["GET"]),
-    Route("/experiments/{experiment_id:int}/", experiment_report, methods=["GET"]),
-    Route("/reports/{identity:str}/", report_snapshot, methods=["GET"]),
-    Route("/legacy/", latest_report, methods=["GET"]),
-    Route("/best-worst/", best_worst_report, methods=["GET"]),
-    Route("/journal/", journal, methods=["GET"]),
-    Route("/journal/{path:path}", journal, methods=["GET"]),
+    Route('/', summary_report, methods=['GET']),
+    Route('/reports/{identity:str}/', summary_report, methods=['GET']),
 ])
 
 
 def main():
-    uvicorn.run(
-        app,
-        host=os.getenv("FR3D_REPORT_HOST", "127.0.0.1"),
-        port=int(os.getenv("FR3D_REPORT_PORT", "61980")),
-    )
+    uvicorn.run(app, host=os.getenv('FR3D_REPORT_HOST', '127.0.0.1'),
+                port=int(os.getenv('FR3D_REPORT_PORT', '61980')))
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
