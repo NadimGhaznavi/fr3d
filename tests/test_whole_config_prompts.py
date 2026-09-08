@@ -9,14 +9,14 @@ import httpx
 from fr3d.app.whole_config.configuration import Configuration
 from fr3d.app.whole_config.conversation import Conversation
 from fr3d.app.whole_config.prompts import parameter_instructions
-from fr3d.app.whole_config.selection import select_parameter
+from fr3d.app.whole_config.selection import exhausted, select_parameter
 
 
 class SchemaPromptTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.configuration = Configuration()
 
-    def test_constants_are_excluded_but_single_choice_enums_are_kept(self):
+    def test_constants_are_excluded_and_single_choice_enums_exhaust_normally(self):
         for path, field in self.configuration.fields.items():
             if 'const' in field:
                 self.assertNotIn(path, self.configuration.parameters)
@@ -27,8 +27,34 @@ class SchemaPromptTests(unittest.IsolatedAsyncioTestCase):
         reports.history.return_value = [{'run_id': '1', 'value': 224,
                                          'status': 'completed', 'high_score': 10}]
         self.configuration.parameters = {'model.hidden_size': field}
-        self.assertEqual(select_parameter(self.configuration, reports, gold)[0], 'model.hidden_size')
+        self.assertIsNone(select_parameter(self.configuration, reports, gold))
         self.assertIn('The value must be one of:\n- 224', parameter_instructions('model.hidden_size', field))
+
+    def test_enum_exhaustion_requires_every_choice(self):
+        for field, partial, complete in (
+            ({'type': 'integer', 'enum': [4, 8, 16, 32]}, {4, 8, 16, 99}, {4, 8, 16, 32, 99}),
+            ({'type': 'number', 'enum': [0.002, 0.0021]}, {0.002}, {0.002, 0.0021}),
+            ({'type': 'integer', 'enum': [224]}, set(), {224}),
+            ({'type': 'integer', 'enum': [4, 8], 'minimum': 4, 'maximum': 8}, {4}, {4, 8}),
+        ):
+            with self.subTest(field=field):
+                self.assertFalse(exhausted(field, partial))
+                self.assertTrue(exhausted(field, complete))
+
+    def test_selection_skips_enum_only_for_matching_gold_history(self):
+        field = self.configuration.parameters['model.hidden_size']
+        self.configuration.parameters = {'model.hidden_size': field}
+        gold = {'run_id': '1', 'config': self.configuration.baseline()}
+        reports = Mock()
+        baseline = {'run_id': '1', 'value': 224, 'status': 'completed', 'high_score': 10}
+        reports.history.return_value = [baseline]
+        self.assertEqual(select_parameter(self.configuration, reports, gold)[0], 'model.hidden_size')
+        reports.history.assert_called_with(gold, 'model.hidden_size')
+        for status in ('completed', 'failed', 'cancelled', 'queued', 'running'):
+            with self.subTest(status=status):
+                reports.history.return_value = [baseline, {'run_id': '2', 'value': 256,
+                                                           'status': status, 'high_score': None}]
+                self.assertIsNone(select_parameter(self.configuration, reports, gold))
 
     def test_exclusive_bounds_and_numeric_enum(self):
         text = parameter_instructions('rate', {'type': 'number', 'enum': [0.002, 0.0021],
