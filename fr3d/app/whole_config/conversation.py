@@ -12,7 +12,7 @@ from fr3d.constants.DFr3d import DFr3d
 from fr3d.reporting.formats import to_json
 from .initial_conversation import first_contact
 from .prompts import parameter_instructions, prompt
-from .configuration import EPSILON_PAIR
+from .configuration import PAIR_PATHS
 
 
 class Conversation:
@@ -26,8 +26,8 @@ class Conversation:
         self.context.messages.append({'role': 'user', 'content': outcome})
 
     async def run(self, parameter, initial, report, trace):
-        pair = parameter == EPSILON_PAIR
-        opening = prompt('epsilon_pair') if pair else (first_contact() if initial else prompt('summary_report'))
+        pair = parameter in PAIR_PATHS
+        opening = prompt(parameter) if pair else (first_contact() if initial else prompt('summary_report'))
         if self.snapshots is not None:
             identity = await asyncio.to_thread(self.snapshots.save, report)
             trace.record('report_snapshot', snapshot_id=identity, report_url=f'/reports/{identity}/')
@@ -82,14 +82,14 @@ class Conversation:
                     if pair:
                         self.configuration.validate_changes(report['gold']['config'], config, parameter)
                 except (KeyError, TypeError, ValueError) as error:
-                    correction = prompt('epsilon_pair_invalid' if pair else 'invalid_value')
+                    correction = prompt(f'{parameter}_invalid' if pair else 'invalid_value')
                     reason = str(error)
                     trace.record('invalid_value_rejected', parameter=parameter, message=reason)
                 else:
                     if not await asyncio.to_thread(self.reports.already_used, config):
                         self.context.reset()
                         return config
-                    correction = prompt('epsilon_pair_no_reruns' if pair else 'no_reruns')
+                    correction = prompt(f'{parameter}_no_reruns' if pair else 'no_reruns')
                     reason = 'The complete proposed configuration already exists.'
                     trace.record('duplicate_rejected', parameter=parameter)
                 self.context.messages.extend([

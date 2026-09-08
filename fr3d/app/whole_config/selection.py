@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 import random
 
-from .configuration import EPSILON_PAIR
+from .configuration import PAIR_PATHS
 from .value_space import availability, exhausted
 
 
@@ -29,8 +29,8 @@ def assess_parameters(configuration, store, gold, trace=None):
             raise ValueError(f'Gold is missing from matching configuration history: {parameter}')
         used = frozenset(row['value'] for row in rows)
         completed = frozenset(row['value'] for row in rows if row['completed_count'])
-        if parameter == EPSILON_PAIR:
-            legal = set(configuration.legal_pairs(gold['config']))
+        if parameter in PAIR_PATHS:
+            legal = set(configuration.legal_pairs(gold['config'], parameter))
             total, remaining = len(legal), len(legal - used)
         else:
             total, remaining = availability(field, used)

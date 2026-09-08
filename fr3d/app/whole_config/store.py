@@ -4,7 +4,7 @@ import json
 
 from fr3d.constants.DDatabase import DDatabase
 from fr3d.database.DbMgr import DbMgr
-from .configuration import EPSILON_PAIR, get_value
+from .configuration import PAIR_PATHS, get_value
 
 
 class SearchStore:
@@ -86,5 +86,5 @@ class SearchStore:
         )
         for row in rows:
             values = tuple(row.pop(f'value_{index}') for index in range(len(columns)))
-            row['value'] = values if parameter == EPSILON_PAIR else values[0]
+            row['value'] = values if parameter in PAIR_PATHS else values[0]
         return rows

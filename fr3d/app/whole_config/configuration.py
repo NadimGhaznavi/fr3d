@@ -12,6 +12,9 @@ from .value_space import finite_values
 
 EPSILON_PAIR = 'epsilon_pair'
 EPSILON_PATHS = ('epsilon.initial', 'epsilon.decay')
+REWARD_PAIR = 'reward_pair'
+REWARD_PATHS = ('game.rewards.closer_to_food', 'game.rewards.further_from_food')
+PAIR_PATHS = {EPSILON_PAIR: EPSILON_PATHS, REWARD_PAIR: REWARD_PATHS}
 
 
 SCHEMA_PATH = Path(__file__).resolve().parents[3] / 'pages/snake-lab-schemas/simulation-config-v1.schema.json'
@@ -49,38 +52,44 @@ class Configuration:
         Draft202012Validator.check_schema(self.schema)
         self.validator = Draft202012Validator(self.schema)
         self.fields = dict(leaves(self.schema))
+        paired_paths = {path for paths in PAIR_PATHS.values() for path in paths}
         self.parameters = {path: field for path, field in self.fields.items()
-                           if path not in FIXED and path not in EPSILON_PATHS and 'const' not in field}
-        self.epsilon_values = {}
-        for path in EPSILON_PATHS:
-            try:
-                self.epsilon_values[path] = finite_values(self.fields[path])
-            except ValueError as error:
-                raise ValueError(f'{path}: {error}') from error
-        self.parameters[EPSILON_PAIR] = {
-            'type': 'object',
-            'properties': {path.split('.')[1]: self.fields[path] for path in EPSILON_PATHS},
-            'required': ['initial', 'decay'], 'additionalProperties': False,
-        }
+                           if path not in FIXED and path not in paired_paths and 'const' not in field}
+        self.pair_values = {}
+        for parameter, paths in PAIR_PATHS.items():
+            self.pair_values[parameter] = {}
+            for path in paths:
+                try:
+                    self.pair_values[parameter][path] = finite_values(self.fields[path])
+                except ValueError as error:
+                    raise ValueError(f'{path}: {error}') from error
+            self.parameters[parameter] = {
+                'type': 'object',
+                'properties': {path.split('.')[-1]: self.fields[path] for path in paths},
+                'required': [path.split('.')[-1] for path in paths], 'additionalProperties': False,
+            }
 
     def paths(self, parameter):
         if parameter not in self.parameters:
             raise ValueError(f'Parameter is not searchable: {parameter}')
-        return EPSILON_PATHS if parameter == EPSILON_PAIR else (parameter,)
+        return PAIR_PATHS.get(parameter, (parameter,))
 
     def value(self, config, parameter):
         values = tuple(get_value(config, path) for path in self.paths(parameter))
-        return values if parameter == EPSILON_PAIR else values[0]
+        return values if parameter in PAIR_PATHS else values[0]
 
-    def legal_pairs(self, baseline):
+    def pair_arguments(self, parameter, values):
+        return dict(zip(self.parameters[parameter]['required'], values, strict=True))
+
+    def legal_pairs(self, baseline, parameter=EPSILON_PAIR):
         """Filter the Cartesian product through complete-configuration validation."""
         pairs = []
-        for initial, decay in product(*(self.epsilon_values[path] for path in EPSILON_PATHS)):
+        for values in product(*(self.pair_values[parameter][path] for path in self.paths(parameter))):
             try:
-                self.candidate(baseline, EPSILON_PAIR, {'initial': initial, 'decay': decay})
+                self.candidate(baseline, parameter, self.pair_arguments(parameter, values))
             except ValueError:
                 continue
-            pairs.append((initial, decay))
+            pairs.append(values)
         return tuple(pairs)
 
     def validate_changes(self, baseline, config, parameter):
@@ -88,7 +97,7 @@ class Configuration:
         changed = {path for path in self.fields if get_value(config, path) != get_value(baseline, path)}
         allowed = set(self.paths(parameter))
         if not changed or not changed <= allowed:
-            raise ValueError('The proposal must change exactly the selected parameter or epsilon pair')
+            raise ValueError('The proposal must change exactly the selected parameter or pair')
         return config
 
     def validate(self, config):
@@ -113,12 +122,16 @@ class Configuration:
 
     def candidate(self, gold, parameter, arguments):
         self.paths(parameter)
-        if parameter == EPSILON_PAIR:
-            if not isinstance(arguments, dict) or set(arguments) != {'initial', 'decay'}:
-                raise ValueError('Supply only initial and decay together')
+        if parameter in PAIR_PATHS:
+            required = self.parameters[parameter]['required']
+            if not isinstance(arguments, dict) or set(arguments) != set(required):
+                raise ValueError(f'Supply only {" and ".join(required)} together')
             config = deepcopy(gold)
-            for path in EPSILON_PATHS:
-                set_value(config, path, arguments[path.split('.')[1]])
+            for path in self.paths(parameter):
+                value = arguments[path.split('.')[-1]]
+                if self.fields[path]['type'] == 'integer' and type(value) is float and value.is_integer():
+                    value = int(value)
+                set_value(config, path, value)
             return self.validate(config)
         if not isinstance(arguments, dict) or set(arguments) != {'value'}:
             raise ValueError('Supply only value')
@@ -132,10 +145,10 @@ class Configuration:
         return self.validate(config)
 
     def tool(self, parameter):
-        if parameter == EPSILON_PAIR:
+        if parameter in PAIR_PATHS:
             return {'type': 'function', 'function': {
-                'name': 'submit_epsilon_pair',
-                'description': 'Propose epsilon initial and decay together for the next experiment.',
+                'name': f'submit_{parameter}',
+                'description': f'Propose {" and ".join(self.parameters[parameter]["required"])} together for the next experiment.',
                 'parameters': self.parameters[parameter],
             }}
         return {
