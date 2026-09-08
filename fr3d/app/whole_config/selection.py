@@ -1,5 +1,6 @@
 """Choose the least explored eligible parameter relative to current gold."""
 
+from fractions import Fraction
 import math
 import random
 
@@ -9,14 +10,29 @@ from .configuration import get_value
 def exhausted(field, used):
     if 'enum' in field:
         return all(value in used for value in field['enum'])
-    if field['type'] != 'integer':
+    if field['type'] not in ('integer', 'number'):
+        return False
+    if field['type'] == 'number' and 'multipleOf' not in field:
         return False
     if not (('minimum' in field or 'exclusiveMinimum' in field)
             and ('maximum' in field or 'exclusiveMaximum' in field)):
         return False
-    lower = math.ceil(field['minimum']) if 'minimum' in field else math.floor(field['exclusiveMinimum']) + 1
-    upper = math.floor(field['maximum']) if 'maximum' in field else math.ceil(field['exclusiveMaximum']) - 1
-    return sum(lower <= value <= upper for value in used) == upper - lower + 1
+    # Count legal multiples using exact decimal arithmetic, without enumerating
+    # potentially large ranges. Integer multiples of p/q are multiples of p.
+    step = Fraction(str(field.get('multipleOf', 1)))
+    if field['type'] == 'integer':
+        step = Fraction(step.numerator)
+    lower = math.ceil(Fraction(str(field['minimum'])) / step) if 'minimum' in field else math.floor(
+        Fraction(str(field['exclusiveMinimum'])) / step) + 1
+    if 'exclusiveMinimum' in field:
+        lower = max(lower, math.floor(Fraction(str(field['exclusiveMinimum'])) / step) + 1)
+    upper = math.floor(Fraction(str(field['maximum'])) / step) if 'maximum' in field else math.ceil(
+        Fraction(str(field['exclusiveMaximum'])) / step) - 1
+    if 'exclusiveMaximum' in field:
+        upper = min(upper, math.ceil(Fraction(str(field['exclusiveMaximum'])) / step) - 1)
+    indices = {Fraction(str(value)) / step for value in used}
+    count = sum(index.denominator == 1 and lower <= index <= upper for index in indices)
+    return count == max(0, upper - lower + 1)
 
 
 def select_parameter(configuration, reports, gold, choose=random.choice):
