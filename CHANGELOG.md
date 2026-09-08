@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.4] - 2026-09-08 @ 01:27
+
 ### Fixed
 
 - Upgrade now follows the working `start-all-services.sh` startup sequence:
