@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.6] - 2026-09-08 @ 01:52
+
 ### Changed
 
 - Mark exhausted search baselines as local dead ends and backtrack through previous
