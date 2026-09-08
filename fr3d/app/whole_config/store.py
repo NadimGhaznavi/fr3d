@@ -40,6 +40,25 @@ class SearchStore:
         row['config'] = self.configuration.validate(config)
         return row
 
+    def previous_gold(self, gold):
+        """Recover strict record highs in completion order, including before restarts."""
+        rows = self._query(
+            'SELECT r.id, r.run_id, r.config, '
+            '(SELECT MAX(e.score) FROM simulation_episodes e WHERE e.run_id = r.run_id) AS high_score '
+            'FROM simulation_runs r WHERE r.status = %s '
+            'ORDER BY r.completed_at ASC, r.id ASC', ('completed',),
+        )
+        previous = None
+        for row in rows:
+            if row['run_id'] == gold['run_id']:
+                if previous is None:
+                    return None
+                config = json.loads(previous['config']) if isinstance(previous['config'], str) else previous['config']
+                return {**previous, 'config': self.configuration.validate(config)}
+            if row['high_score'] is not None and (previous is None or row['high_score'] > previous['high_score']):
+                previous = row
+        raise ValueError(f'Gold run is missing from completed history: {gold["run_id"]}')
+
     def _matching(self, config, excluded=None):
         if excluded is not None and excluded not in self.configuration.parameters:
             raise ValueError(f'Parameter is not searchable: {excluded}')
