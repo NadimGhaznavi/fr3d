@@ -4,7 +4,7 @@ import json
 
 from fr3d.constants.DDatabase import DDatabase
 from fr3d.database.DbMgr import DbMgr
-from .configuration import get_value
+from .configuration import EPSILON_PAIR, get_value
 
 
 class SearchStore:
@@ -60,9 +60,8 @@ class SearchStore:
         raise ValueError(f'Gold run is missing from completed history: {gold["run_id"]}')
 
     def _matching(self, config, excluded=None):
-        if excluded is not None and excluded not in self.configuration.parameters:
-            raise ValueError(f'Parameter is not searchable: {excluded}')
-        paths = [path for path in self.configuration.fields if path != excluded]
+        excluded_paths = self.configuration.paths(excluded) if excluded is not None else ()
+        paths = [path for path in self.configuration.fields if path not in excluded_paths]
         # Identifiers come only from the bundled schema; values are bound parameters.
         condition = ' AND '.join(f'c.`{path.replace(".", "_")}` = %s' for path in paths)
         return condition, tuple(get_value(config, path) for path in paths)
@@ -74,12 +73,18 @@ class SearchStore:
     def parameter_values(self, gold, parameter):
         """Count matching runs per value without loading episode scores or reports."""
         condition, values = self._matching(gold['config'], excluded=parameter)
-        column = parameter.replace('.', '_')
-        return self._query(
-            f'SELECT c.`{column}` AS value, '
+        columns = [f'c.`{path.replace(".", "_")}`' for path in self.configuration.paths(parameter)]
+        selected = ', '.join(f'{column} AS value_{index}' for index, column in enumerate(columns))
+        grouped = ', '.join(columns)
+        rows = self._query(
+            f'SELECT {selected}, '
             'SUM(CASE WHEN r.status = %s THEN 1 ELSE 0 END) AS completed_count, '
             'SUM(CASE WHEN r.run_id = %s AND r.status = %s THEN 1 ELSE 0 END) AS gold_count '
             'FROM configurations c JOIN simulation_runs r ON r.run_id = c.run_id '
-            'WHERE ' + condition + f' GROUP BY c.`{column}` ORDER BY c.`{column}`',
+            'WHERE ' + condition + f' GROUP BY {grouped} ORDER BY {grouped}',
             ('completed', gold['run_id'], 'completed', *values),
         )
+        for row in rows:
+            values = tuple(row.pop(f'value_{index}') for index in range(len(columns)))
+            row['value'] = values if parameter == EPSILON_PAIR else values[0]
+        return rows
