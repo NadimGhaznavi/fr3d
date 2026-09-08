@@ -134,7 +134,7 @@ def validate_paths() -> None:
         prompt = PROJECT_ROOT / "fr3d/app/epsilon/prompt_data" / name
         if not prompt.is_file():
             raise FileNotFoundError(f"prompt not found: {prompt}")
-    schema = PROJECT_ROOT / "pages/snake-lab-schemas/simulation-config-v1.schema.json"
+    schema = PROJECT_ROOT / "pages/snake-lab-schemas/simulation-config-v2.schema.json"
     if not schema.is_file():
         raise FileNotFoundError(f"configuration schema not found: {schema}")
     report_page = PROJECT_ROOT / "fr3d" / "server" / "report.html"

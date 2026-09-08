@@ -23,7 +23,7 @@ def parameter_instructions(parameter, field):
     if 'const' in field:
         lines.append(f"The value must equal {json.dumps(field['const'])}.")
     if 'enum' in field:
-        lines.append('The value must be one of:')
+        lines.append('The planned search grid contains:')
         lines.extend(f'- {json.dumps(value)}' for value in field['enum'])
     for keyword, wording in (
         ('minimum', 'greater than or equal to'),
@@ -34,5 +34,6 @@ def parameter_instructions(parameter, field):
         if keyword in field:
             lines.append(f'The value must be {wording} {json.dumps(field[keyword])}.')
     if 'multipleOf' in field:
-        lines.append(f"The value must be divisible by {json.dumps(field['multipleOf'])}.")
+        lines.append(f"The planned search grid uses steps of {json.dumps(field['multipleOf'])}.")
+    lines.append('Use the planned grid as guidance. Fr3d checks types and bounds; Snake Lab decides full validity.')
     return '\n'.join(lines)

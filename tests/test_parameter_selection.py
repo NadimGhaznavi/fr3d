@@ -72,7 +72,7 @@ class SelectionTests(HistoryFixture, unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Gold is missing'):
             select_parameter(self.configuration, store, {'run_id': 'absent', 'config': self.baseline})
 
-    def test_ranking_counts_distinct_completed_values_and_preserves_ties(self):
+    def test_selection_does_not_rank_by_completed_values(self):
         self.restrict('training.sequence_length', 'training.batch_size')
         self.add_run(1)
         for identity in (2, 3):
@@ -80,8 +80,8 @@ class SelectionTests(HistoryFixture, unittest.TestCase):
         self.add_run(4, self.configuration.candidate(self.baseline, 'training.batch_size', {'value': 8}), status='failed')
         choose = Mock(side_effect=lambda items: items[0])
         selected = select_parameter(self.configuration, self.store, self.store.gold(), choose)
-        self.assertEqual(selected, ('training.batch_size', True))
-        self.assertEqual([a.parameter for a in choose.call_args.args[0]], ['training.batch_size'])
+        self.assertEqual(selected, ('training.sequence_length', False))
+        self.assertEqual([a.parameter for a in choose.call_args.args[0]], ['training.sequence_length', 'training.batch_size'])
         self.add_run(5, self.configuration.candidate(self.baseline, 'training.batch_size', {'value': 8}))
         select_parameter(self.configuration, self.store, self.store.gold(), choose)
         self.assertEqual(len(choose.call_args.args[0]), 2)
