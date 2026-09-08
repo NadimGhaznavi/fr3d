@@ -34,6 +34,7 @@ class SearchLoop:
         self.baseline = None
         self.dead_ends = set()
         self.pending_run_id = None
+        self.pending_tweak = None
 
     @staticmethod
     def _trace():
@@ -111,6 +112,10 @@ class SearchLoop:
                     trace.record('gold_promoted', run_id=best['run_id'], high_score=best['high_score'])
                 self.gold = best
                 self.baseline = best
+            if self.pending_tweak is not None:
+                parameter, score_before = self.pending_tweak
+                self.selector.convergence.completed(parameter, score_before, self.gold['high_score'], trace)
+                self.pending_tweak = None
             self.pending_run_id = None
 
             trace.record('gold_selected', run_id=self.gold['run_id'], high_score=self.gold['high_score'])
@@ -155,6 +160,8 @@ class SearchLoop:
                              source=source,
                              baseline_run_id=self.baseline['run_id'], best_gold_run_id=self.gold['run_id'])
             outcome = await self._submit(config, trace, parameter)
+            if outcome == 'submitted' and source == 'llm' and isinstance(self.selector, RoundRobinSelector):
+                self.pending_tweak = (parameter, self.gold['high_score'])
             return outcome
         finally:
             trace.record('decision_finished', outcome=outcome)
