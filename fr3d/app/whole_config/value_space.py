@@ -5,9 +5,11 @@ import math
 
 from jsonschema import Draft202012Validator
 
+from .validation import submission_schema
+
 
 def finite_values(field):
-    """Enumerate a finite numeric field, respecting all its schema constraints."""
+    """Enumerate a finite numeric field, using exact steps and local type/bounds checks."""
     if 'const' in field:
         values = [field['const']]
     elif 'enum' in field:
@@ -25,7 +27,7 @@ def finite_values(field):
             lower = max(lower, math.floor(Fraction(str(field['exclusiveMinimum'])) / step) + 1)
         values = [int(index * step) if field['type'] == 'integer' else float(index * step)
                   for index in range(lower, lower + total)]
-    validator = Draft202012Validator(field)
+    validator = Draft202012Validator(submission_schema(field))
     return tuple(sorted({value for value in values if validator.is_valid(value)}))
 
 

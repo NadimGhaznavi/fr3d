@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-09-08 @ 19:08
+
+### Changed
+
+- Use the v2 configuration schema with expanded search ranges and continuous
+  learning rate between 0.0005 and 0.0050. Gamma and both epsilon fields also
+  accept continuous values within their bounds, without decimal-step constraints.
+- Select dimensions in a fixed round-robin cycle, counting each epsilon or reward
+  pair as one turn. Keep the cursor in memory across gold changes.
+- Limit local submission validation to types, finite numbers, bounds, and call
+  structure; retain fixed fields and duplicate checks. Snake Lab owns full validity.
+- Show continuous epsilon decisions as paired run history. Preserve the 49-cell
+  integer reward grid and automatic sole-pair submission. Continuous dimensions
+  have no finite exhaustion count; Snake Lab uses standard schema validation.
+- Prepare a clean reinstall of both services with no data migration.
+
 ## [0.20.1] - 2026-09-08 @ 17:35
 
 ### Changed

@@ -13,13 +13,13 @@ from .configuration import Configuration, PAIR_PATHS
 from .archive import GoldArchive
 from .conversation import Conversation
 from .reports import SearchReports
-from .selection import select_parameter
+from .selection import RoundRobinSelector
 from .store import SearchStore
 
 
 class SearchLoop:
     def __init__(self, experiments, configuration=None, reports=None, conversation=None,
-                 archive=None, trace_factory=None, selector=select_parameter, store=None):
+                 archive=None, trace_factory=None, selector=None, store=None):
         self.experiments = experiments
         self.configuration = configuration if configuration is not None else Configuration()
         connection_factory = reports.connect if reports is not None else None
@@ -29,7 +29,7 @@ class SearchLoop:
             self.configuration, self.reports, ReportSnapshots())
         self.archive = archive if archive is not None else GoldArchive()
         self.trace_factory = trace_factory or self._trace
-        self.selector = selector
+        self.selector = selector if selector is not None else RoundRobinSelector()
         self.gold = None
         self.baseline = None
         self.dead_ends = set()
@@ -49,7 +49,7 @@ class SearchLoop:
             return 'duplicate_rejected'
         result = await asyncio.to_thread(self.experiments.submit_simulation, config)
         if result.get('state') != 'queued' or not isinstance(result.get('run_id'), str) or not result['run_id']:
-            raise ValueError('Invalid Snake Lab submission confirmation')
+            raise ValueError(f'Invalid Snake Lab submission confirmation: {result!r}')
         self.pending_run_id = result['run_id']
         pair_values = (self.configuration.pair_arguments(parameter, self.configuration.value(config, parameter))
                        if parameter in PAIR_PATHS else {})
@@ -130,7 +130,8 @@ class SearchLoop:
                     'Best-ever gold is retained separately in best_gold. Change only the '
                     'selected search dimension from the active search baseline.')
             source = 'llm'
-            if parameter in PAIR_PATHS and len(report['eligible_pairs']) <= 1:
+            if (parameter in PAIR_PATHS and report['eligible_pairs'] is not None
+                    and len(report['eligible_pairs']) <= 1):
                 if not report['eligible_pairs']:
                     trace.record('dimension_exhausted', parameter=parameter, baseline_run_id=self.baseline['run_id'])
                     outcome = 'dimension_exhausted'

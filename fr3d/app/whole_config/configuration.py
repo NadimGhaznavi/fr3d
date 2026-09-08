@@ -8,6 +8,7 @@ from pathlib import Path
 from jsonschema import Draft202012Validator, ValidationError
 
 from .value_space import finite_values
+from .validation import submission_schema
 
 
 EPSILON_PAIR = 'epsilon_pair'
@@ -17,7 +18,7 @@ REWARD_PATHS = ('game.rewards.closer_to_food', 'game.rewards.further_from_food')
 PAIR_PATHS = {EPSILON_PAIR: EPSILON_PATHS, REWARD_PAIR: REWARD_PATHS}
 
 
-SCHEMA_PATH = Path(__file__).resolve().parents[3] / 'pages/snake-lab-schemas/simulation-config-v1.schema.json'
+SCHEMA_PATH = Path(__file__).resolve().parents[3] / 'pages/snake-lab-schemas/simulation-config-v2.schema.json'
 FIXED = {
     'seed': 1970, 'epochs': 1500, 'game.board_width': 20,
     'game.board_height': 20, 'game.initial_snake_length': 3,
@@ -50,7 +51,7 @@ class Configuration:
     def __init__(self, path=SCHEMA_PATH):
         self.schema = json.loads(Path(path).read_text(encoding='utf-8'))
         Draft202012Validator.check_schema(self.schema)
-        self.validator = Draft202012Validator(self.schema)
+        self.validator = Draft202012Validator(submission_schema(self.schema))
         self.fields = dict(leaves(self.schema))
         paired_paths = {path for paths in PAIR_PATHS.values() for path in paths}
         self.parameters = {path: field for path, field in self.fields.items()
@@ -59,8 +60,13 @@ class Configuration:
         for parameter, paths in PAIR_PATHS.items():
             self.pair_values[parameter] = {}
             for path in paths:
+                field = self.fields[path]
+                continuous = (field['type'] == 'number'
+                              and not any(key in field for key in ('enum', 'const', 'multipleOf'))
+                              and any(key in field for key in ('minimum', 'exclusiveMinimum'))
+                              and any(key in field for key in ('maximum', 'exclusiveMaximum')))
                 try:
-                    self.pair_values[parameter][path] = finite_values(self.fields[path])
+                    self.pair_values[parameter][path] = None if continuous else finite_values(field)
                 except ValueError as error:
                     raise ValueError(f'{path}: {error}') from error
             self.parameters[parameter] = {
@@ -82,15 +88,9 @@ class Configuration:
         return dict(zip(self.parameters[parameter]['required'], values, strict=True))
 
     def legal_pairs(self, baseline, parameter=EPSILON_PAIR):
-        """Filter the Cartesian product through complete-configuration validation."""
-        pairs = []
-        for values in product(*(self.pair_values[parameter][path] for path in self.paths(parameter))):
-            try:
-                self.candidate(baseline, parameter, self.pair_arguments(parameter, values))
-            except ValueError:
-                continue
-            pairs.append(values)
-        return tuple(pairs)
+        """Return the planned grid; server acceptance is checked on submission."""
+        axes = [self.pair_values[parameter][path] for path in self.paths(parameter)]
+        return None if any(axis is None for axis in axes) else tuple(product(*axes))
 
     def validate_changes(self, baseline, config, parameter):
         self.validate(config)
@@ -107,7 +107,9 @@ class Configuration:
             self.validator.validate(config)
         except (ValidationError, TypeError, ValueError) as error:
             raise ValueError(str(error)) from error
-        for path, value in FIXED.items():
+        fixed = {path: field['const'] for path, field in self.fields.items() if 'const' in field}
+        fixed.update(FIXED)
+        for path, value in fixed.items():
             if get_value(config, path) != value:
                 raise ValueError(f'{path} must remain {value}')
         return config
@@ -149,14 +151,14 @@ class Configuration:
             return {'type': 'function', 'function': {
                 'name': f'submit_{parameter}',
                 'description': f'Propose {" and ".join(self.parameters[parameter]["required"])} together for the next experiment.',
-                'parameters': self.parameters[parameter],
+                'parameters': submission_schema(self.parameters[parameter]),
             }}
         return {
             'type': 'function', 'function': {
                 'name': 'submit_parameter',
                 'description': f'Propose the next value for {parameter}.',
                 'parameters': {
-                    'type': 'object', 'properties': {'value': self.parameters[parameter]},
+                    'type': 'object', 'properties': {'value': submission_schema(self.parameters[parameter])},
                     'required': ['value'], 'additionalProperties': False,
                 },
             },
