@@ -20,7 +20,7 @@ class DFr3d:
     # LLM    
     LLM_PORT: Final[int] = 51970
     # Whole prompt conversation, including report tool calls, in seconds.
-    PROMPT_TIMEOUT: Final[int] = 240
+    PROMPT_TIMEOUT: Final[int] = 660
     CONTEXT_SIZE: Final[int] = 24_576
     REASONING_BUDGET: Final[int] = 4_096
 
