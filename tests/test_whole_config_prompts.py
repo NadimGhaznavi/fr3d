@@ -41,6 +41,24 @@ class SchemaPromptTests(unittest.IsolatedAsyncioTestCase):
                 self.assertFalse(exhausted(field, partial))
                 self.assertTrue(exhausted(field, complete))
 
+    def test_bounded_multiple_exhaustion(self):
+        for field, partial, complete in (
+            ({'type': 'integer', 'minimum': -4, 'maximum': 0, 'multipleOf': 2},
+             {-4, -3, -1, 0}, {-4, -2, 0}),
+            ({'type': 'integer', 'minimum': 0, 'maximum': 4, 'multipleOf': 2},
+             {0, 2}, {0, 2, 4}),
+            ({'type': 'number', 'minimum': 0.1, 'maximum': 0.3, 'multipleOf': 0.1},
+             {0.1, 0.3}, {0.1, 0.2, 0.3}),
+            ({'type': 'integer', 'exclusiveMinimum': -4, 'exclusiveMaximum': 2, 'multipleOf': 2},
+             {-4, 0, 2}, {-2, 0}),
+            ({'type': 'integer', 'minimum': 0, 'maximum': 3, 'multipleOf': 1.5},
+             {0, 1.5}, {0, 3}),
+        ):
+            with self.subTest(field=field):
+                self.assertFalse(exhausted(field, partial))
+                self.assertTrue(exhausted(field, complete))
+        self.assertFalse(exhausted({'type': 'number', 'minimum': 0, 'maximum': 1}, {0, 1}))
+
     def test_selection_skips_enum_only_for_matching_gold_history(self):
         field = self.configuration.parameters['model.hidden_size']
         self.configuration.parameters = {'model.hidden_size': field}

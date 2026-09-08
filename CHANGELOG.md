@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.3] - 2026-09-08 @ 01:22
+
+### Fixed
+
+- Respect `multipleOf` when detecting exhausted bounded numeric parameters, so
+  search skips rewards whose legal values have all been used for the current
+  gold configuration instead of repeatedly requesting duplicate proposals.
+
 ## [0.18.2] - 2026-09-08 @ 00:42
 
 ### Changed

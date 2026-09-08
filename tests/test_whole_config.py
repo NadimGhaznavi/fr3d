@@ -138,6 +138,19 @@ class HistoryTests(HistoryFixture, unittest.TestCase):
         self.assertEqual([row['run_id'] for row in report['experiments']], ['2', '3', '5'])
         self.assertNotEqual(parameter, 'model.layers')
 
+    def test_reward_exhaustion_counts_only_legal_multiples_relative_to_gold(self):
+        parameter = 'game.rewards.further_from_food'
+        self.configuration.parameters = {parameter: self.configuration.parameters[parameter]}
+        self.add_run(1)
+        self.add_run(2, self.configuration.candidate(self.baseline, parameter, {'value': -4}))
+        self.assertIsNotNone(select_parameter(self.configuration, self.reports, self.reports.gold()))
+        self.add_run(3, self.configuration.candidate(self.baseline, parameter, {'value': 0}), status='failed')
+        self.assertIsNone(select_parameter(self.configuration, self.reports, self.reports.gold()))
+        new_gold = deepcopy(self.baseline)
+        set_value(new_gold, 'model.hidden_size', 256)
+        self.add_run(4, new_gold, score=20)
+        self.assertIsNotNone(select_parameter(self.configuration, self.reports, self.reports.gold()))
+
     def test_integer_exhaustion_is_relative_to_gold(self):
         for layers in range(1, 17):
             self.add_run(layers, self.configuration.candidate(self.baseline, 'model.layers', {'value': layers}))
