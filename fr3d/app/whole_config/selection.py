@@ -9,6 +9,10 @@ from .configuration import get_value
 def exhausted(field, used):
     if field['type'] != 'integer':
         return False
+    # Enum fields need no range-based exhaustion check (including single choices).
+    if not (('minimum' in field or 'exclusiveMinimum' in field)
+            and ('maximum' in field or 'exclusiveMaximum' in field)):
+        return False
     lower = math.ceil(field['minimum']) if 'minimum' in field else math.floor(field['exclusiveMinimum']) + 1
     upper = math.floor(field['maximum']) if 'maximum' in field else math.ceil(field['exclusiveMaximum']) - 1
     return sum(lower <= value <= upper for value in used) == upper - lower + 1
