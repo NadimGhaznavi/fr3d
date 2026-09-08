@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.1] - 2026-09-08 @ 17:35
+
 ### Changed
 
 - Explore `game.rewards.closer_to_food` and `game.rewards.further_from_food` as
