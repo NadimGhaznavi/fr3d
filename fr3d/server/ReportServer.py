@@ -16,6 +16,7 @@ from starlette.routing import Route
 import uvicorn
 
 from fr3d.reporting.snapshots import ReportSnapshots
+from fr3d.server.prompt_markdown import markdown_companion, message_samples
 
 
 LOG = logging.getLogger(__name__)
@@ -138,12 +139,14 @@ def latest_prompts(request):
                     for kind in types) + '</ul>'
             content += '<h2>Messages</h2>'
             for message in payload['messages']:
-                content += '<h3>' + escape(message['role']) + '</h3><pre class="message">'
-                content += escape(message.get('content') or '') + '</pre>'
+                content += '<h3>' + escape(message['role']) + '</h3>'
+                content += message_samples(message.get('content') or '')
                 if message.get('tool_calls'):
                     content += '<pre>' + escape(json.dumps(message['tool_calls'], indent=2)) + '</pre>'
+                    content += markdown_companion(message['tool_calls'])
             content += '<h2>Complete request body</h2><pre>' + escape(
                 json.dumps(payload, ensure_ascii=False, allow_nan=False, indent=2)) + '</pre>'
+            content += markdown_companion(payload)
             content += '<p><a href="?format=json">View JSON sample</a></p>'
         else:
             parameters = snapshots.prompt_parameters()

@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Add readable Markdown below JSON samples in prompt reports, including embedded
+  conversation reports, tool calls, and the complete request body.
+
 ## [0.22.6] - 2026-09-09 @ 05:04
 
 ### Changed
