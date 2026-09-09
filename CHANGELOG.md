@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.6] - 2026-09-09 @ 05:04
+
+### Changed
+
+- Display Latest prompts as a parameter-by-type matrix with Initial, Comparison,
+  No reruns, and Invalid value columns. Link each saved type to its latest request,
+  including pair corrections, and show a quiet dash for missing samples.
+
 ## [0.22.5] - 2026-09-09 @ 04:25
 
 ### Changed

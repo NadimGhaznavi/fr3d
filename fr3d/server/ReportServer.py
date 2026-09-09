@@ -21,6 +21,34 @@ from fr3d.reporting.snapshots import ReportSnapshots
 LOG = logging.getLogger(__name__)
 PAGE = Template(Path(__file__).with_name('report.html').read_text(encoding='utf-8'))
 HEADERS = {'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff'}
+PROMPT_COLUMNS = (
+    ('Initial', 'initial'),
+    ('Comparison', 'summary_report'),
+    ('No reruns', 'no_reruns'),
+    ('Invalid value', 'invalid_value'),
+)
+
+
+def prompt_matrix(snapshots, parameters):
+    content = '<table class="prompt-matrix"><thead><tr><th scope="col">Parameter</th>'
+    content += ''.join(f'<th scope="col">{label}</th>' for label, _ in PROMPT_COLUMNS)
+    content += '</tr></thead><tbody>'
+    for parameter in parameters:
+        types = set(snapshots.prompt_types(parameter))
+        content += f'<tr><th scope="row">{escape(parameter)}</th>'
+        for label, kind in PROMPT_COLUMNS:
+            # Pair corrections use parameter-specific template names on disk.
+            if parameter in ('epsilon_pair', 'reward_pair'):
+                kind = {'no_reruns': f'{parameter}_no_reruns',
+                        'invalid_value': f'{parameter}_invalid'}.get(kind, kind)
+            if kind in types:
+                url = f'/prompts/{parameter}/{kind}/'
+                content += (f'<td><a href="{escape(url, quote=True)}" '
+                            f'aria-label="{escape(parameter, quote=True)}: {label}">View</a></td>')
+            else:
+                content += '<td><span class="missing-prompt" aria-label="No saved prompt">—</span></td>'
+        content += '</tr>'
+    return content + '</tbody></table>'
 
 
 def page_response(*, title, metadata, content, refresh_url='/', status=200,
@@ -120,10 +148,9 @@ def latest_prompts(request):
         else:
             parameters = snapshots.prompt_parameters()
             data = {'parameters': parameters}
-            content = '<ul>' + ''.join(
-                f'<li><a href="/prompts/{escape(p, quote=True)}/">{escape(p)}</a></li>'
-                for p in parameters) + '</ul>' if parameters else (
-                    '<p>No prompts have been saved yet. Samples appear as Fr3d sends parameter requests to the LLM.</p>')
+            content = prompt_matrix(snapshots, parameters)
+            if not parameters:
+                content += '<p>No prompts have been saved yet. Samples appear as Fr3d sends parameter requests to the LLM.</p>'
         if wants_json:
             return JSONResponse(data, headers=HEADERS)
     except FileNotFoundError:
