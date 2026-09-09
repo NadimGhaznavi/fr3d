@@ -156,7 +156,12 @@ class RewardPairTests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
                    side_effect=lambda **kw: real(transport=httpx.MockTransport(handler), **kw)):
             result = await Conversation(self.configuration, self.reports).run(REWARD_PAIR, True, report, self.trace)
         self.assertEqual(result, self.candidate(2, -4))
-        self.assertIn(report['table'], sent[0]['messages'][0]['content'])
+        content = sent[0]['messages'][0]['content']
+        self.assertNotIn(report['table'], content)
+        summary = json.loads(content.split('Summary report (JSON):\n', 1)[1])
+        self.assertNotIn('table', summary)
+        self.assertEqual(summary, json.loads(json.dumps(
+            {key: value for key, value in report.items() if key != 'table'})))
         self.assertEqual(sent[0]['tools'][0]['function']['name'], 'submit_reward_pair')
         for request in sent[1:]:
             self.assertIn('submit_reward_pair', request['messages'][-1]['content'])

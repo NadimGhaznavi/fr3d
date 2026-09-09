@@ -113,7 +113,7 @@ class InstallationLifecycleTest(unittest.TestCase):
         self.assertFalse(stale.exists())
         self.assertTrue((self.prefix / "fr3d/server/LLMServer.py").is_file())
         self.assertTrue((self.prefix / "fr3d/mcp-tools/journal_tool/__main__.py").is_file())
-        self.assertTrue((self.prefix / "fr3d/mcp-tools/snakelab_tool/__main__.py").is_file())
+        self.assertFalse((self.prefix / "fr3d/mcp-tools/snakelab_tool").exists())
         self.assertTrue((self.prefix / "fr3d/app_legacy/LearningRateLoop.py").is_file())
         for filename in ("main_loop.py", "conversation.py", "prompts.py", "tools.py", "reports.py",
                          "prompt_data/first_contact.md", "prompt_data/invalid_value.md",
