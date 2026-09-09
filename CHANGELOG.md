@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.15] - 2026-09-09 @ 18:13
+
 ### Fixed
 
 - Resubmit the latest cancelled simulation with its exact recorded configuration,
