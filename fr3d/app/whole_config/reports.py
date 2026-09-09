@@ -2,6 +2,7 @@
 
 from .store import SearchStore
 from .configuration import EPSILON_PAIR, PAIR_PATHS
+from .value_space import availability, finite_values
 
 
 class SearchReports(SearchStore):
@@ -24,7 +25,7 @@ class SearchReports(SearchStore):
         history = self.history(gold, parameter)
         if parameter in PAIR_PATHS:
             return self.pair_report(gold, history, parameter)
-        return {
+        report = {
             'parameter': parameter,
             'constraints': self.configuration.parameters[parameter],
             'gold': gold,
@@ -33,6 +34,13 @@ class SearchReports(SearchStore):
                 for row in history if row['status'] == 'completed'
             ],
         }
+
+        field = self.configuration.parameters[parameter]
+        if availability(field, set())[0] is not None:
+            used = {row['value'] for row in history}
+            used.add(self.configuration.value(gold['config'], parameter))
+            report['untested_grid_values'] = [value for value in finite_values(field) if value not in used]
+        return report
 
     def pair_report(self, gold, history, parameter=EPSILON_PAIR):
         if self.configuration.legal_pairs(gold['config'], parameter) is None:
@@ -71,6 +79,7 @@ class SearchReports(SearchStore):
             'gold': gold,
             'allowed_values': dict(zip(names, (row_values, column_values))),
             'eligible_pairs': [self.configuration.pair_arguments(parameter, pair) for pair in eligible],
+            'untested_grid_values': [self.configuration.pair_arguments(parameter, pair) for pair in eligible],
             'table': '\n'.join(table),
             'experiments': [
                 {'run_id': row['run_id'], **self.configuration.pair_arguments(parameter, row['value']),
