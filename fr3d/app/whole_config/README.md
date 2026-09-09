@@ -26,13 +26,16 @@ its own submission tool and prompt, with shared search and reporting behavior.
    cursor once; dialogue retries stay within that turn. Gold changes preserve
    the cursor, and restart begins at the first dimension. No cursor is persisted.
 5. Only then does `SearchReports.parameter_report()` fetch matching episode scores.
-   Individual-parameter reports retain their existing format. The pair report adds
+   Individual-parameter reports include `automatic_value` when only one unused
+   finite value remains. The pair report adds
    schema-derived axes, an explicit eligible-pair list, and a Markdown score table
    for finite grids. Continuous epsilon reports list recorded pairs with bounds,
    run IDs, scores, and statuses; their grid and eligible-pair list are `null`.
    Untested cells have no recorded experiment; used cells without scores show
    status. Multiple runs in a cell retain individual results and run IDs.
-6. The sole remaining eligible finite pair bypasses the LLM. Multiple finite
+6. The sole remaining eligible finite value or pair bypasses the LLM. Fr3d builds
+   the configuration from the active gold baseline and submits it directly.
+   All recorded run statuses reserve values. Multiple finite
    pairs and continuous pairs use a
    dedicated prompt and either `submit_epsilon_pair(initial, decay)` or
    `submit_reward_pair(closer_to_food, further_from_food)`. Both

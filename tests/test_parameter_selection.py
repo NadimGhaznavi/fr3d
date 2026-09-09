@@ -117,11 +117,12 @@ class SelectionLoopTests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
         self.trace = Mock()
 
     async def test_report_is_built_only_for_selected_parameter_and_passed_unchanged(self):
-        parameter = 'model.hidden_size'
-        self.conversation.run.return_value = self.configuration.candidate(self.baseline, parameter, {'value': 256})
+        parameter = 'training.sequence_length'
+        self.conversation.run.return_value = self.configuration.candidate(self.baseline, parameter, {'value': 4})
         loop = SearchLoop(self.backend, self.configuration, conversation=self.conversation,
                           archive=Mock(), trace_factory=lambda: self.trace, store=self.store,
-                          selector=lambda *a, **kw: select_parameter(*a, **kw, choose=lambda items: items[0]))
+                          selector=lambda *a, **kw: select_parameter(*a, **kw, choose=lambda items: next(
+                              item for item in items if item.parameter == parameter)))
         with patch.object(loop.reports, 'parameter_report', wraps=loop.reports.parameter_report) as report:
             self.assertEqual(await loop.run_once(), 'submitted')
         report.assert_called_once_with(loop.gold, parameter)

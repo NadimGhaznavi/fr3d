@@ -2,7 +2,7 @@
 
 from copy import deepcopy
 import unittest
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, patch
 
 from test_whole_config import HistoryFixture
 from fr3d.app.whole_config.configuration import set_value
@@ -46,10 +46,7 @@ class BacktrackingTests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.loop.baseline['run_id'], '1')
         self.assertEqual(self.loop.dead_ends, {'2'})
         self.backend.submit_simulation.assert_called_once_with(candidate)
-        report = self.conversation.run.call_args.args[2]
-        self.assertEqual(report['gold']['config'], previous)
-        self.assertEqual(report['best_gold']['high_score'], 44)
-        self.assertIn('active search baseline', report['search_context'])
+        self.conversation.run.assert_not_awaited()
         self.archive.save.assert_not_called()
         self.assertIn('gold_backtracked', [c.args[0] for c in self.trace.record.call_args_list])
 
@@ -62,7 +59,7 @@ class BacktrackingTests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await self.loop.run_once(), 'exhausted')
         self.assertEqual(self.loop.gold['high_score'], 44)
         self.assertEqual(self.loop.dead_ends, {'1', '2'})
-        self.assertEqual(self.conversation.run.await_count, 1)
+        self.conversation.run.assert_not_awaited()
         self.archive.save.assert_not_called()
         # Restart reconstructs the same dead ends without needing an archive file.
         restarted = self.make_loop()
@@ -83,9 +80,9 @@ class BacktrackingTests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
 
     async def test_changes_outside_active_parameter_still_fail(self):
         self.history()
-        self.conversation.run.return_value = self.configuration.candidate(
+        invalid = self.configuration.candidate(
             self.baseline, 'model.hidden_size', {'value': 256})
-        with self.assertRaisesRegex(ValueError, 'exactly'):
+        with patch.object(self.configuration, 'candidate', return_value=invalid), self.assertRaisesRegex(ValueError, 'exactly'):
             await self.loop.run_once()
         self.backend.submit_simulation.assert_not_called()
 
