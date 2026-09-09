@@ -47,16 +47,23 @@ class SearchLoop:
         reasoning = MyLog('ConfigSearchReasoning', DDirDef.SERVER_LOGS / DFileDef.LLM_REASONING_LOG, to_console=False)
         return DecisionTrace(interactions, prompt_logger=interactions, reasoning_logger=reasoning)
 
-    async def _submit(self, config, trace, parameter=None):
+    async def _submit(self, config, trace, parameter=None, *, cancelled_run_id=None):
         if await asyncio.to_thread(self.experiments.is_simulation_running):
             return 'waiting'
-        if await asyncio.to_thread(self.store.already_used, config):
+        if cancelled_run_id is not None:
+            # Retry the recorded configuration exactly, bypassing duplicate checks
+            # only for this explicit cancellation recovery path.
+            config = await asyncio.to_thread(self.store.cancelled_config, cancelled_run_id)
+        elif await asyncio.to_thread(self.store.already_used, config):
             trace.record('duplicate_rejected', parameter=parameter)
             return 'duplicate_rejected'
         result = await asyncio.to_thread(self.experiments.submit_simulation, config)
         if result.get('state') != 'queued' or not isinstance(result.get('run_id'), str) or not result['run_id']:
             raise ValueError(f'Invalid Snake Lab submission confirmation: {result!r}')
         self.pending_run_id = result['run_id']
+        if cancelled_run_id is not None:
+            trace.record('cancelled_run_resubmitted', cancelled_run_id=cancelled_run_id,
+                         run_id=self.pending_run_id)
         pair_values = (self.configuration.pair_arguments(parameter, self.configuration.value(config, parameter))
                        if parameter in PAIR_PATHS else {})
         trace.record('experiment_submitted', parameter=parameter, run_id=self.pending_run_id, **pair_values)
@@ -112,9 +119,10 @@ class SearchLoop:
         runs = await asyncio.to_thread(self.store.runs)
         if self.pending_run_id is not None:
             pending = next((row for row in runs if row['run_id'] == self.pending_run_id), None)
-            if pending is None or pending['status'] != 'completed':
+            if pending is None or (pending['status'] != 'completed' and not (
+                    pending['status'] == 'cancelled' and pending['run_id'] == runs[-1]['run_id'])):
                 raise RuntimeError(f'Simulation {self.pending_run_id} did not complete successfully: {pending}')
-        if runs and runs[-1]['status'] in ('failed', 'cancelled'):
+        if runs and runs[-1]['status'] == 'failed':
             raise RuntimeError(f'Simulation {runs[-1]["run_id"]} {runs[-1]["status"]}')
         if any(row['status'] != 'completed' for row in runs if row['status'] not in ('failed', 'cancelled')):
             raise RuntimeError('Snake Lab is idle but its database contains an unfinished simulation')
@@ -123,6 +131,9 @@ class SearchLoop:
         trace.record('decision_started')
         outcome = 'failed'
         try:
+            if runs and runs[-1]['status'] == 'cancelled':
+                outcome = await self._submit(None, trace, cancelled_run_id=runs[-1]['run_id'])
+                return outcome
             if not runs:
                 outcome = await self._submit(self.configuration.baseline(), trace)
                 return outcome
