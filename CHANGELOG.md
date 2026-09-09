@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.15] - 2026-09-09 @ 18:13
+
+### Fixed
+
+- Resubmit the latest cancelled simulation with its exact recorded configuration,
+  including after restart. Preserve pending convergence accounting until the retry
+  completes; failed simulations still stop Fr3d.
+
 ## [0.22.14] - 2026-09-09 @ 17:54
 
 ### Changed

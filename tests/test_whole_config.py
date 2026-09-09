@@ -269,14 +269,46 @@ class LoopTests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
             await self.loop.run_once()
         self.backend.submit_simulation.assert_not_called()
 
-    async def test_pending_run_missing_or_cancelled_is_an_error(self):
+    async def test_pending_run_missing_or_failed_is_an_error(self):
         self.loop.pending_run_id = 'missing'
         with self.assertRaises(RuntimeError):
             await self.loop.run_once()
-        self.add_run(1, status='cancelled')
+        self.add_run(1, status='failed')
         self.loop.pending_run_id = '1'
         with self.assertRaises(RuntimeError):
             await self.loop.run_once()
+
+    async def test_cancelled_run_resubmits_exact_config_on_restart_and_in_process(self):
+        config = deepcopy(self.baseline)
+        config['seed'] += 1
+        self.add_run(1, config, status='cancelled')
+        for pending in (None, '1'):
+            with self.subTest(pending=pending):
+                self.loop.pending_run_id = pending
+                self.loop.pending_tweak = ('model.hidden_size', 10)
+                self.loop.pending_cycle_end = True
+                self.backend.submit_simulation.reset_mock()
+                self.backend.submit_simulation.return_value = {'state': 'queued', 'run_id': '2'}
+                self.assertEqual(await self.loop.run_once(), 'submitted')
+                self.backend.submit_simulation.assert_called_once_with(config)
+                self.assertEqual(self.loop.pending_run_id, '2')
+                self.assertEqual(self.loop.pending_tweak, ('model.hidden_size', 10))
+                self.assertTrue(self.loop.pending_cycle_end)
+                self.conversation.run.assert_not_awaited()
+                self.archive.save.assert_not_called()
+
+    async def test_cancelled_retry_rechecks_busy_and_requires_confirmation(self):
+        self.add_run(1, status='cancelled')
+        self.loop.pending_run_id = '1'
+        self.backend.is_simulation_running.side_effect = [False, True]
+        self.assertEqual(await self.loop.run_once(), 'waiting')
+        self.assertEqual(self.loop.pending_run_id, '1')
+        self.backend.submit_simulation.assert_not_called()
+        self.backend.is_simulation_running.side_effect = None
+        self.backend.submit_simulation.return_value = {'state': 'rejected'}
+        with self.assertRaises(ValueError):
+            await self.loop.run_once()
+        self.assertEqual(self.loop.pending_run_id, '1')
 
     async def test_llm_failure_and_changes_to_other_parameters_crash(self):
         parameter = 'training.sequence_length'
