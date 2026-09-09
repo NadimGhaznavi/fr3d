@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Log incomplete LLM tool-call responses as errors and retry the same parameter
+  request instead of stopping Fr3d, including when generation exhausts its output
+  token budget. Pause between retries and renew the timeout for each attempt.
+
 ## [0.22.9] - 2026-09-09 @ 06:10
 
 ## [0.22.8] - 2026-09-09

@@ -58,7 +58,7 @@ class Conversation:
         url = os.environ.get('LLAMA_URL', 'http://127.0.0.1:51970').rstrip('/')
         trace.record('prompt_started', prompt=opening.number, task=f'Explore {parameter}',
                      timeout_s=DFr3d.PROMPT_TIMEOUT)
-        async with asyncio.timeout(DFr3d.PROMPT_TIMEOUT), httpx.AsyncClient(timeout=DFr3d.PROMPT_TIMEOUT) as client:
+        async with asyncio.timeout(DFr3d.PROMPT_TIMEOUT) as deadline, httpx.AsyncClient(timeout=DFr3d.PROMPT_TIMEOUT) as client:
             while True:
                 self.context.prepare(payload, current, trace)
                 if self.snapshots is not None:
@@ -75,9 +75,21 @@ class Conversation:
                 self.context.observe(body, payload, trace)
                 choice = body['choices'][0]
                 message = choice['message']
-                calls = message.get('tool_calls', [])
+                calls = message.get('tool_calls') or []
                 if choice.get('finish_reason') != 'tool_calls' or len(calls) != 1:
-                    raise ValueError('Expected exactly one completed parameter tool call')
+                    trace.record(
+                        'llm_response_rejected', level='error', parameter=parameter,
+                        request_number=number, finish_reason=choice.get('finish_reason'),
+                        tool_call_count=len(calls),
+                        message='Expected exactly one completed parameter tool call; retrying',
+                    )
+                    # Keep the current task and correction history, but never add
+                    # unfinished reasoning or incomplete tool calls to the retry.
+                    # A long generation must not consume the next attempt's budget.
+                    deadline.reschedule(asyncio.get_running_loop().time()
+                                        + DFr3d.FR3D_POLL_INTERVAL + DFr3d.PROMPT_TIMEOUT)
+                    await asyncio.sleep(DFr3d.FR3D_POLL_INTERVAL)
+                    continue
                 call = calls[0]
                 if call['type'] != 'function' or call['function']['name'] != tool_name:
                     raise ValueError(f'Expected {tool_name}')
