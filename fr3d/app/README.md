@@ -49,7 +49,14 @@ submissions belong to that loop's prompt conversation. No second decision loop r
 - `/`: most recent saved parameter summary supplied to the LLM, displayed as
   indented JSON. Refresh loads the newest available summary.
 - `/reports/<snapshot-id>/`: the saved report for a particular conversation.
-- Add `?format=json` to either URL for a JSON response.
+- `/prompts/`: parameters with saved LLM requests. Open a parameter to select
+  its initial, summary, or correction prompt. Each type retains its latest sample,
+  including the full request after context trimming.
+- `/prompts/<parameter>/<prompt-type>/`: the latest sample of that prompt type.
+- Add `?format=json` to any of these URLs for a JSON response.
+
+Prompt types appear as requests occur; previously overwritten samples cannot be
+recovered. Existing unclassified samples remain available on the parameter page.
 
 The page preserves the report's fields and values, including `null`; it does not
 convert JSON to Markdown, regenerate a report, or query the database. Before a

@@ -28,20 +28,29 @@ class ReportSnapshots:
     def valid_parameter(parameter):
         return isinstance(parameter, str) and bool(re.fullmatch(r'[a-z][a-z0-9_.]{0,127}', parameter))
 
-    def save_prompt(self, parameter, payload):
-        """Replace one sample per parameter. Inspection must not stop exploration."""
+    def save_prompt(self, parameter, payload, prompt_type=None):
+        """Keep the latest request and one sample per type without stopping exploration."""
         temporary = None
         try:
             if not self.valid_parameter(parameter):
                 raise ValueError('Invalid parameter')
+            if prompt_type is not None and not self.valid_parameter(prompt_type):
+                raise ValueError('Invalid prompt type')
             directory = self.directory / 'prompts'
             content = to_json({'parameter': parameter,
+                               'prompt_type': prompt_type,
                                'saved_at': datetime.now(timezone.utc).isoformat(),
                                'payload': payload})
             directory.mkdir(parents=True, exist_ok=True)
             temporary = directory / (uuid.uuid4().hex + '.tmp')
             temporary.write_text(content, encoding='utf-8')
             temporary.replace(directory / (parameter + '.json'))
+            if prompt_type is not None:
+                typed_directory = directory / parameter
+                typed_directory.mkdir(parents=True, exist_ok=True)
+                temporary = typed_directory / (uuid.uuid4().hex + '.tmp')
+                temporary.write_text(content, encoding='utf-8')
+                temporary.replace(typed_directory / (prompt_type + '.json'))
         except (OSError, ValueError, TypeError):
             logging.getLogger(__name__).exception('Could not save latest prompt for %s', parameter)
         finally:
@@ -55,10 +64,23 @@ class ReportSnapshots:
         return sorted(path.stem for path in (self.directory / 'prompts').glob('*.json')
                       if self.valid_parameter(path.stem))
 
-    def load_prompt(self, parameter):
+    def prompt_types(self, parameter):
         if not self.valid_parameter(parameter):
             raise FileNotFoundError('Unknown parameter')
-        return json.loads((self.directory / 'prompts' / (parameter + '.json')).read_text(encoding='utf-8'))
+        return sorted(path.stem for path in (self.directory / 'prompts' / parameter).glob('*.json')
+                      if self.valid_parameter(path.stem))
+
+    def load_prompt(self, parameter, prompt_type=None):
+        if not self.valid_parameter(parameter):
+            raise FileNotFoundError('Unknown parameter')
+        directory = self.directory / 'prompts'
+        if prompt_type is not None:
+            if not self.valid_parameter(prompt_type):
+                raise FileNotFoundError('Unknown prompt type')
+            path = directory / parameter / (prompt_type + '.json')
+        else:
+            path = directory / (parameter + '.json')
+        return json.loads(path.read_text(encoding='utf-8'))
 
     def load(self, identity):
         if not self.valid_identity(identity):

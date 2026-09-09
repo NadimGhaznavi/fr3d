@@ -43,6 +43,7 @@ class Conversation:
             'tools': [SUBMIT_EPSILON_DECAY], 'tool_choice': 'required',
             'parallel_tool_calls': False,
         }
+        prompt_type = 'initial' if prompt.number == 'first_contact' else prompt.number
         headers = {}
         if key := os.environ.get('LLAMA_API_KEY'):
             headers['Authorization'] = f'Bearer {key}'
@@ -54,7 +55,7 @@ class Conversation:
             while True:
                 self.context.prepare(payload, current_prompt, trace)
                 if self.snapshots is not None:
-                    await asyncio.to_thread(self.snapshots.save_prompt, 'epsilon.decay', payload)
+                    await asyncio.to_thread(self.snapshots.save_prompt, 'epsilon.decay', payload, prompt_type)
                 number = trace.next_request()
                 trace.record('llm_request', request_number=number, payload=payload)
                 started = time.monotonic()
@@ -110,6 +111,7 @@ class Conversation:
                     warning = no_reruns()
                     reason = f'Epsilon decay {value} has already been used with learning_rate=0.00021.'
                     trace.record('duplicate_rejected', request_number=number, epsilon_decay=value)
+                prompt_type = warning.number
                 self.context.messages.extend([
                     {**message, 'role': 'assistant'},
                     {'role': 'tool', 'tool_call_id': call_id,

@@ -121,6 +121,28 @@ class ReportServerTest(unittest.TestCase):
         self.assertIn('no-store', response.headers['cache-control'])
         self.assertEqual(self.client.get('/prompts/training.learning_rate/?format=json').json()['payload'], latest)
 
+    def test_prompt_types_survive_retries_and_reload(self):
+        parameter = 'training.learning_rate'
+        for kind, text in [('initial', 'initial request'), ('summary_report', 'summary'),
+                           ('invalid_value', 'retry'), ('summary_report', 'new summary')]:
+            self.store.save_prompt(parameter, {'messages': [{'role': 'user', 'content': text}]}, kind)
+        store = ReportSnapshots(self.store.directory)
+        self.assertEqual(store.prompt_types(parameter), ['initial', 'invalid_value', 'summary_report'])
+        self.assertEqual(store.load_prompt(parameter, 'initial')['payload']['messages'][0]['content'],
+                         'initial request')
+        self.assertEqual(store.load_prompt(parameter, 'summary_report')['payload']['messages'][0]['content'],
+                         'new summary')
+        page = self.client.get(f'/prompts/{parameter}/')
+        self.assertIn(f'/prompts/{parameter}/initial/', page.text)
+        response = self.client.get(f'/prompts/{parameter}/initial/')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('initial request', response.text)
+        self.assertEqual(self.client.get(f'/prompts/{parameter}/invalid_value/?format=json').json()['prompt_type'],
+                         'invalid_value')
+        self.assertEqual(self.client.get(f'/prompts/{parameter}/missing/').status_code, 404)
+        with self.assertRaises(FileNotFoundError):
+            store.load_prompt(parameter, '..')
+
     def test_prompt_empty_missing_corrupt_and_write_failure(self):
         self.assertIn('No prompts have been saved yet', self.client.get('/prompts/').text)
         for parameter in ('unknown', '..'):

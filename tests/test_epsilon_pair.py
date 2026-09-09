@@ -267,6 +267,9 @@ class PairConversationTests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
             self.assertEqual(conversation.context.messages, [])
             snapshot_id = next(c.kwargs['snapshot_id'] for c in trace.record.call_args_list if c.args[0] == 'report_snapshot')
             self.assertEqual(snapshots.load(snapshot_id), json.loads(json.dumps(self.report)))
+            self.assertEqual(snapshots.load_prompt(EPSILON_PAIR, 'initial')['payload'], sent[0])
+            self.assertEqual(snapshots.load_prompt(EPSILON_PAIR, 'epsilon_pair_invalid')['payload'], sent[-2])
+            self.assertEqual(snapshots.load_prompt(EPSILON_PAIR, 'epsilon_pair_no_reruns')['payload'], sent[-1])
         self.assertEqual(len(sent), 5)
         content = sent[0]['messages'][0]['content']
         self.assertIn(self.report['table'], content)
