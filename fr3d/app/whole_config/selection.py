@@ -2,9 +2,10 @@
 
 from dataclasses import dataclass
 from collections import deque
+from fractions import Fraction
 
 from .configuration import PAIR_PATHS
-from .value_space import availability
+from .value_space import availability, finite_values
 
 
 @dataclass(frozen=True)
@@ -18,6 +19,14 @@ class ParameterAssessment:
     @property
     def eligible(self):
         return self.remaining_count != 0
+
+
+@dataclass(frozen=True)
+class ParameterSelection:
+    parameter: str
+    initial: bool
+    remaining_count: int | None
+    automatic_arguments: dict | None
 
 
 def assess_parameters(configuration, store, gold, trace=None):
@@ -124,4 +133,15 @@ def select_parameter(configuration, store, gold, choose=choose_parameter, trace=
                          scope='search_dimension_changes_from_current_gold')
         return None
     initial = selected.completed == {configuration.value(gold['config'], selected.parameter)}
-    return selected.parameter, initial
+    arguments = None
+    if selected.remaining_count == 1:
+        if selected.parameter in PAIR_PATHS:
+            remaining = set(configuration.legal_pairs(gold['config'], selected.parameter)) - selected.used
+            arguments = configuration.pair_arguments(selected.parameter, remaining.pop())
+        else:
+            # Use the same exact numeric comparison as availability().
+            used = {Fraction(str(value)) for value in selected.used}
+            value = next(value for value in finite_values(configuration.parameters[selected.parameter])
+                         if Fraction(str(value)) not in used)
+            arguments = {'value': value}
+    return ParameterSelection(selected.parameter, initial, selected.remaining_count, arguments)

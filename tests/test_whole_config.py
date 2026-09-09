@@ -136,10 +136,11 @@ class HistoryTests(HistoryFixture, unittest.TestCase):
                                     lambda options: choices.extend(options) or options[0])
         self.assertIn('training.sequence_length', [item.parameter for item in choices])
         self.assertIn('training.batch_size', [item.parameter for item in choices])
-        self.assertTrue(selected[1])
+        self.assertTrue(selected.initial)
         self.add_run(5, alternative, score=20)
         gold = self.reports.gold()
-        parameter, initial = select_parameter(self.configuration, self.reports, gold, lambda items: items[0])
+        selected = select_parameter(self.configuration, self.reports, gold, lambda items: items[0])
+        parameter, initial = selected.parameter, selected.initial
         report = self.reports.parameter_report(gold, parameter)
         self.assertTrue(initial)
         self.assertEqual([row['run_id'] for row in report['experiments']], ['2', '3', '5'])
@@ -166,7 +167,7 @@ class HistoryTests(HistoryFixture, unittest.TestCase):
         self.configuration.parameters = {parameter: self.configuration.parameters[parameter]}
         self.assertIsNone(select_parameter(self.configuration, self.reports, self.reports.gold()))
         self.add_run(5, new_gold, score=20)
-        self.assertTrue(select_parameter(self.configuration, self.reports, self.reports.gold())[1])
+        self.assertTrue(select_parameter(self.configuration, self.reports, self.reports.gold()).initial)
 
 
 class LoopTests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
@@ -335,7 +336,7 @@ class ConversationTests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
         self.setup_history()
         self.add_run(1)
         gold = self.reports.gold()
-        parameter, _ = select_parameter(self.configuration, self.reports, gold, lambda rows: rows[0])
+        parameter = select_parameter(self.configuration, self.reports, gold, lambda rows: rows[0]).parameter
         self.report = self.reports.parameter_report(gold, parameter)
 
     @staticmethod

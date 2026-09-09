@@ -67,7 +67,7 @@ class SchemaPromptTests(unittest.IsolatedAsyncioTestCase):
         reports = Mock()
         baseline = {'value': 224, 'completed_count': 1, 'gold_count': 1}
         reports.parameter_values.return_value = [baseline]
-        self.assertEqual(select_parameter(self.configuration, reports, gold)[0], 'model.hidden_size')
+        self.assertEqual(select_parameter(self.configuration, reports, gold).parameter, 'model.hidden_size')
         reports.parameter_values.assert_called_with(gold, 'model.hidden_size')
         for status in ('completed', 'failed', 'cancelled', 'queued', 'running'):
             with self.subTest(status=status):
