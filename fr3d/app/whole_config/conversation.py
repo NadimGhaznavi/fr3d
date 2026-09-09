@@ -51,6 +51,7 @@ class Conversation:
             'tools': [tool], 'tool_choice': 'required',
             'parallel_tool_calls': False,
         }
+        prompt_type = ('initial' if initial else 'summary_report')
         headers = {}
         if key := os.environ.get('LLAMA_API_KEY'):
             headers['Authorization'] = f'Bearer {key}'
@@ -61,7 +62,7 @@ class Conversation:
             while True:
                 self.context.prepare(payload, current, trace)
                 if self.snapshots is not None:
-                    await asyncio.to_thread(self.snapshots.save_prompt, parameter, payload)
+                    await asyncio.to_thread(self.snapshots.save_prompt, parameter, payload, prompt_type)
                 number = trace.next_request()
                 trace.record('llm_request', request_number=number, payload=payload)
                 started = time.monotonic()
@@ -99,6 +100,7 @@ class Conversation:
                     correction = prompt(f'{parameter}_no_reruns' if pair else 'no_reruns')
                     reason = 'The complete proposed configuration already exists.'
                     trace.record('duplicate_rejected', parameter=parameter)
+                prompt_type = correction.number
                 self.context.messages.extend([
                     {**message, 'role': 'assistant'},
                     {'role': 'tool', 'tool_call_id': call['id'],

@@ -90,6 +90,8 @@ class DecisionTrace:
                 *(reasoning_blocks or ["No separate reasoning returned."]),
                 *(response_blocks or ["No response content returned."]),
             ]))
+            DIV = 70 * '─' + '\n'
+            self.reasoning_log.info(DIV)
         elif event in ("lookup_result", "submission_result"):
             self.prompt_log.info(json.dumps(record, ensure_ascii=True))
             result = fields.get("result", {})
