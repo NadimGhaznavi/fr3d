@@ -41,7 +41,7 @@ class SelectionTests(HistoryFixture, unittest.TestCase):
         gold = self.store.gold()
         with patch.object(self.store, '_query', wraps=self.store._query) as query:
             selected = select_parameter(self.configuration, self.store, gold, lambda items: items[0])
-        self.assertEqual(selected, ('model.hidden_size', True))
+        self.assertEqual((selected.parameter, selected.initial), ('model.hidden_size', True))
         self.assertEqual(query.call_count, len(self.configuration.parameters))
         for invocation in query.call_args_list:
             self.assertNotIn('simulation_episodes', invocation.args[0])
@@ -62,7 +62,8 @@ class SelectionTests(HistoryFixture, unittest.TestCase):
         new_gold = deepcopy(self.baseline)
         set_value(new_gold, 'model.hidden_size', 256)
         self.add_run(4, new_gold, score=50)
-        self.assertEqual(select_parameter(self.configuration, self.store, self.store.gold()), (parameter, True))
+        selected = select_parameter(self.configuration, self.store, self.store.gold())
+        self.assertEqual((selected.parameter, selected.initial), (parameter, True))
 
     def test_missing_gold_is_an_error_even_if_values_are_exhausted(self):
         self.restrict('model.hidden_size')
@@ -80,7 +81,7 @@ class SelectionTests(HistoryFixture, unittest.TestCase):
         self.add_run(4, self.configuration.candidate(self.baseline, 'training.batch_size', {'value': 8}), status='failed')
         choose = Mock(side_effect=lambda items: items[0])
         selected = select_parameter(self.configuration, self.store, self.store.gold(), choose)
-        self.assertEqual(selected, ('training.sequence_length', False))
+        self.assertEqual((selected.parameter, selected.initial), ('training.sequence_length', False))
         self.assertEqual([a.parameter for a in choose.call_args.args[0]], ['training.sequence_length', 'training.batch_size'])
         self.add_run(5, self.configuration.candidate(self.baseline, 'training.batch_size', {'value': 8}))
         select_parameter(self.configuration, self.store, self.store.gold(), choose)

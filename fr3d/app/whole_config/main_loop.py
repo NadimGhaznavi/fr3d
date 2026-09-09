@@ -179,32 +179,23 @@ class SearchLoop:
             if selected is None:
                 outcome = 'exhausted'
                 return outcome
-            parameter, initial = selected
+            parameter = selected.parameter
+            source = 'automatic' if selected.automatic_arguments is not None else 'llm'
             trace.record('parameter_selected', parameter=parameter, baseline_run_id=self.baseline['run_id'],
-                         best_gold_run_id=self.gold['run_id'])
-            report = await asyncio.to_thread(self.reports.parameter_report, self.baseline, parameter)
-            if self.baseline['run_id'] != self.gold['run_id']:
-                # Keep the conversation's candidate base in its existing gold field.
-                report['best_gold'] = self.gold
-                report['search_context'] = (
-                    'The gold field is the previous gold used as the active search baseline. '
-                    'Best-ever gold is retained separately in best_gold. Change only the '
-                    'selected search dimension from the active search baseline.')
-            source = 'llm'
-            if (parameter in PAIR_PATHS and report['eligible_pairs'] is not None
-                    and len(report['eligible_pairs']) <= 1):
-                if not report['eligible_pairs']:
-                    trace.record('dimension_exhausted', parameter=parameter, baseline_run_id=self.baseline['run_id'])
-                    outcome = 'dimension_exhausted'
-                    return outcome
-                source = 'automatic'
-                config = self.configuration.candidate(self.baseline['config'], parameter, report['eligible_pairs'][0])
-            elif parameter not in PAIR_PATHS and 'automatic_value' in report:
-                source = 'automatic'
+                         best_gold_run_id=self.gold['run_id'], remaining_count=selected.remaining_count,
+                         source=source)
+            if selected.automatic_arguments is not None:
                 config = self.configuration.candidate(
-                    self.baseline['config'], parameter, {'value': report['automatic_value']})
+                    self.baseline['config'], parameter, selected.automatic_arguments)
             else:
-                config = await self.conversation.run(parameter, initial, report, trace)
+                report = await asyncio.to_thread(self.reports.parameter_report, self.baseline, parameter)
+                if self.baseline['run_id'] != self.gold['run_id']:
+                    report['best_gold'] = self.gold
+                    report['search_context'] = (
+                        'The gold field is the previous gold used as the active search baseline. '
+                        'Best-ever gold is retained separately in best_gold. Change only the '
+                        'selected search dimension from the active search baseline.')
+                config = await self.conversation.run(parameter, selected.initial, report, trace)
             # Both decision paths must satisfy the same submission boundary.
             try:
                 self.configuration.validate_changes(self.baseline['config'], config, parameter)

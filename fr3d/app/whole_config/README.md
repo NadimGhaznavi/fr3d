@@ -25,23 +25,16 @@ its own submission tool and prompt, with shared search and reporting behavior.
    pair, skipping exhausted finite grids. Each selected dimension advances the
    cursor once; dialogue retries stay within that turn. Gold changes preserve
    the cursor, and restart begins at the first dimension. No cursor is persisted.
-5. Only then does `SearchReports.parameter_report()` fetch matching episode scores.
-   Individual-parameter reports include `automatic_value` when only one unused
-   finite value remains. The pair report adds
-   schema-derived axes, an explicit eligible-pair list, and a Markdown score table
-   for finite grids. Continuous epsilon reports list recorded pairs with bounds,
-   run IDs, scores, and statuses; their grid and eligible-pair list are `null`.
-   Untested cells have no recorded experiment; used cells without scores show
-   status. Multiple runs in a cell retain individual results and run IDs.
-6. The sole remaining eligible finite value or pair bypasses the LLM. Fr3d builds
-   the configuration from the active gold baseline and submits it directly.
-   All recorded run statuses reserve values. Multiple finite
-   pairs and continuous pairs use a
-   dedicated prompt and either `submit_epsilon_pair(initial, decay)` or
-   `submit_reward_pair(closer_to_food, further_from_food)`. Both
-   arguments are required, at least one value must change, and every field outside
-   the pair stays fixed. Invalid or duplicate calls retry the entire pair within
-   the existing dialogue timeout and context bounds.
+5. Selection returns the parameter, initial-prompt flag, remaining count, and
+   submission arguments when exactly one choice remains. The loop uses this
+   result directly. A sole finite value or pair is applied to the active gold
+   baseline and submitted without building a report or calling the LLM.
+6. Multiple choices and continuous dimensions use the LLM. Only this path calls
+   `SearchReports.parameter_report()` to fetch matching episode scores and format
+   history. Finite pair reports include axes, eligible pairs, and a score table;
+   continuous pairs list observations with bounds and statuses. Reports do not
+   control automatic submission. Pair tools require both arguments, and all
+   fields outside the selected dimension stay fixed.
 7. Both decision paths check numeric types, finite values, bounds, call structure,
    fixed fields, and permitted changes,
    recheck whether Snake Lab is busy, and reject duplicate configurations at the

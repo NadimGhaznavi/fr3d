@@ -146,7 +146,8 @@ class PairHistoryTests(HistoryFixture, unittest.TestCase):
         new = deepcopy(self.baseline)
         set_value(new, 'training.learning_rate', .002)
         self.add_run(20, new, score=40)
-        self.assertEqual(select_parameter(self.configuration, self.reports, self.reports.gold()), (EPSILON_PAIR, True))
+        selected = select_parameter(self.configuration, self.reports, self.reports.gold())
+        self.assertEqual((selected.parameter, selected.initial), (EPSILON_PAIR, True))
 
     def test_pair_and_scalar_selection_preserves_dimension_order(self):
         self.configuration.parameters = {name: self.configuration.parameters[name]
@@ -156,7 +157,7 @@ class PairHistoryTests(HistoryFixture, unittest.TestCase):
         self.assertEqual(len(choose.call_args.args[0]), 2)
         self.add_run(2, self.pair(.91, .95), score=20)
         self.add_run(3, self.pair(.91, .95), score=21)
-        self.assertEqual(select_parameter(self.configuration, self.reports, self.reports.gold(), choose)[0],
+        self.assertEqual(select_parameter(self.configuration, self.reports, self.reports.gold(), choose).parameter,
                          'model.hidden_size')
 
 
@@ -187,7 +188,8 @@ class PairLoopTests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
         self.loop.pending_run_id = None
         self.add_run(1, score=33)
         self.fill()
-        self.assertEqual(await self.loop.run_once(), 'submitted')
+        with patch.object(self.reports, 'parameter_report', side_effect=AssertionError('Report built')):
+            self.assertEqual(await self.loop.run_once(), 'submitted')
         self.conversation.run.assert_not_awaited()
         self.assertEqual(self.backend.submit_simulation.call_args.args[0], self.candidate((.99, .99)))
         selected = next(c.kwargs for c in self.trace.record.call_args_list if c.args[0] == 'epsilon_pair_selected')

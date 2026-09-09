@@ -30,13 +30,31 @@ class V2Tests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
         self.loop = SearchLoop(self.backend, self.configuration, self.reports, self.conversation,
                                archive=Mock(), trace_factory=lambda: self.trace, store=self.reports)
 
+    async def test_sole_hidden_size_uses_selection_without_building_report(self):
+        parameter = 'model.hidden_size'
+        missing = 496
+        for identity, value in enumerate(finite_values(self.configuration.parameters[parameter]), 2):
+            if value not in (self.baseline['model']['hidden_size'], missing):
+                self.add_run(identity, self.configuration.candidate(
+                    self.baseline, parameter, {'value': value}), score=1)
+        with patch.object(self.reports, 'parameter_report', side_effect=AssertionError('Report built')), patch.object(
+                self.loop.store, 'parameter_values', wraps=self.loop.store.parameter_values) as values:
+            self.assertEqual(await self.loop.run_once(), 'submitted')
+        self.assertEqual(sum(call.args[1] == parameter for call in values.call_args_list), 1)
+        self.conversation.run.assert_not_awaited()
+        self.backend.submit_simulation.assert_called_once_with(
+            self.configuration.candidate(self.baseline, parameter, {'value': missing}))
+        selected = next(call.kwargs for call in self.trace.record.call_args_list
+                        if call.args[0] == 'parameter_selected')
+        self.assertEqual((selected['remaining_count'], selected['source']), (1, 'automatic'))
+
     def test_default_schema_and_grid_sizes(self):
         config = Configuration()
         self.assertTrue(config.schema['$id'].endswith('simulation-config-v2.schema.json'))
         self.assertEqual(config.baseline(), self.baseline)
         self.assertEqual(list(config.parameters), ORDER)
         self.assertEqual([availability(config.parameters[p], set())[0] for p in ORDER[:5]],
-                         [15, 16, 16, None, None])
+                     [29, 16, 16, None, None])
         self.assertIsNone(config.legal_pairs(self.baseline))
         self.assertEqual(len(config.legal_pairs(self.baseline, 'reward_pair')), 49)
         for path in ('training.gamma', 'epsilon.initial', 'epsilon.decay'):
@@ -87,8 +105,8 @@ class V2Tests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
         selector = RoundRobinSelector()
         self.add_run(2, self.configuration.candidate(self.baseline, ORDER[0], {'value': 256}))
         gold = self.reports.gold()
-        self.assertEqual([selector(self.configuration, self.reports, gold)[0] for _ in range(14)], ORDER * 2)
-        self.assertEqual(RoundRobinSelector()(self.configuration, self.reports, gold)[0], ORDER[0])
+        self.assertEqual([selector(self.configuration, self.reports, gold).parameter for _ in range(14)], ORDER * 2)
+        self.assertEqual(RoundRobinSelector()(self.configuration, self.reports, gold).parameter, ORDER[0])
 
     def test_finite_exhaustion_skips_but_continuous_rate_remains(self):
         identity = 2
@@ -106,7 +124,7 @@ class V2Tests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
                 identity += 1
         self.add_run(identity, self.configuration.candidate(self.baseline, 'training.learning_rate', {'value': .002123456}))
         selector = RoundRobinSelector()
-        self.assertEqual([selector(self.configuration, self.reports, self.reports.gold())[0] for _ in range(6)],
+        self.assertEqual([selector(self.configuration, self.reports, self.reports.gold()).parameter for _ in range(6)],
                          ['training.learning_rate', 'training.gamma', 'epsilon_pair'] * 2)
         assessed = {a.parameter: a for a in assess_parameters(self.configuration, self.reports, self.reports.gold())}
         self.assertIsNone(assessed['training.learning_rate'].remaining_count)
