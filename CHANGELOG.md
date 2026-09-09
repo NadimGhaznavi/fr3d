@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.5] - 2026-09-09 @ 04:25
+
 ### Changed
 
 - Send pair comparisons to the model as structured JSON experiment records,
