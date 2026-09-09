@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.17] - 2026-09-09 @ 19:16
+
 ### Changed
 
 - Show every fixed parameter value and pair in numeric parameter order in summary
