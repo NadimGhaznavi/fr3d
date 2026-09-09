@@ -123,7 +123,7 @@
           "default": 224,
           "minimum": 64,
           "maximum": 512,
-          "multipleOf": 32,
+          "multipleOf": 16,
           "x-snakelab-unit": "neurons"
         },
         "layers": {
