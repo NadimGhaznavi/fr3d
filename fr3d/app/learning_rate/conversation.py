@@ -37,6 +37,7 @@ class Conversation:
             'tools': [SUBMIT_LR], 'tool_choice': 'required',
             'parallel_tool_calls': False,
         }
+        prompt_type = {'01': 'experiment_report', '02': 'summary_report'}.get(prompt.number, prompt.number)
         headers = {}
         if key := os.environ.get('LLAMA_API_KEY'):
             headers['Authorization'] = f'Bearer {key}'
@@ -48,7 +49,7 @@ class Conversation:
             while True:
                 self.context.prepare(payload, current_prompt, trace)
                 if self.snapshots is not None:
-                    await asyncio.to_thread(self.snapshots.save_prompt, 'training.learning_rate', payload)
+                    await asyncio.to_thread(self.snapshots.save_prompt, 'training.learning_rate', payload, prompt_type)
                 number = trace.next_request()
                 trace.record('llm_request', request_number=number, payload=payload)
                 started = time.monotonic()
@@ -102,6 +103,7 @@ class Conversation:
                     warning = no_reruns()
                     reason = f'Learning rate {rate} has already been used.'
                     trace.record('duplicate_rejected', request_number=number, learning_rate=rate)
+                prompt_type = warning.number
                 self.context.messages.extend([
                     {**message, 'role': 'assistant'},
                     {'role': 'tool', 'tool_call_id': call_id,

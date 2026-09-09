@@ -89,17 +89,26 @@ def unavailable(title, wants_json, refresh_url):
 
 def latest_prompts(request):
     parameter = request.path_params.get('parameter')
+    prompt_type = request.path_params.get('prompt_type')
     wants_json = request.query_params.get('format') == 'json'
     title = f'Latest prompt: {parameter}' if parameter else 'Latest prompts'
+    if prompt_type:
+        title += f' · {prompt_type}'
     status = 200
-    metadata = 'One replaceable sample per parameter conversation, including pairs.'
+    metadata = 'Latest sample of each prompt type for each parameter, including pairs.'
     try:
         snapshots = ReportSnapshots()
         if parameter:
-            data = snapshots.load_prompt(parameter)
-            metadata = f"Saved {data['saved_at']} · {parameter}"
+            data = snapshots.load_prompt(parameter, prompt_type)
+            metadata = f"Saved {data['saved_at']} · {parameter} · {data.get('prompt_type') or 'unclassified'}"
             payload = data['payload']
-            content = '<h2>Messages</h2>'
+            content = '<p><a href="/prompts/">All parameters</a></p>'
+            types = snapshots.prompt_types(parameter)
+            if types:
+                content += '<h2>Prompt types</h2><ul>' + ''.join(
+                    f'<li><a href="/prompts/{escape(parameter, quote=True)}/{escape(kind, quote=True)}/">{escape(kind.replace("_", " ").capitalize())}</a></li>'
+                    for kind in types) + '</ul>'
+            content += '<h2>Messages</h2>'
             for message in payload['messages']:
                 content += '<h3>' + escape(message['role']) + '</h3><pre class="message">'
                 content += escape(message.get('content') or '') + '</pre>'
@@ -130,13 +139,14 @@ def latest_prompts(request):
             return JSONResponse({'detail': 'Could not load saved prompt'}, status_code=status, headers=HEADERS)
     return page_response(title=title, metadata=metadata, content=content,
                          refresh_url=request.url.path, status=status,
-                         description='The latest request prepared for the LLM, including messages, reports and tools. Each new request replaces the previous sample for that parameter.',
+                         description='Saved requests prepared for the LLM, including messages, reports and tools. Each parameter retains the latest sample of every prompt type as it occurs.',
                          refresh_label='Refresh prompts')
 
 
 app = Starlette(routes=[
     Route('/', summary_report, methods=['GET']),
     Route('/prompts/', latest_prompts, methods=['GET']),
+    Route('/prompts/{parameter:str}/{prompt_type:str}/', latest_prompts, methods=['GET']),
     Route('/prompts/{parameter:str}/', latest_prompts, methods=['GET']),
     Route('/reports/{identity:str}/', summary_report, methods=['GET']),
 ])

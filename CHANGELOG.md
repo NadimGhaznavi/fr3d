@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Retain and display the latest sample of each prompt type per parameter, so
+  initial, summary, and correction requests no longer overwrite one another.
+
 ## [0.22.2] - 2026-09-08 @ 20:17
 
 ### Added
