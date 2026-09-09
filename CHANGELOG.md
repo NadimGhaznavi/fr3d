@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.12] - 2026-09-09 @ 17:25
+
+### Changed
+
+- Decide automatic submissions from parameter selection's availability result.
+  Sole remaining scalar values and pairs bypass report construction and the LLM;
+  reports no longer recalculate scalar availability to control submission.
+
 ## [0.22.11] - 2026-09-09 @ 16:57
 
 ### Changed

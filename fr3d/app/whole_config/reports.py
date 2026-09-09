@@ -2,7 +2,6 @@
 
 from .store import SearchStore
 from .configuration import EPSILON_PAIR, PAIR_PATHS
-from .value_space import availability, finite_values
 
 
 class SearchReports(SearchStore):
@@ -25,7 +24,7 @@ class SearchReports(SearchStore):
         history = self.history(gold, parameter)
         if parameter in PAIR_PATHS:
             return self.pair_report(gold, history, parameter)
-        report = {
+        return {
             'parameter': parameter,
             'constraints': self.configuration.parameters[parameter],
             'gold': gold,
@@ -34,14 +33,6 @@ class SearchReports(SearchStore):
                 for row in history if row['status'] == 'completed'
             ],
         }
-        used = {row['value'] for row in history}
-        used.add(self.configuration.value(gold['config'], parameter))
-        field = self.configuration.parameters[parameter]
-        if availability(field, used)[1] == 1:
-            remaining = set(finite_values(field)) - used
-            if len(remaining) == 1:
-                report['automatic_value'] = remaining.pop()
-        return report
 
     def pair_report(self, gold, history, parameter=EPSILON_PAIR):
         if self.configuration.legal_pairs(gold['config'], parameter) is None:
