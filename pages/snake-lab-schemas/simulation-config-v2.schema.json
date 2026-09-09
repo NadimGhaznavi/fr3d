@@ -122,7 +122,7 @@
           "type": "integer",
           "default": 224,
           "minimum": 64,
-          "maximum": 512,
+          "maximum": 384,
           "multipleOf": 16,
           "x-snakelab-unit": "neurons"
         },
