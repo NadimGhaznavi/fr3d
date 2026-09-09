@@ -12,7 +12,6 @@ from fr3d.constants.DSnakeLab import DSnakeLab
 from fr3d.server.Fr3dServer import Fr3dServer
 from fr3d.zmq.ZMQClient import ZMQClient
 from fr3d.zmq.ZMQMsg import ZMQMsg
-from snakelab_tool.server import mcp
 
 
 class LearningRateZMQTest(unittest.IsolatedAsyncioTestCase):
@@ -91,37 +90,17 @@ class LearningRateZMQTest(unittest.IsolatedAsyncioTestCase):
                 peer.close()
                 context.term()
 
-    async def test_mcp_exposes_and_forwards_only_learning_rate(self):
-        tools = await mcp.list_tools()
-        self.assertEqual({tool.name for tool in tools}, {"submit_learning_rate", "view_latest_report", "view_best_worst_report"})
-        tool = next(tool for tool in tools if tool.name == "submit_learning_rate")
-        self.assertEqual(tool.name, "submit_learning_rate")
-        self.assertEqual(tool.input_schema["required"], ["learning_rate"])
-        self.assertEqual(list(tool.input_schema["properties"]), ["learning_rate"])
-        with patch("snakelab_tool.server.SnakeLabTool") as factory:
-            factory.return_value.submit_learning_rate = AsyncMock(return_value='{"status":"ok"}')
-            result = await mcp.call_tool("submit_learning_rate", {"learning_rate": .003})
-            self.assertFalse(result.is_error)
-            factory.return_value.submit_learning_rate.assert_awaited_once_with(.003)
-
-    async def test_mcp_latest_report_through_zmq_without_automation(self):
+    async def test_latest_report_through_zmq_without_automation(self):
         config = {"epochs": 1, "seed": 1970, "training": {"learning_rate": .002}}
         runs = [Experiment(i, "test", config, (Episode(1, i, .1),)) for i in (1, 2, 3)]
-        tools = await mcp.list_tools()
-        tool = next(tool for tool in tools if tool.name == "view_latest_report")
-        self.assertEqual(tool.input_schema.get("properties", {}), {})
         with patch("fr3d.zmq.ZMQServer.MyLog"):
             server = Fr3dServer(port=0, log_file=None, learning_rate_enabled=False)
         with patch.object(server, "snake_lab_request") as snake_request, patch(
             "fr3d.app_legacy.LearningRateReport.LearningRateReport.load_experiments", return_value=runs,
-        ) as load, patch(
-            "snakelab_tool.server.SnakeLabTool", return_value=SnakeLabTool(server.endpoint),
-        ):
+        ) as load:
             task = asyncio.create_task(server.run())
             try:
-                result = await mcp.call_tool("view_latest_report", {})
-                self.assertFalse(result.is_error)
-                payload = json.loads(result.content[0].text)
+                payload = json.loads(await SnakeLabTool(server.endpoint).view_latest_report())
                 self.assertEqual(payload, {"status": "ok", "report": server.report.render_report(runs)})
                 load.assert_called_once_with(limit=3)
                 self.assertIsNone(server.learning_rate_loop)
@@ -161,20 +140,14 @@ class LearningRateZMQTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(result, {"status": "ok", "report": "report"})
             self.assertIs(server.learning_rate_loop.pending_config, pending)
 
-    async def test_best_worst_report_mcp_to_zmq_is_read_only(self):
+    async def test_best_worst_report_zmq_is_read_only(self):
         with patch("fr3d.zmq.ZMQServer.MyLog"):
             server = Fr3dServer(port=0, log_file=None, learning_rate_enabled=False)
-        with patch("fr3d.server.Fr3dServer.generate_best_worst_report", return_value={"top_10": [], "bottom_10": []}) as generate, patch(
-            "snakelab_tool.server.SnakeLabTool", return_value=SnakeLabTool(server.endpoint),
-        ), patch.object(server, "snake_lab_request") as snake_request:
+        with patch("fr3d.server.Fr3dServer.generate_best_worst_report", return_value={"top_10": [], "bottom_10": []}) as generate, patch.object(server, "snake_lab_request") as snake_request:
             task = asyncio.create_task(server.run())
             try:
-                tools = await mcp.list_tools()
-                tool = next(tool for tool in tools if tool.name == "view_best_worst_report")
-                self.assertEqual(tool.input_schema.get("properties", {}), {})
-                result = await mcp.call_tool("view_best_worst_report", {})
-                self.assertFalse(result.is_error)
-                self.assertEqual(json.loads(result.content[0].text), {"status": "ok", "report": {"top_10": [], "bottom_10": []}})
+                result = json.loads(await SnakeLabTool(server.endpoint).view_best_worst_report())
+                self.assertEqual(result, {"status": "ok", "report": {"top_10": [], "bottom_10": []}})
                 generate.assert_called_once_with()
                 invalid = await server.view_best_worst_report(ZMQMsg("test", "view_best_worst_report", payload={"limit": 2}))
                 self.assertEqual(invalid["error"]["code"], "invalid_request")

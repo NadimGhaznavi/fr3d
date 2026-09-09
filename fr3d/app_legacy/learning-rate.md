@@ -93,8 +93,7 @@ them as context alongside the comparable runs above. Then submit your learning r
 
 ## Response Tool
 
-Submit your proposed learning rate through the `snakelab_tool` MCP tool
-`submit_learning_rate`, using the numeric argument `learning_rate`.
+Submit your proposed learning rate through the `submit_learning_rate` function tool, using the numeric argument `learning_rate`.
 Supply only `learning_rate`, a number greater than zero and at most one.
 Fr3d validates the value and starts the next experiment.
 

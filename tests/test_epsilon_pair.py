@@ -272,7 +272,11 @@ class PairConversationTests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
             self.assertEqual(snapshots.load_prompt(EPSILON_PAIR, 'epsilon_pair_no_reruns')['payload'], sent[-1])
         self.assertEqual(len(sent), 5)
         content = sent[0]['messages'][0]['content']
-        self.assertIn(self.report['table'], content)
+        self.assertNotIn(self.report['table'], content)
+        summary = json.loads(content.split('Summary report (JSON):\n', 1)[1])
+        self.assertNotIn('table', summary)
+        self.assertEqual(summary, json.loads(json.dumps(
+            {key: value for key, value in self.report.items() if key != 'table'})))
         self.assertIn('At least one value must differ', content)
         self.assertEqual(sent[0]['tools'][0]['function']['name'], 'submit_epsilon_pair')
         for request in sent[1:]:

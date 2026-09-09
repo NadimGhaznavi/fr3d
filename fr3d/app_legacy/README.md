@@ -47,10 +47,9 @@ compatibility adapter for the standalone API.
 Prefer objects with explicit dependencies for new application components.
 
 The **Best / worst** navigation link opens `/best-worst/`, showing up to ten
-highest-scoring and ten lowest-scoring completed simulations. Fr3d can retrieve
-the same JSON data through `view_best_worst_report` on `snakelab_tool` with no
-arguments. It follows the same read-only MCP → ZMQ → Fr3d path as the latest
-report and does not require a pending decision.
+highest-scoring and ten lowest-scoring completed simulations. The legacy
+`SnakeLabTool` bridge can retrieve the same JSON data over ZMQ with no arguments.
+The web-chat SnakeLab MCP integration has been removed.
 
 Rankings use `simulation_runs.high_score`, the final high score persisted by
 Snake Lab, excluding incomplete statuses and missing scores. Two ordered,
@@ -83,14 +82,10 @@ images are disabled. The interface provides no write or delete actions.
 It uses the existing service, credentials, listener, and installation path.
 After deploying these changes, restart `fr3d-report.service`.
 
-During web chat, Fr3d can call `view_latest_report` on the existing `snakelab_tool`
-MCP server with no arguments. It reads the latest three completed, comparable
-runs through MCP → ZMQ → `Fr3dServer` → the shared report generator and returns
-`status: ok` with a JSON object in `report`, or `report_unavailable` with an explanation.
-It works with learning-rate automation disabled and never creates a pending
-decision, calls the model, or submits a simulation. The report's task instructions
-are preview content, not a new submission request. After upgrading, restart
-`fr3d-server.service` and `llm-server.service` to load the handler and MCP tool.
+The legacy `SnakeLabTool.view_latest_report()` bridge reads the latest three
+completed, comparable runs over ZMQ through `Fr3dServer`. It works with
+learning-rate automation disabled and does not submit a simulation.
+This bridge is no longer exposed as a web-chat MCP tool.
 
 `fr3d-report.service` runs a separate Python web application at
 `http://127.0.0.1:61980/`. Each visit or refresh reads the latest three completed
@@ -222,8 +217,8 @@ the assistant tool call and matching tool result to the conversation, and
 then offers only `submit_learning_rate`. Lookup failure returns an error to
 the model so it can use the original comparison. Repeated lookups are rejected.
 
-The response handler executes the shared `SnakeLabTool` bridge. It is also exposed
-as `snakelab_tool` in the MCP server configuration. The bridge sends only the rate
+The legacy response handler executes the `SnakeLabTool` bridge.
+The bridge sends only the rate
 back to Fr3d over ZMQ. Fr3d requires a pending decision, validates a finite
 `0 < learning_rate <= 1` (matching the published Snake Lab schema), checks for
 an active simulation again, and replaces only the rate in its internal stored
