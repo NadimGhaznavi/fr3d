@@ -96,3 +96,42 @@ class ReportServerTest(unittest.TestCase):
                 response = self.client.get('/?format=json')
         self.assertEqual(response.status_code, 503)
         self.assertNotIn('private credentials', response.text)
+
+    def test_prompt_samples_replace_only_their_parameter_and_survive_reload(self):
+        first = {'messages': [{'role': 'user', 'content': 'first'}], 'tools': []}
+        latest = {'messages': [{'role': 'user', 'content': '</pre><script>unsafe</script>'}],
+                  'tools': [{'type': 'function', 'function': {'name': 'submit_parameter'}}],
+                  'model': 'local-model', 'max_tokens': 4096}
+        self.store.save_prompt('training.learning_rate', first)
+        self.store.save_prompt('epsilon_pair', first)
+        self.store.save_prompt('training.learning_rate', latest)
+        reloaded = ReportSnapshots(self.store.directory)
+        self.assertEqual(reloaded.load_prompt('training.learning_rate')['payload'], latest)
+        self.assertEqual(reloaded.load_prompt('epsilon_pair')['payload'], first)
+        self.assertEqual(len(list((self.store.directory / 'prompts').glob('*.json'))), 2)
+        (self.store.directory / 'prompts' / 'unfinished.tmp').write_text('{')
+        index = self.client.get('/prompts/')
+        self.assertIn('/prompts/training.learning_rate/', index.text)
+        self.assertEqual(self.client.get('/prompts/?format=json').json(),
+                         {'parameters': ['epsilon_pair', 'training.learning_rate']})
+        response = self.client.get('/prompts/training.learning_rate/')
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn('<script>', response.text)
+        self.assertIn('submit_parameter', response.text)
+        self.assertIn('no-store', response.headers['cache-control'])
+        self.assertEqual(self.client.get('/prompts/training.learning_rate/?format=json').json()['payload'], latest)
+
+    def test_prompt_empty_missing_corrupt_and_write_failure(self):
+        self.assertIn('No prompts have been saved yet', self.client.get('/prompts/').text)
+        for parameter in ('unknown', '..'):
+            with self.assertRaises(FileNotFoundError):
+                self.store.load_prompt(parameter)
+        self.assertEqual(self.client.get('/prompts/unknown/').status_code, 404)
+        self.assertEqual(self.client.get('/prompts/unknown/?format=json').status_code, 404)
+        self.store.save_prompt('epsilon_pair', {'messages': []})
+        (self.store.directory / 'prompts' / 'epsilon_pair.json').write_text('{broken')
+        with self.assertLogs('fr3d.server.ReportServer', level='ERROR'):
+            self.assertEqual(self.client.get('/prompts/epsilon_pair/').status_code, 503)
+        with patch.object(Path, 'write_text', side_effect=PermissionError('denied')):
+            with self.assertLogs('fr3d.reporting.snapshots', level='ERROR'):
+                self.store.save_prompt('reward_pair', {'messages': []})
