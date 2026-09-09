@@ -329,6 +329,8 @@ class ConversationTests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
             self.assertEqual(conversation.context.messages, [])
             identity = next(call.kwargs['snapshot_id'] for call in trace.record.call_args_list if call.args[0] == 'report_snapshot')
             self.assertEqual(snapshots.load(identity), self.report)
+            self.assertEqual(snapshots.load_prompt(self.report['parameter'])['payload'], sent[-1])
+            self.assertEqual(len(list((Path(directory) / 'prompts').glob('*.json'))), 1)
         self.assertEqual([len(item['messages']) for item in sent], [1, 3, 5])
         self.assertIn('Invalid Value', sent[1]['messages'][-1]['content'])
         self.assertIn('No Reruns', sent[2]['messages'][-1]['content'])
