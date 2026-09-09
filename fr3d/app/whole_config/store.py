@@ -26,6 +26,14 @@ class SearchStore:
     def runs(self):
         return self._query('SELECT id, run_id, status FROM simulation_runs ORDER BY id')
 
+    def cancelled_config(self, run_id):
+        rows = self._query('SELECT config FROM simulation_runs WHERE run_id = %s AND status = %s',
+                           (run_id, 'cancelled'))
+        if len(rows) != 1:
+            raise ValueError(f'Cancelled simulation not found: {run_id}')
+        config = rows[0]['config']
+        return json.loads(config) if isinstance(config, str) else config
+
     def gold(self):
         rows = self._query(
             'SELECT r.id, r.run_id, r.config, '
