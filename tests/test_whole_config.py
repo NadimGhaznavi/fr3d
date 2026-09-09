@@ -348,6 +348,59 @@ class ConversationTests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(TimeoutError):
                 await conversation.run(self.report['parameter'], False, self.report, Mock())
 
+    async def test_incomplete_responses_log_errors_and_retry_same_request(self):
+        incomplete = self.reply(256)
+        incomplete['choices'][0]['finish_reason'] = 'length'
+        missing = {'choices': [{'finish_reason': 'stop', 'message': {
+            'content': None, 'reasoning_content': 'Unfinished reasoning', 'tool_calls': None}}]}
+        multiple = self.reply(256)
+        multiple['choices'][0]['message']['tool_calls'] *= 2
+        replies = iter([incomplete, missing, multiple, self.reply(256)])
+        sent = []
+
+        def handler(request):
+            sent.append(json.loads(request.content))
+            return httpx.Response(200, json=next(replies))
+
+        trace = Mock()
+        conversation = Conversation(self.configuration, self.reports)
+        with self.client(handler), patch('fr3d.app.whole_config.conversation.asyncio.sleep', new_callable=AsyncMock) as sleep:
+            config = await conversation.run(self.report['parameter'], True, self.report, trace)
+        self.assertEqual(config['model']['hidden_size'], 256)
+        self.assertEqual(len(sent), 4)
+        self.assertTrue(all(payload == sent[0] for payload in sent))
+        self.assertEqual(sleep.await_count, 3)
+        rejected = [call.kwargs for call in trace.record.call_args_list
+                    if call.args[0] == 'llm_response_rejected']
+        self.assertEqual([event['finish_reason'] for event in rejected], ['length', 'stop', 'tool_calls'])
+        self.assertEqual([event['tool_call_count'] for event in rejected], [1, 0, 2])
+        self.assertTrue(all(event['level'] == 'error' for event in rejected))
+
+    async def test_incomplete_response_renews_timeout_and_retry_remains_cancellable(self):
+        requests = 0
+
+        async def handler(request):
+            nonlocal requests
+            requests += 1
+            await asyncio.sleep(.12)
+            if requests == 1:
+                return httpx.Response(200, json={'choices': [{'finish_reason': 'length', 'message': {}}]})
+            return httpx.Response(200, json=self.reply(256))
+
+        conversation = Conversation(self.configuration, self.reports)
+        with self.client(handler), patch('fr3d.app.whole_config.conversation.DFr3d.PROMPT_TIMEOUT', .2), \
+                patch('fr3d.app.whole_config.conversation.DFr3d.FR3D_POLL_INTERVAL', 0):
+            config = await conversation.run(self.report['parameter'], True, self.report, Mock())
+        self.assertEqual(config['model']['hidden_size'], 256)
+        self.assertEqual(requests, 2)
+
+        async def cancelled(request):
+            raise asyncio.CancelledError()
+
+        with self.client(cancelled):
+            with self.assertRaises(asyncio.CancelledError):
+                await conversation.run(self.report['parameter'], True, self.report, Mock())
+
 
 class ArchiveTests(unittest.TestCase):
     def test_archive_appends_complete_gold_and_parent(self):
