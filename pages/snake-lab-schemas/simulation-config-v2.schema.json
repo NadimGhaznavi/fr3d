@@ -149,7 +149,7 @@
           "type": "integer",
           "default": 8,
           "minimum": 4,
-          "maximum": 64,
+          "maximum": 48,
           "multipleOf": 4,
           "x-snakelab-unit": "frames"
         },
@@ -157,7 +157,7 @@
           "type": "integer",
           "default": 24,
           "minimum": 8,
-          "maximum": 128,
+          "maximum": 64,
           "multipleOf": 8,
           "x-snakelab-unit": "sequences"
         },
