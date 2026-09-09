@@ -82,9 +82,11 @@ class RoundRobinSelector:
 
     def __init__(self, convergence=None):
         self.next_index = 0
+        self.cycle_end = False
         self.convergence = convergence if convergence is not None else ParameterConvergence()
 
     def choose(self, assessments, trace=None):
+        self.cycle_end = False
         self.convergence.reopen_if_needed(assessments, trace)
         for offset in range(len(assessments)):
             index = (self.next_index + offset) % len(assessments)
@@ -93,7 +95,10 @@ class RoundRobinSelector:
                              status='CONVERGED')
             if (assessments[index].eligible
                     and assessments[index].parameter not in self.convergence.converged):
-                self.next_index = (index + 1) % len(assessments)
+                self.cycle_end = not any(
+                    item.eligible and item.parameter not in self.convergence.converged
+                    for item in assessments[index + 1:])
+                self.next_index = 0 if self.cycle_end else index + 1
                 return assessments[index]
         return None
 

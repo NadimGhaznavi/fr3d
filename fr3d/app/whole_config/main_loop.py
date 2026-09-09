@@ -1,6 +1,7 @@
 """Serial configuration search; unexpected failures terminate the service."""
 
 import asyncio
+from copy import deepcopy
 import signal
 
 from fr3d.constants.DDir import DDirDef
@@ -19,7 +20,8 @@ from .store import SearchStore
 
 class SearchLoop:
     def __init__(self, experiments, configuration=None, reports=None, conversation=None,
-                 archive=None, trace_factory=None, selector=None, store=None):
+                 archive=None, trace_factory=None, selector=None, store=None, event_logger=None):
+        self.event_logger = event_logger
         self.experiments = experiments
         self.configuration = configuration if configuration is not None else Configuration()
         connection_factory = reports.connect if reports is not None else None
@@ -35,6 +37,9 @@ class SearchLoop:
         self.dead_ends = set()
         self.pending_run_id = None
         self.pending_tweak = None
+        self.pending_cycle_end = False
+        self.stagnant_cycles = 0
+        self.cycle_improved = False
 
     @staticmethod
     def _trace():
@@ -57,6 +62,26 @@ class SearchLoop:
         trace.record('experiment_submitted', parameter=parameter, run_id=self.pending_run_id, **pair_values)
         self.conversation.record_outcome(f'Experiment submitted: run_id={self.pending_run_id}, parameter={parameter}.')
         return 'submitted'
+
+    def _log_seed_event(self, message):
+        if self.event_logger is None:
+            self.event_logger = MyLog('ConfigSearchSeeds', DDirDef.SERVER_LOGS / DFileDef.FRED_SERVER_LOG)
+        self.event_logger.info(message)
+
+    async def _rotate_seed(self, trace):
+        config = deepcopy(self.gold['config'])
+        config['seed'] += 1
+        self.configuration.validate(config)
+        outcome = await self._submit(config, trace)
+        if outcome == 'submitted':
+            self._log_seed_event(
+                f"Seed rotation {self.gold['config']['seed']} -> {config['seed']} after "
+                f"3 stagnant round-robin cycles; rerunning current gold {self.gold['run_id']} "
+                f"unchanged apart from seed, run_id={self.pending_run_id}.")
+            trace.record('seed_rotation_started', old_seed=self.gold['config']['seed'],
+                         seed=config['seed'], gold_run_id=self.gold['run_id'],
+                         run_id=self.pending_run_id)
+        return outcome
 
     async def _select_baseline(self, trace):
         if self.baseline is None:
@@ -104,7 +129,26 @@ class SearchLoop:
 
             best = await asyncio.to_thread(self.store.gold)
             previous = self.gold
-            if previous is None or best['high_score'] > previous['high_score']:
+            if previous is None and best['config']['seed'] > self.configuration.baseline()['seed']:
+                self._log_seed_event(
+                    f"Resumed seed {best['config']['seed']}: gold run_id={best['run_id']}, "
+                    f"score to beat={best['high_score']}.")
+            seed_changed = previous is not None and best['config']['seed'] != previous['config']['seed']
+            if seed_changed:
+                await asyncio.to_thread(self.archive.save, best, previous)
+                self.gold = self.baseline = best
+                self.dead_ends.clear()
+                self.selector = RoundRobinSelector()
+                self.stagnant_cycles = 0
+                self.cycle_improved = False
+                self.pending_tweak = None
+                self.pending_cycle_end = False
+                self._log_seed_event(
+                    f"Seed {best['config']['seed']} baseline completed: gold run_id={best['run_id']}, "
+                    f"new score to beat={best['high_score']} (previous seed score={previous['high_score']}).")
+                trace.record('seed_baseline_established', seed=best['config']['seed'],
+                             run_id=best['run_id'], high_score=best['high_score'])
+            elif previous is None or best['high_score'] > previous['high_score']:
                 # Startup selection is not a promotion. A baseline submitted by
                 # this loop is archived when its completion is first observed.
                 if previous is not None or self.pending_run_id == best['run_id']:
@@ -112,13 +156,25 @@ class SearchLoop:
                     trace.record('gold_promoted', run_id=best['run_id'], high_score=best['high_score'])
                 self.gold = best
                 self.baseline = best
+                if previous is not None:
+                    self.stagnant_cycles = 0
+                    self.cycle_improved = True
             if self.pending_tweak is not None:
                 parameter, score_before = self.pending_tweak
                 self.selector.convergence.completed(parameter, score_before, self.gold['high_score'], trace)
                 self.pending_tweak = None
+            if self.pending_cycle_end:
+                self.stagnant_cycles = 0 if self.cycle_improved else self.stagnant_cycles + 1
+                self.cycle_improved = False
+                self.pending_cycle_end = False
+                trace.record('round_robin_cycle_completed', stagnant_cycles=self.stagnant_cycles)
             self.pending_run_id = None
+            if self.stagnant_cycles >= 3:
+                outcome = await self._rotate_seed(trace)
+                return outcome
 
             trace.record('gold_selected', run_id=self.gold['run_id'], high_score=self.gold['high_score'])
+            cursor_before = self.selector.next_index if isinstance(self.selector, RoundRobinSelector) else None
             selected = await self._select_baseline(trace)
             if selected is None:
                 outcome = 'exhausted'
@@ -160,8 +216,13 @@ class SearchLoop:
                              source=source,
                              baseline_run_id=self.baseline['run_id'], best_gold_run_id=self.gold['run_id'])
             outcome = await self._submit(config, trace, parameter)
-            if outcome == 'submitted' and source == 'llm' and isinstance(self.selector, RoundRobinSelector):
-                self.pending_tweak = (parameter, self.gold['high_score'])
+            if isinstance(self.selector, RoundRobinSelector):
+                if outcome == 'submitted':
+                    self.pending_cycle_end = self.selector.cycle_end
+                    if source == 'llm':
+                        self.pending_tweak = (parameter, self.gold['high_score'])
+                else:
+                    self.selector.next_index = cursor_before
             return outcome
         finally:
             trace.record('decision_finished', outcome=outcome)
