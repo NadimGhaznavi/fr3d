@@ -19,7 +19,7 @@
       "description": "Master seed used to derive independent model, exploration, replay, and episode seeds.",
       "type": "integer",
       "default": 1970,
-      "enum": [42, 123, 456, 789, 1970, 2024]
+      "minimum": 0
     },
     "game": {
       "title": "Game environment",

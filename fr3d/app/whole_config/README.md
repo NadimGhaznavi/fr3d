@@ -7,7 +7,7 @@ dimensions. `reward_pair` replaces `game.rewards.closer_to_food` and
 individual dimension. `PAIR_PATHS` defines the two supported pairs; each pair has
 its own submission tool and prompt, with shared search and reporting behavior.
 
-1. `SearchStore.gold()` reads the best completed run from MariaDB, using maximum
+1. `SearchStore.gold()` reads the best completed run for the highest recorded seed from MariaDB, using maximum
    episode score and the existing completion-time and run-ID tie breakers.
 2. `SearchStore.parameter_values()` queries each dimension directly. SQL matches
    every configuration column outside the selected dimension to the active
@@ -54,7 +54,7 @@ The loop marks that baseline as a local dead end and tries the previous gold.
 
 Previous golds are strict record highs reconstructed in completion order from
 completed runs; tied scores and non-gold runs are not backtracking targets.
-Best-ever gold stays unchanged until beaten. The active baseline stays in use
+Within each seed, best-ever gold stays unchanged until beaten. The active baseline stays in use
 across iterations, and a new best-ever gold becomes the active baseline.
 Dead-end flags are held for the process lifetime and logged; after restart they
 are recomputed from database history. Once all previous golds are exhausted,
@@ -77,3 +77,26 @@ V2 has no decimal `multipleOf` constraints or custom decimal-step workaround.
 Release 0.21.0 deployment is planned as an uninstall/install of both Snake Lab and
 Fr3d, starting with fresh data. This implementation adds no data migration or
 automatic deletion of experiment history.
+
+## Seed rotation
+
+After three complete round-robin cycles without a strict gold improvement, submit
+current gold with `seed + 1`. All other configuration values stay unchanged. Its
+completed high score becomes the new seed's score to beat, even when lower.
+Rotation and the completed baseline score are logged in `fr3d.log` as well as the
+decision trace; the new baseline is appended to the gold archive.
+
+A cycle is a pass through the ordered dimensions, with exhausted and converged
+dimensions skipped. Its final submitted experiment must complete before the cycle
+counts. Automatic pair experiments count too; busy checks, duplicates, and failed
+submissions do not count. A promotion immediately resets stagnation and marks its
+cycle improved. Existing convergence reopening continues within a seed. Rotation
+clears convergence windows, dead ends, and the cursor after the baseline completes.
+
+Gold and previous-gold queries use only the active seed. Matching reports and
+duplicate checks include seed. The highest seed in the configurations table is
+the active seed, including queued baseline runs: after restart, existing busy and
+unfinished-run checks prevent searching before that baseline completes. Failures
+retain the existing stop-on-error behavior. The cursor and stagnation counters
+restart at zero; they are not persisted. Snake Lab must deploy the matching v2
+schema permitting nonnegative integer seeds before running this release.

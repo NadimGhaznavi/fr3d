@@ -30,7 +30,8 @@ class SearchStore:
         rows = self._query(
             'SELECT r.id, r.run_id, r.config, '
             '(SELECT MAX(e.score) FROM simulation_episodes e WHERE e.run_id = r.run_id) AS high_score '
-            'FROM simulation_runs r WHERE r.status = %s '
+            'FROM simulation_runs r JOIN configurations c ON c.run_id = r.run_id '
+            'WHERE r.status = %s AND c.seed = (SELECT MAX(seed) FROM configurations) '
             'ORDER BY high_score DESC, r.completed_at ASC, r.id ASC LIMIT 1', ('completed',),
         )
         if not rows or rows[0]['high_score'] is None:
@@ -45,8 +46,9 @@ class SearchStore:
         rows = self._query(
             'SELECT r.id, r.run_id, r.config, '
             '(SELECT MAX(e.score) FROM simulation_episodes e WHERE e.run_id = r.run_id) AS high_score '
-            'FROM simulation_runs r WHERE r.status = %s '
-            'ORDER BY r.completed_at ASC, r.id ASC', ('completed',),
+            'FROM simulation_runs r JOIN configurations c ON c.run_id = r.run_id '
+            'WHERE r.status = %s AND c.seed = %s '
+            'ORDER BY r.completed_at ASC, r.id ASC', ('completed', gold['config']['seed']),
         )
         previous = None
         for row in rows:

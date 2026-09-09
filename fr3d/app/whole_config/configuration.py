@@ -108,7 +108,9 @@ class Configuration:
         except (ValidationError, TypeError, ValueError) as error:
             raise ValueError(str(error)) from error
         fixed = {path: field['const'] for path, field in self.fields.items() if 'const' in field}
-        fixed.update(FIXED)
+        fixed.update({path: value for path, value in FIXED.items() if path != 'seed'})
+        if config['seed'] < FIXED['seed']:
+            raise ValueError(f"seed must be at least {FIXED['seed']}")
         for path, value in fixed.items():
             if get_value(config, path) != value:
                 raise ValueError(f'{path} must remain {value}')
