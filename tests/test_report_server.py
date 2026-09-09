@@ -111,7 +111,8 @@ class ReportServerTest(unittest.TestCase):
         self.assertEqual(len(list((self.store.directory / 'prompts').glob('*.json'))), 2)
         (self.store.directory / 'prompts' / 'unfinished.tmp').write_text('{')
         index = self.client.get('/prompts/')
-        self.assertIn('/prompts/training.learning_rate/', index.text)
+        self.assertIn('<th scope="row">training.learning_rate</th>', index.text)
+        self.assertNotIn('href="/prompts/training.learning_rate/', index.text)
         self.assertEqual(self.client.get('/prompts/?format=json').json(),
                          {'parameters': ['epsilon_pair', 'training.learning_rate']})
         response = self.client.get('/prompts/training.learning_rate/')
@@ -142,6 +143,36 @@ class ReportServerTest(unittest.TestCase):
         self.assertEqual(self.client.get(f'/prompts/{parameter}/missing/').status_code, 404)
         with self.assertRaises(FileNotFoundError):
             store.load_prompt(parameter, '..')
+
+    def test_prompt_matrix_links_exact_types_and_keeps_missing_cells(self):
+        samples = {
+            'epsilon_pair': ['initial', 'summary_report', 'epsilon_pair_no_reruns', 'epsilon_pair_invalid'],
+            'reward_pair': ['reward_pair_invalid'],
+            'training.gamma': ['summary_report'],
+            'model.hidden_size': [],
+        }
+        for parameter, kinds in samples.items():
+            self.store.save_prompt(parameter, {'messages': []})
+            for kind in kinds:
+                self.store.save_prompt(parameter, {'messages': [{'role': 'user', 'content': kind}]}, kind)
+        self.store.save_prompt('training.gamma',
+                               {'messages': [{'role': 'user', 'content': 'new comparison'}]}, 'summary_report')
+        page = self.client.get('/prompts/')
+        self.assertEqual(page.status_code, 200)
+        headings = ['Parameter', 'Initial', 'Comparison', 'No reruns', 'Invalid value']
+        positions = [page.text.index(f'<th scope="col">{label}</th>') for label in headings]
+        self.assertEqual(positions, sorted(positions))
+        self.assertEqual(page.text.count('class="missing-prompt"'), 10)
+        for parameter, kinds in samples.items():
+            row = page.text.split(f'<th scope="row">{parameter}</th>', 1)[1].split('</tr>', 1)[0]
+            self.assertEqual(row.count('<td>'), 4)
+            self.assertEqual(row.count('>View</a>'), len(kinds))
+            for kind in kinds:
+                url = f'/prompts/{parameter}/{kind}/'
+                self.assertIn(f'href="{url}"', row)
+                self.assertEqual(self.client.get(url).status_code, 200)
+        self.assertIn('new comparison', self.client.get('/prompts/training.gamma/summary_report/').text)
+        self.assertNotIn('href="/prompts/training.gamma/initial/"', page.text)
 
     def test_prompt_empty_missing_corrupt_and_write_failure(self):
         self.assertIn('No prompts have been saved yet', self.client.get('/prompts/').text)
