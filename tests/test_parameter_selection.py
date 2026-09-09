@@ -130,7 +130,7 @@ class SelectionLoopTests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
         passed = self.conversation.run.call_args.args
         self.assertEqual(passed[:2], (parameter, True))
         self.assertEqual(passed[2], self.reports.parameter_report(loop.gold, parameter))
-        self.assertEqual(set(passed[2]), {'parameter', 'constraints', 'gold', 'experiments'})
+        self.assertEqual(set(passed[2]), {'parameter', 'constraints', 'gold', 'experiments', 'untested_grid_values'})
 
     async def test_exhaustion_does_not_build_report_or_call_conversation(self):
         self.configuration.parameters = {'model.hidden_size': self.configuration.parameters['model.hidden_size']}
