@@ -19,11 +19,6 @@
       "command": "/opt/fr3d/.venv/bin/python",
       "args": ["-m", "weather_tool"],
       "env": {"PYTHONPATH": "/opt/fr3d/fr3d/mcp-tools:/opt/fr3d"}
-    },
-    "snakelab_tool": {
-      "command": "/opt/fr3d/.venv/bin/python",
-      "args": ["-m", "snakelab_tool"],
-      "env": {"PYTHONPATH": "/opt/fr3d/fr3d/mcp-tools:/opt/fr3d"}
     }
   }
 }

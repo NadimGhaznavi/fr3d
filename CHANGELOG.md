@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.5] - 2026-09-09 @ 04:25
+
+### Changed
+
+- Send pair comparisons to the model as structured JSON experiment records,
+  without embedding or repeating Markdown tables in the prompt.
+
+### Removed
+
+- Remove the obsolete SnakeLab MCP server and its web-chat knowledge-base guide.
+  Keep the legacy backend bridge and report handlers used outside MCP.
+
 ## [0.22.4] - 2026-09-08 @ 21:51
 
 ### Changed

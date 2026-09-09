@@ -36,13 +36,13 @@ class Conversation:
                 instructions = 'Continuous pair bounds (JSON):\n' + to_json(report['constraints'])
             else:
                 instructions = 'Planned grid values (JSON):\n' + to_json(report['allowed_values'])
-            instructions += '\n\n' + report['table']
         else:
             instructions = parameter_instructions(parameter, self.configuration.parameters[parameter])
         tool = self.configuration.tool(parameter)
         tool_name = tool['function']['name']
+        prompt_report = {key: value for key, value in report.items() if key != 'table'}
         current = {'role': 'user', 'content': opening.text + '\n\n' + instructions
-                   + '\n\nSummary report (JSON):\n' + to_json(report)}
+                   + '\n\nSummary report (JSON):\n' + to_json(prompt_report)}
         self.context.messages.append(current)
         payload = {
             'model': os.environ.get('LLAMA_MODEL', 'local-model'),
