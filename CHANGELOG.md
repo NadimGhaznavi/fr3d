@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.8] - 2026-09-09
+
+### Added
+
+- After three completed round-robin cycles without a new gold, increment the seed
+  and rerun the current gold with only its seed changed. Use the new result as the
+  score to beat, even when lower, and reset convergence and backtracking state.
+- Log seed rotation and the new baseline score in `fr3d.log`.
+
+### Changed
+
+- Scope gold selection and backtracking to the highest recorded seed; recover
+  that seed from simulation history after restart. Cycle counters restart at zero.
+- Allow nonnegative integer seeds in the bundled v2 Snake Lab schema. Snake Lab
+  must use the matching updated schema to accept incremented seeds.
+
 ## [0.22.7] - 2026-09-09 @ 05:14
 
 ### Changed
