@@ -181,6 +181,38 @@ class LoopTests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
                                self.archive, Mock(return_value=Mock()))
         self.loop.selector = lambda config, store, gold, **kw: select_parameter(config, store, gold, lambda rows: next((row for row in rows if row.eligible), None), **kw)
 
+    async def test_sole_unused_scalar_value_submits_gold_copy_without_llm(self):
+        parameter = 'training.sequence_length'
+        gold_config = self.configuration.candidate(
+            self.baseline, 'model.hidden_size', {'value': 256})
+        self.configuration.parameters = {parameter: self.configuration.parameters[parameter]}
+        self.add_run(1, gold_config, score=30)
+        choices = [value for value in finite_values(self.configuration.parameters[parameter])
+                   if value != get_value(gold_config, parameter)]
+        remaining = choices.pop()
+        for identity, value in enumerate(choices, 2):
+            config = self.configuration.candidate(gold_config, parameter, {'value': value})
+            self.add_run(identity, config, status='failed')
+        self.add_run(100, gold_config, score=30)
+        self.backend.submit_simulation.return_value['run_id'] = '1000'
+
+        self.assertEqual(await self.loop.run_once(), 'submitted')
+
+        self.conversation.run.assert_not_awaited()
+        expected = self.configuration.candidate(gold_config, parameter, {'value': remaining})
+        self.backend.submit_simulation.assert_called_once_with(expected)
+        self.assertEqual(self.loop.gold['config'], gold_config)
+
+    async def test_multiple_unused_scalar_values_still_use_llm(self):
+        parameter = 'training.sequence_length'
+        self.configuration.parameters = {parameter: self.configuration.parameters[parameter]}
+        self.add_run(1)
+        config = self.configuration.candidate(self.baseline, parameter, {'value': 4})
+        self.conversation.run.return_value = config
+        self.assertEqual(await self.loop.run_once(), 'submitted')
+        self.conversation.run.assert_awaited_once()
+        self.backend.submit_simulation.assert_called_once_with(config)
+
     async def test_baseline_promotions_ties_and_no_startup_repromotion(self):
         self.assertEqual(await self.loop.run_once(), 'submitted')
         self.backend.submit_simulation.assert_called_once_with(self.baseline)
@@ -246,12 +278,15 @@ class LoopTests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
             await self.loop.run_once()
 
     async def test_llm_failure_and_changes_to_other_parameters_crash(self):
+        parameter = 'training.sequence_length'
+        self.configuration.parameters = {parameter: self.configuration.parameters[parameter]}
         self.add_run(1)
         self.conversation.run.side_effect = TimeoutError()
         with self.assertRaises(TimeoutError):
             await self.loop.run_once()
         self.conversation.run.side_effect = None
-        self.conversation.run.return_value = self.configuration.candidate(self.baseline, 'training.learning_rate', {'value': .002})
+        self.conversation.run.return_value = deepcopy(self.baseline)
+        set_value(self.conversation.run.return_value, 'training.learning_rate', .002)
         with self.assertRaisesRegex(ValueError, 'exactly'):
             await self.loop.run_once()
         self.backend.submit_simulation.assert_not_called()
@@ -281,10 +316,12 @@ class LoopTests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
         self.assertFalse(server._running)
 
     async def test_final_duplicate_check_blocks_a_concurrent_submission(self):
+        parameter = 'training.sequence_length'
+        self.configuration.parameters = {parameter: self.configuration.parameters[parameter]}
         self.add_run(1)
 
         async def propose(parameter, initial, report, trace):
-            candidate = self.configuration.candidate(self.baseline, parameter, {'value': 256})
+            candidate = self.configuration.candidate(self.baseline, parameter, {'value': 4})
             self.add_run(2, candidate)
             return candidate
 
