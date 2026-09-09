@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.6] - 2026-09-09 @ 05:04
+
 ### Changed
 
 - Display Latest prompts as a parameter-by-type matrix with Initial, Comparison,
