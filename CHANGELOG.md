@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.16] - 2026-09-09 @ 18:28
+
+- Decreased Schema training batch size and sequence length
+
+### Changed
+
+- Default the release script's next feature branch to `feat/maint-` followed by
+  the release version with its patch number incremented. An explicit branch name
+  remains optional.
+
 ## [0.22.15] - 2026-09-09 @ 18:13
 
 ### Fixed
