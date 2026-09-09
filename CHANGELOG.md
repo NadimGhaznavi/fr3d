@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Show every fixed parameter value and pair in numeric parameter order in summary
+  data, alongside matching high scores and run statuses or `UNTESTED`. Preserve
+  continuous-range reports.
+
 ## [0.22.16] - 2026-09-09 @ 18:28
 
 - Decreased Schema training batch size and sequence length

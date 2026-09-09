@@ -37,10 +37,31 @@ class SearchReports(SearchStore):
 
         field = self.configuration.parameters[parameter]
         if availability(field, set())[0] is not None:
-            used = {row['value'] for row in history}
-            used.add(self.configuration.value(gold['config'], parameter))
-            report['untested_grid_values'] = [value for value in finite_values(field) if value not in used]
+            report['value_results'] = self.value_results(gold, history, parameter, finite_values(field))
         return report
+
+    def value_results(self, gold, history, parameter, values):
+        """Pair every planned value with its recorded results in numeric order."""
+        baseline = self.configuration.value(gold['config'], parameter)
+        grouped = {}
+        for row in history:
+            grouped.setdefault(row['value'], []).append({
+                'run_id': row['run_id'], 'status': row['status'],
+                'high_score': row['high_score'] if row['status'] == 'completed' else None,
+                'baseline': row['run_id'] == gold['run_id'],
+            })
+        # Gold is already used even if it is absent from the matching history.
+        if not any(row['run_id'] == gold['run_id'] for row in history):
+            grouped.setdefault(baseline, []).append({
+                'run_id': gold['run_id'], 'status': 'completed',
+                'high_score': gold['high_score'], 'baseline': True,
+            })
+        return [
+            {'value': self.configuration.pair_arguments(parameter, value)
+             if parameter in PAIR_PATHS else value,
+             'results': grouped.get(value, 'UNTESTED')}
+            for value in sorted(values)
+        ]
 
     def pair_report(self, gold, history, parameter=EPSILON_PAIR):
         if self.configuration.legal_pairs(gold['config'], parameter) is None:
@@ -79,7 +100,7 @@ class SearchReports(SearchStore):
             'gold': gold,
             'allowed_values': dict(zip(names, (row_values, column_values))),
             'eligible_pairs': [self.configuration.pair_arguments(parameter, pair) for pair in eligible],
-            'untested_grid_values': [self.configuration.pair_arguments(parameter, pair) for pair in eligible],
+            'value_results': self.value_results(gold, history, parameter, legal),
             'table': '\n'.join(table),
             'experiments': [
                 {'run_id': row['run_id'], **self.configuration.pair_arguments(parameter, row['value']),
