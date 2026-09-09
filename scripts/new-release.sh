@@ -43,12 +43,15 @@ usage() {
     fi
 
     cat <<EOF
-Usage: $(basename -- "$0") <version> <message> <next-feature-branch>
+Usage: $(basename -- "$0") <version> <message> [next-feature-branch]
 
 Likely next version: ${likely_version}
 
 Example:
-  $(basename -- "$0") ${likely_version} "Maintenance release" feat/maint-${likely_feature_version}
+  $(basename -- "$0") ${likely_version} "Maintenance release"
+
+The next branch defaults to feat/maint-<version with patch incremented>.
+For the example above: feat/maint-${likely_feature_version}
 
 Run this from a clean feat/* or feature/* branch. The script updates the
 changelog, merges the feature through dev to main, creates an annotated vX.Y.Z
@@ -61,16 +64,19 @@ ref_exists() {
 }
 
 validate_arguments() {
-    [[ $# -eq 3 ]] || { usage >&2; exit 2; }
+    [[ $# -eq 2 || $# -eq 3 ]] || { usage >&2; exit 2; }
 
     NEW_VERSION=$1
     RELEASE_DESCRIPTION=$2
     RELEASE_MESSAGE="Release ${NEW_VERSION}: ${RELEASE_DESCRIPTION}"
-    NEXT_FEATURE_BRANCH=$3
     TAG_NAME="v${NEW_VERSION}"
 
     [[ "${NEW_VERSION}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z][0-9A-Za-z.-]*)?(\+[0-9A-Za-z][0-9A-Za-z.-]*)?$ ]] ||
         die "Version must be a semantic version without a leading v."
+    local major=${BASH_REMATCH[1]}
+    local minor=${BASH_REMATCH[2]}
+    local next_patch=$((10#${BASH_REMATCH[3]} + 1))
+    NEXT_FEATURE_BRANCH=${3-"feat/maint-${major}.${minor}.${next_patch}"}
     [[ -n "${RELEASE_DESCRIPTION}" ]] || die "Release message must not be empty."
     [[ "${NEXT_FEATURE_BRANCH}" == feat/* || "${NEXT_FEATURE_BRANCH}" == feature/* ]] ||
         die "Next feature branch must start with feat/ or feature/."
