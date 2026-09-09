@@ -199,6 +199,10 @@ class SearchLoop:
                     return outcome
                 source = 'automatic'
                 config = self.configuration.candidate(self.baseline['config'], parameter, report['eligible_pairs'][0])
+            elif parameter not in PAIR_PATHS and 'automatic_value' in report:
+                source = 'automatic'
+                config = self.configuration.candidate(
+                    self.baseline['config'], parameter, {'value': report['automatic_value']})
             else:
                 config = await self.conversation.run(parameter, initial, report, trace)
             # Both decision paths must satisfy the same submission boundary.

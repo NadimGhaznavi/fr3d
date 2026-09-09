@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.11] - 2026-09-09 @ 16:57
+
+### Changed
+
+- Submit the sole remaining unused value for an individual parameter directly
+  from the active gold baseline, bypassing the LLM as finite pairs already do.
+
 ## [0.22.10] - 2026-09-09 @ 16:23
 
 ### Fixed
