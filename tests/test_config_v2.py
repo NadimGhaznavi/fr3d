@@ -32,7 +32,7 @@ class V2Tests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
 
     async def test_sole_hidden_size_uses_selection_without_building_report(self):
         parameter = 'model.hidden_size'
-        missing = 496
+        missing = 368
         for identity, value in enumerate(finite_values(self.configuration.parameters[parameter]), 2):
             if value not in (self.baseline['model']['hidden_size'], missing):
                 self.add_run(identity, self.configuration.candidate(
@@ -54,7 +54,7 @@ class V2Tests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
         self.assertEqual(config.baseline(), self.baseline)
         self.assertEqual(list(config.parameters), ORDER)
         self.assertEqual([availability(config.parameters[p], set())[0] for p in ORDER[:5]],
-                     [29, 16, 16, None, None])
+                     [21, 16, 16, None, None])
         self.assertIsNone(config.legal_pairs(self.baseline))
         self.assertEqual(len(config.legal_pairs(self.baseline, 'reward_pair')), 49)
         for path in ('training.gamma', 'epsilon.initial', 'epsilon.decay'):

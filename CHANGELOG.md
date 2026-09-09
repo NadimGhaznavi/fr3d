@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.14] - 2026-09-09 @ 17:54
+
+### Changed
+
+- Include `untested_grid_values` in finite-parameter JSON reports, using numeric
+  values for scalars and objects for pairs. Exclude matching submissions of every
+  status and guide the model to use the remaining grid choices.
+
 ## [0.22.13] - 2026-09-09 @ 17:34
 
 - Reduced model.hidden_size maximum.
