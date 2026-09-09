@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Show the latest LLM request for each parameter conversation (including pairs)
+  on fr3d-report at `/prompts/`, with readable messages and the complete request
+  body as JSON. Capture after context trimming, replace the sample on each retry,
+  and retain only one prompt sample per parameter across restarts.
+
 ## [0.22.1] - 2026-09-08 @ 19:36
 
 ## [0.22.0] - 2026-09-08 @ 19:22

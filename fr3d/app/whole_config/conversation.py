@@ -60,6 +60,8 @@ class Conversation:
         async with asyncio.timeout(DFr3d.PROMPT_TIMEOUT), httpx.AsyncClient(timeout=DFr3d.PROMPT_TIMEOUT) as client:
             while True:
                 self.context.prepare(payload, current, trace)
+                if self.snapshots is not None:
+                    await asyncio.to_thread(self.snapshots.save_prompt, parameter, payload)
                 number = trace.next_request()
                 trace.record('llm_request', request_number=number, payload=payload)
                 started = time.monotonic()

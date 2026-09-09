@@ -23,13 +23,15 @@ PAGE = Template(Path(__file__).with_name('report.html').read_text(encoding='utf-
 HEADERS = {'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff'}
 
 
-def page_response(*, title, metadata, content, refresh_url='/', status=200):
+def page_response(*, title, metadata, content, refresh_url='/', status=200,
+                  description='The saved summary report supplied to Fr3d for parameter exploration.',
+                  refresh_label='Refresh report'):
     return HTMLResponse(
         PAGE.substitute(
             title=escape(title),
-            description='The saved summary report supplied to Fr3d for parameter exploration.',
+            description=escape(description),
             metadata=escape(metadata), content=content,
-            refresh_url=escape(refresh_url, quote=True), refresh_label='Refresh report',
+            refresh_url=escape(refresh_url, quote=True), refresh_label=escape(refresh_label),
         ), status_code=status, headers=HEADERS,
     )
 
@@ -85,8 +87,57 @@ def unavailable(title, wants_json, refresh_url):
                          content='<p>' + message + '</p>', refresh_url=refresh_url, status=503)
 
 
+def latest_prompts(request):
+    parameter = request.path_params.get('parameter')
+    wants_json = request.query_params.get('format') == 'json'
+    title = f'Latest prompt: {parameter}' if parameter else 'Latest prompts'
+    status = 200
+    metadata = 'One replaceable sample per parameter conversation, including pairs.'
+    try:
+        snapshots = ReportSnapshots()
+        if parameter:
+            data = snapshots.load_prompt(parameter)
+            metadata = f"Saved {data['saved_at']} · {parameter}"
+            payload = data['payload']
+            content = '<h2>Messages</h2>'
+            for message in payload['messages']:
+                content += '<h3>' + escape(message['role']) + '</h3><pre class="message">'
+                content += escape(message.get('content') or '') + '</pre>'
+                if message.get('tool_calls'):
+                    content += '<pre>' + escape(json.dumps(message['tool_calls'], indent=2)) + '</pre>'
+            content += '<h2>Complete request body</h2><pre>' + escape(
+                json.dumps(payload, ensure_ascii=False, allow_nan=False, indent=2)) + '</pre>'
+            content += '<p><a href="?format=json">View JSON sample</a></p>'
+        else:
+            parameters = snapshots.prompt_parameters()
+            data = {'parameters': parameters}
+            content = '<ul>' + ''.join(
+                f'<li><a href="/prompts/{escape(p, quote=True)}/">{escape(p)}</a></li>'
+                for p in parameters) + '</ul>' if parameters else (
+                    '<p>No prompts have been saved yet. Samples appear as Fr3d sends parameter requests to the LLM.</p>')
+        if wants_json:
+            return JSONResponse(data, headers=HEADERS)
+    except FileNotFoundError:
+        status = 404
+        content = '<p>No prompt has been saved for this parameter.</p>'
+        if wants_json:
+            return JSONResponse({'detail': 'No saved prompt'}, status_code=status, headers=HEADERS)
+    except Exception:
+        LOG.exception('Could not read saved prompt')
+        status = 503
+        content = '<p>Could not load the saved prompt. Please try refreshing in a moment.</p>'
+        if wants_json:
+            return JSONResponse({'detail': 'Could not load saved prompt'}, status_code=status, headers=HEADERS)
+    return page_response(title=title, metadata=metadata, content=content,
+                         refresh_url=request.url.path, status=status,
+                         description='The latest request prepared for the LLM, including messages, reports and tools. Each new request replaces the previous sample for that parameter.',
+                         refresh_label='Refresh prompts')
+
+
 app = Starlette(routes=[
     Route('/', summary_report, methods=['GET']),
+    Route('/prompts/', latest_prompts, methods=['GET']),
+    Route('/prompts/{parameter:str}/', latest_prompts, methods=['GET']),
     Route('/reports/{identity:str}/', summary_report, methods=['GET']),
 ])
 
