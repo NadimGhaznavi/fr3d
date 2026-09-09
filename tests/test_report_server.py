@@ -1,4 +1,4 @@
-"""Show saved summary JSON without regenerating or converting it to Markdown."""
+"""Verify exact saved samples and their readable prompt-report companions."""
 
 import html
 import json
@@ -121,6 +121,50 @@ class ReportServerTest(unittest.TestCase):
         self.assertIn('submit_parameter', response.text)
         self.assertIn('no-store', response.headers['cache-control'])
         self.assertEqual(self.client.get('/prompts/training.learning_rate/?format=json').json()['payload'], latest)
+
+    def test_comparison_json_samples_have_readable_companions(self):
+        report = {**self.data, 'enabled': False, 'empty': [], 'extra': {}}
+        content = ('Compare these runs.\nPlanned values (JSON):\n[0.002, 0.0021]'
+                   '\nSummary report (JSON):\n' + json.dumps(report))
+        calls = [{'function': {'name': 'submit_parameter',
+                               'arguments': '{"learning_rate": 0.0021}'}}]
+        payload = {'messages': [{'role': 'user', 'content': content},
+                                {'role': 'assistant', 'content': None, 'tool_calls': calls}],
+                   'model': 'local-model', 'stream': False}
+        self.store.save_prompt('training.learning_rate', payload, 'summary_report')
+        url = '/prompts/training.learning_rate/summary_report/'
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.text.count('aria-label="Readable Markdown"'), 4)
+        for sample in ([0.002, 0.0021], report, calls, payload):
+            raw = json.dumps(sample, indent=2) if sample in (calls, payload) else json.dumps(sample)
+            self.assertIn(html.escape(raw) + '</pre><section', response.text)
+        for readable in ('<strong>high score:</strong> 44', 'Not provided (null)',
+                         '<strong>enabled:</strong> No (false)', 'Empty list', 'Empty object',
+                         '<strong>learning rate:</strong> 0.0021'):
+            self.assertIn(readable, response.text)
+        self.assertNotIn('<pre><code>', response.text)
+        self.assertEqual(self.client.get(url + '?format=json').json()['payload'], payload)
+        self.assertEqual(self.store.load_prompt('training.learning_rate', 'summary_report')['payload'], payload)
+
+    def test_readable_samples_escape_html_and_markdown_links(self):
+        payload = {'messages': [{'role': 'user', 'content': json.dumps({
+            'text': '<script>unsafe</script> [click](https://example.com)'
+        })}]}
+        self.store.save_prompt('epsilon_pair', payload, 'summary_report')
+        page = self.client.get('/prompts/epsilon_pair/summary_report/')
+        self.assertEqual(page.status_code, 200)
+        self.assertNotIn('<script>', page.text)
+        self.assertNotIn('href="https://example.com"', page.text)
+        self.assertIn('&lt;script&gt;unsafe&lt;/script&gt;', page.text)
+
+    def test_message_sections_preserve_prose_and_malformed_json(self):
+        from fr3d.server.prompt_markdown import json_sections, message_samples
+        text = 'Instructions [not JSON] {broken}\n{"score": 42}\nContinue.'
+        sections = list(json_sections(text))
+        self.assertEqual(''.join(source for source, _ in sections), text)
+        self.assertEqual([value for _, value in sections if value is not None], [{'score': 42}])
+        self.assertEqual(message_samples(text).count('aria-label="Readable Markdown"'), 1)
 
     def test_prompt_types_survive_retries_and_reload(self):
         parameter = 'training.learning_rate'
