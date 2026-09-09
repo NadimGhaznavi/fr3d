@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.13] - 2026-09-09 @ 17:34
+
+- Reduced model.hidden_size maximum.
+
 ## [0.22.12] - 2026-09-09 @ 17:25
 
 ### Changed
