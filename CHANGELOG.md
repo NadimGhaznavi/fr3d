@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.3] - 2026-09-08 @ 21:30
+
 ### Changed
 
 - Retain and display the latest sample of each prompt type per parameter, so
