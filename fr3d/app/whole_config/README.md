@@ -7,6 +7,16 @@ dimensions. `reward_pair` replaces `game.rewards.closer_to_food` and
 individual dimension. `PAIR_PATHS` defines the two supported pairs; each pair has
 its own submission tool and prompt, with shared search and reporting behavior.
 
+After submitting a parameter experiment, the loop immediately starts preparing
+one next candidate while Snake Lab runs. Its report uses completed results
+available at that time, and its configuration retains the baseline used in that
+report even if the running experiment subsequently improves gold. A valid answer
+waits in memory until Snake Lab is idle; completion accounting, failure checks,
+and the final duplicate check still precede submission. Seed rotation takes
+priority and discards a prepared answer. Initial and new-seed baselines must
+complete before preparation can start. A restart regenerates the speculative
+answer while recovering the submitted experiment from its durable checkpoint.
+
 1. `SearchStore.gold()` reads the best completed run for the highest recorded seed from MariaDB, using maximum
    episode score and the existing completion-time and run-ID tie breakers.
 2. `SearchStore.parameter_values()` queries each dimension directly. SQL matches

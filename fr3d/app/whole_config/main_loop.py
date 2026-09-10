@@ -1,4 +1,4 @@
-"""Serial configuration search; unexpected failures terminate the service."""
+"""Prepare the next configuration while the current simulation runs."""
 
 import asyncio
 from copy import deepcopy
@@ -35,6 +35,8 @@ class SearchLoop(SearchAccounting):
         self.trace_factory = trace_factory or self._trace
         self.selector = selector if selector is not None else RoundRobinSelector()
         self.initialize_accounting(state_db if state_db is not None else SearchStateDb())
+        self.prepared = None
+        self.prepared_for = None
 
     @staticmethod
     def _trace():
@@ -153,7 +155,11 @@ class SearchLoop(SearchAccounting):
 
     async def _run_once(self):
         if await asyncio.to_thread(self.experiments.is_simulation_running):
-            return 'waiting'
+            await self._recover_submission()
+            if not await self._prepare_next():
+                return 'waiting'
+            if await asyncio.to_thread(self.experiments.is_simulation_running):
+                return 'waiting'
         recovered = await self._recover_submission()
         runs = await asyncio.to_thread(self.store.runs)
         if self.pending_run_id is not None:
@@ -197,6 +203,7 @@ class SearchLoop(SearchAccounting):
                     f"score to beat={best['high_score']}.")
             seed_changed = previous is not None and best['config']['seed'] != previous['config']['seed']
             if seed_changed:
+                self.prepared = None
                 await durable_call(self.archive.save, best, previous)
                 self.gold = self.baseline = best
                 self.dead_ends.clear()
@@ -224,11 +231,22 @@ class SearchLoop(SearchAccounting):
             self.account_completion(trace)
             await self.finish_step()
             if self.stagnant_cycles >= 3:
+                self.prepared = None
                 outcome = await self._rotate_seed(trace)
                 return outcome
 
             trace.record('gold_selected', run_id=self.gold['run_id'], high_score=self.gold['high_score'])
             cursor_before = self.selector.next_index if isinstance(self.selector, RoundRobinSelector) else None
+            if self.prepared is not None:
+                selected, baseline, config, next_index, cycle_end = self.prepared
+                self.baseline = baseline
+                if isinstance(self.selector, RoundRobinSelector):
+                    self.selector.next_index = next_index
+                    self.selector.cycle_end = cycle_end
+                await self.begin_step('parameter', selected=selected, config=config, cursor_before=cursor_before)
+                self.prepared = None
+                outcome = await self._run_parameter(trace)
+                return outcome
             selected = await self._select_baseline(trace)
             if selected is None:
                 await self.checkpoint()
@@ -243,13 +261,47 @@ class SearchLoop(SearchAccounting):
     async def _run_parameter(self, trace):
         selected = ParameterSelection(self.step['parameter'], self.step['initial'], self.step['remaining_count'],
                                       self.step['automatic_arguments'])
+        config = await self._candidate(selected, trace, self.step['config'])
+        # Retain a valid answer even if another simulation wins the idle check.
+        self.step['config'] = config
+        await self.checkpoint()
+        return await self._submit(config, trace, selected.parameter)
+
+    async def _prepare_next(self):
+        """Keep one speculative answer without replacing the active durable step."""
+        if (self.gold is None or self.step is None or self.step['kind'] != 'parameter'
+                or self.step['run_id'] is None or self.prepared_for == self.pending_run_id):
+            return False
+        trace = self.trace_factory()
+        trace.record('decision_started', pending_run_id=self.pending_run_id)
+        selector, baseline, dead_ends = self.selector, self.baseline, self.dead_ends
+        self.selector = deepcopy(selector)
+        self.dead_ends = set(dead_ends)
+        outcome = 'failed'
+        try:
+            selected = await self._select_baseline(trace)
+            if selected is not None:
+                config = await self._candidate(selected, trace)
+                self.prepared = (selected, deepcopy(self.baseline), config,
+                                 getattr(self.selector, 'next_index', 0),
+                                 getattr(self.selector, 'cycle_end', False))
+                trace.record('candidate_prepared', parameter=selected.parameter,
+                             pending_run_id=self.pending_run_id)
+            self.prepared_for = self.pending_run_id
+            outcome = 'prepared' if selected is not None else 'exhausted'
+            return True
+        finally:
+            self.selector, self.baseline, self.dead_ends = selector, baseline, dead_ends
+            trace.record('decision_finished', outcome=outcome)
+
+    async def _candidate(self, selected, trace, config=None):
         parameter = selected.parameter
         source = 'automatic' if selected.automatic_arguments is not None else 'llm'
         trace.record('parameter_selected', parameter=parameter, baseline_run_id=self.baseline['run_id'],
                      best_gold_run_id=self.gold['run_id'], remaining_count=selected.remaining_count,
                      source=source)
-        if self.step['config'] is not None:
-            config = self.step['config']
+        if config is not None:
+            pass
         elif selected.automatic_arguments is not None:
             config = self.configuration.candidate(
                 self.baseline['config'], parameter, selected.automatic_arguments)
@@ -276,13 +328,15 @@ class SearchLoop(SearchAccounting):
                          **self.configuration.pair_arguments(parameter, self.configuration.value(config, parameter)),
                          source=source,
                          baseline_run_id=self.baseline['run_id'], best_gold_run_id=self.gold['run_id'])
-        return await self._submit(config, trace, parameter)
+        return config
 
     async def run(self):
         while True:
             outcome = await self.run_once()
             if outcome == 'exhausted':
                 await asyncio.Event().wait()
+            if outcome == 'submitted':
+                continue
             await asyncio.sleep(DFr3d.FR3D_POLL_INTERVAL)
 
 
