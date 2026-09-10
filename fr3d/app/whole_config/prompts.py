@@ -16,6 +16,14 @@ def prompt(name):
     return Prompt(name, path.read_text(encoding='utf-8'))
 
 
+def continuous_instructions(parameter, field):
+    """Explain precision only for numeric fields without a planned grid."""
+    if field['type'] != 'number' or any(key in field for key in ('const', 'enum', 'multipleOf')):
+        return ''
+    return (f'`{parameter}` is continuous: you may use more decimal places than shown, '
+            'within the supplied bounds. No fixed step size is required.')
+
+
 def parameter_instructions(parameter, field):
     """Render the selected schema field as explicit value instructions."""
     numeric_type = 'an integer' if field['type'] == 'integer' else 'a number'
@@ -35,5 +43,10 @@ def parameter_instructions(parameter, field):
             lines.append(f'The value must be {wording} {json.dumps(field[keyword])}.')
     if 'multipleOf' in field:
         lines.append(f"The planned search grid uses steps of {json.dumps(field['multipleOf'])}.")
-    lines.append('Use the planned grid as guidance. Fr3d checks types and bounds; Snake Lab decides full validity.')
+    precision = continuous_instructions(parameter, field)
+    if precision:
+        lines.append(precision)
+    else:
+        lines.append('Use the planned grid as guidance.')
+    lines.append('Fr3d checks types and bounds; Snake Lab decides full validity.')
     return '\n'.join(lines)
