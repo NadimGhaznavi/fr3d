@@ -75,3 +75,15 @@ loop for reference. Run only one FR3D service at a time.
 
 The source systemd unit selects the new app. Apply it with the existing upgrade
 workflow when ready to deploy; editing this checkout does not restart services.
+
+## Watchdog
+
+`fr3d-watchdog.service` checks both services every 60 seconds. It restarts
+`fr3d-server.service` when systemd reports `inactive` or `failed`, and retains
+the LLM HTTP `/health` check and restart behavior. Fr3d is checked only for
+whether its service is running; there is no application health probe.
+Logs are written to `/opt/fr3d/logs/fr3d-watchdog.log` and the systemd journal.
+
+For maintenance, stop `fr3d-watchdog` before stopping either server, or use
+`scripts/stop-all-services.sh`. Start the watchdog after the servers.
+The upgrade script removes the old `llm-watchdog` unit and enables the replacement.

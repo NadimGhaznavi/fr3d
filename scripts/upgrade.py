@@ -23,6 +23,7 @@ from scripts.install import (  # noqa: E402
     SCRIPT_FILES,
     SOURCE_DIRECTORIES,
     SYSTEMD_DIRECTORY,
+    remove_legacy_watchdog,
     copy_server_configuration,
     ensure_agent_log_directory,
     ensure_snake_lab_read_access,
@@ -84,6 +85,7 @@ def ensure_database_configuration() -> None:
 
 
 def stop_services() -> None:
+    remove_legacy_watchdog()
     for service_name in reversed(DFr3d.SERVICE_NAMES):
         run("systemctl", "stop", service_name, check=False)
 
@@ -158,13 +160,14 @@ def update_services() -> None:
         destination.chmod(0o644)
     run("systemctl", "daemon-reload")
     run("systemctl", "enable", DEFFILE.FR3D_REPORT_SERVICE)
+    run("systemctl", "enable", DEFFILE.FR3D_WATCHDOG_SERVICE)
     # Match start-all-services.sh: let the LLM load before its clients start.
     run("systemctl", "start", DEFFILE.LLM_SERVER_SERVICE)
     time.sleep(7)
     for service_name in (
-        DEFFILE.LLM_WATCHDOG_SERVICE,
         DEFFILE.FR3D_REPORT_SERVICE,
         DEFFILE.FR3D_SERVER_SERVICE,
+        DEFFILE.FR3D_WATCHDOG_SERVICE,
     ):
         run("systemctl", "start", service_name)
 

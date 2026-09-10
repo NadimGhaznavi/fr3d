@@ -87,7 +87,7 @@ def validate_paths() -> None:
     for filename in SCRIPT_FILES:
         if not (PROJECT_ROOT / "scripts" / filename).is_file():
             raise FileNotFoundError(f"installation script not found: {filename}")
-    for filename in ("Fr3dServer.py", "LLMServer.py", "LLMWatchdog.py", "ReportServer.py"):
+    for filename in ("Fr3dServer.py", "LLMServer.py", "Fr3dWatchdog.py", "ReportServer.py"):
         entrypoint = PROJECT_ROOT / "fr3d" / "server" / filename
         if not entrypoint.is_file():
             raise FileNotFoundError(f"server entry point not found: {entrypoint}")
@@ -154,7 +154,17 @@ def mariadb_client() -> str:
     return mariadb
 
 
+def remove_legacy_watchdog() -> None:
+    """Retire the old unit before replacing its Python module."""
+    unit = SYSTEMD_DIRECTORY / "llm-watchdog.service"
+    if unit.exists() or unit.is_symlink():
+        run("systemctl", "disable", "--now", unit.name)
+        unit.unlink()
+        run("systemctl", "daemon-reload")
+
+
 def stop_existing_services() -> None:
+    remove_legacy_watchdog()
     for service_name in reversed(DFr3d.SERVICE_NAMES):
         run("systemctl", "disable", "--now", service_name, check=False)
 
