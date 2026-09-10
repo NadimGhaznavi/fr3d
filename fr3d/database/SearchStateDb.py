@@ -3,6 +3,7 @@
 import json
 
 from fr3d.database.DbMgr import DbMgr
+from fr3d.app.event_log import EventLog
 
 
 def encode(value):
@@ -73,7 +74,7 @@ class SearchStateDb:
     def save(self, revision, state, step):
         """Commit a step and all of its accounting together, or change nothing."""
         with self.manager.transaction() as session:
-            rows = session.query('SELECT revision FROM search_state WHERE id = 1 FOR UPDATE')
+            rows = session.query('SELECT revision, seed, stagnant_cycles FROM search_state WHERE id = 1 FOR UPDATE')
             actual = rows[0]['revision'] if rows else 0
             if actual != revision:
                 raise RuntimeError('Search accounting changed in another process; restart to reload it')
@@ -110,4 +111,13 @@ class SearchStateDb:
                 if step['status'] == 'completed':
                     session.query('UPDATE search_steps SET completed_at = CURRENT_TIMESTAMP(6) WHERE id = %s',
                                   (identity,))
+                    if (step['kind'] == 'seed_rotation' and step['outcome'] == 'completed'
+                            and gold is not None and rows
+                            and rows[0]['seed'] != gold['config']['seed']):
+                        rounds = rows[0]['stagnant_cycles']
+                        EventLog(self.manager).write(
+                            'seed_generated', session=session,
+                            message=f'Generated new seed for golden config after {rounds} rounds with no new high score',
+                            data={'seed': gold['config']['seed'], 'reason': 'no_new_high_score',
+                                  'rounds_without_high_score': rounds})
         return revision + 1, identity
