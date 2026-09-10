@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.24] - 2026-09-09 @ 22:03
+
+### Changed
+
+- Replace `llm-watchdog` with `fr3d-watchdog`, retaining LLM health recovery and
+  restarting the Fr3d service when stopped or failed. Migrate the legacy unit
+  during upgrade and stop the watchdog first during service maintenance.
+
 ## [0.22.23] - 2026-09-09 @ 21:39
 
 ## [0.22.22] - 2026-09-09 @ 21:35

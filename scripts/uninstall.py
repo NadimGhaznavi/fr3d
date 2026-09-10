@@ -18,6 +18,7 @@ from fr3d.constants.DFr3d import DFr3d  # noqa: E402
 from fr3d.constants.DDir import DDirDef as DEFDIR  # noqa: E402
 from scripts.install import (  # noqa: E402
     SYSTEMD_DIRECTORY,
+    remove_legacy_watchdog,
     destroy_database,
     mariadb_client,
     validate_database_environment,
@@ -43,6 +44,7 @@ def remove_directory(path: Path) -> None:
 
 
 def remove_services() -> None:
+    remove_legacy_watchdog()
     for service_name in reversed(DFr3d.SERVICE_NAMES):
         run("systemctl", "disable", "--now", service_name, check=False)
         unit = SYSTEMD_DIRECTORY / service_name

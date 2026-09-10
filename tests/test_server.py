@@ -1,14 +1,15 @@
 from __future__ import annotations
 
+import subprocess
 import unittest
 from io import BytesIO
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from fr3d.constants.DFr3d import DFr3d
 from fr3d.constants.DDir import DDirDef
 from fr3d.constants.DFile import DFileDef
 from fr3d.server.LLMServer import build_command
-from fr3d.server.LLMWatchdog import is_healthy, restart_server
+from fr3d.server.Fr3dWatchdog import check_fr3d, check_services, is_healthy, restart_server
 
 
 class LLMServerCommandTest(unittest.TestCase):
@@ -40,7 +41,7 @@ class Response(BytesIO):
         self.close()
 
 
-class LLMWatchdogTest(unittest.TestCase):
+class Fr3dWatchdogTest(unittest.TestCase):
     def test_accepts_exact_ok_status(self) -> None:
         self.assertTrue(is_healthy(lambda *args, **kwargs: Response(b'{"status":"ok"}')))
 
@@ -49,13 +50,50 @@ class LLMWatchdogTest(unittest.TestCase):
             with self.subTest(body=body):
                 self.assertFalse(is_healthy(lambda *args, **kwargs: Response(body)))
 
-    @patch("fr3d.server.LLMWatchdog.subprocess.run")
+    @patch("fr3d.server.Fr3dWatchdog.subprocess.run")
     def test_restarts_llm_server_unit(self, run: object) -> None:
         restart_server()
         run.assert_called_once_with(
-            ("systemctl", "restart", DFileDef.LLM_SERVER_SERVICE),
-            check=True,
+            ("systemctl", "--no-block", "restart", DFileDef.LLM_SERVER_SERVICE),
+            check=True, timeout=DFr3d.HEALTH_CHECK_TIMEOUT,
         )
+
+    def test_only_stopped_or_failed_agent_is_restarted(self):
+        for state in ("active", "activating", "deactivating", "reloading", "inactive", "failed", ""):
+            with (
+                self.subTest(state=state),
+                patch("fr3d.server.Fr3dWatchdog.subprocess.run", return_value=Mock(stdout=state + "\n")) as run,
+                patch("fr3d.server.Fr3dWatchdog.restart_server") as restart,
+            ):
+                check_fr3d(Mock())
+                self.assertEqual(run.call_args.args[0], (
+                    "systemctl", "show", DFileDef.FR3D_SERVER_SERVICE,
+                    "--property=ActiveState", "--value"))
+                if state in {"inactive", "failed"}:
+                    restart.assert_called_once_with(DFileDef.FR3D_SERVER_SERVICE)
+                else:
+                    restart.assert_not_called()
+
+    def test_llm_restart_failure_does_not_skip_agent(self):
+        with (
+            patch("fr3d.server.Fr3dWatchdog.is_healthy", return_value=False),
+            patch("fr3d.server.Fr3dWatchdog.restart_server", side_effect=subprocess.TimeoutExpired("systemctl", 5)),
+            patch("fr3d.server.Fr3dWatchdog.check_fr3d") as check,
+        ):
+            log = Mock()
+            check_services(log)
+            check.assert_called_once_with(log)
+
+    def test_systemd_check_failure_is_logged_without_restart(self):
+        with (
+            patch("fr3d.server.Fr3dWatchdog.is_healthy", return_value=True),
+            patch("fr3d.server.Fr3dWatchdog.subprocess.run", side_effect=subprocess.CalledProcessError(1, "systemctl")),
+            patch("fr3d.server.Fr3dWatchdog.restart_server") as restart,
+        ):
+            log = Mock()
+            check_services(log)
+            log.critical.assert_called_once()
+            restart.assert_not_called()
 
 
 if __name__ == "__main__":
