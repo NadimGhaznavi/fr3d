@@ -38,6 +38,13 @@ class Conversation:
                 instructions = 'Planned grid values (JSON):\n' + to_json(report['allowed_values'])
         else:
             instructions = parameter_instructions(parameter, self.configuration.parameters[parameter])
+        descriptions = [
+            f'`{path}`: {self.configuration.fields[path]["description"]}'
+            for path in self.configuration.paths(parameter)
+            if self.configuration.fields[path].get('description')
+        ]
+        if descriptions:
+            instructions = '\n'.join(descriptions) + '\n\n' + instructions
         tool = self.configuration.tool(parameter)
         tool_name = tool['function']['name']
         prompt_report = {key: value for key, value in report.items() if key != 'table'}

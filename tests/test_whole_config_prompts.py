@@ -109,3 +109,37 @@ class SchemaPromptTests(unittest.IsolatedAsyncioTestCase):
                         self.assertIn(phrase, content)
                     self.assertEqual(sent[0]['tools'][0]['function']['parameters']['properties']['value'],
                                      submission_schema(self.configuration.parameters[parameter]))
+
+    async def test_v2_descriptions_reach_single_and_pair_requests(self):
+        configuration = Configuration()
+        for initial in (True, False):
+            for parameter, arguments, constraints in (
+                ('training.batch_size', {'value': 48}, 'Please choose a value'),
+                ('epsilon_pair', {'initial': .95, 'decay': .98}, 'Continuous pair bounds (JSON):'),
+                ('reward_pair', {'closer_to_food': 4, 'further_from_food': -4}, 'Planned grid values (JSON):'),
+            ):
+                with self.subTest(initial=initial, parameter=parameter):
+                    sent = []
+                    tool_name = configuration.tool(parameter)['function']['name']
+
+                    def handler(request):
+                        sent.append(json.loads(request.content))
+                        return httpx.Response(200, json={'choices': [{'finish_reason': 'tool_calls', 'message': {
+                            'role': 'assistant', 'tool_calls': [{'id': 'choice', 'type': 'function', 'function': {
+                                'name': tool_name, 'arguments': json.dumps(arguments)}}]}}]})
+
+                    reports = Mock()
+                    reports.already_used.return_value = False
+                    report = {'parameter': parameter, 'gold': {'config': configuration.baseline()},
+                              'allowed_values': [] if parameter == 'reward_pair' else None,
+                              'constraints': configuration.parameters[parameter]}
+                    real_client = httpx.AsyncClient
+                    with patch('fr3d.app.whole_config.conversation.httpx.AsyncClient',
+                               side_effect=lambda **kw: real_client(transport=httpx.MockTransport(handler), **kw)):
+                        await Conversation(configuration, reports).run(parameter, initial, report, Mock())
+                    content = sent[0]['messages'][0]['content']
+                    for path in configuration.paths(parameter):
+                        description = f'`{path}`: {configuration.fields[path]["description"]}'
+                        self.assertIn(description, content)
+                        self.assertLess(content.index(description), content.index(constraints))
+                    self.assertNotIn(configuration.fields['seed']['description'], content)
