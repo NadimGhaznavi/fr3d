@@ -9,7 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Update initial, comparison, epsilon-pair, and reward-pair prompts to interpret
+  optional cross-seed `history` scores in ascending numeric order without changing
+  current-seed eligibility. Explain observed continuous values and allow new,
+  unlisted choices within bounds. Report generation for these historical fields
+  remains pending.
+
 ## [0.24.0] - 2026-09-10 @ 17:17
+
+### Added
+
+- Add the initial historical-data design note proposing previous-seed simulation
+  results in parameter reports. This release adds the proposal; the SQL event-log
+  backend was introduced in 0.23.0.
 
 ## [0.23.0] - 2026-09-10 @ 06:10
 
@@ -23,6 +37,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.22.25] - 2026-09-10 @ 04:32
 
+### Changed
+
+- Replace the report server's latest-summary homepage with a welcome page linking
+  to Latest prompts. Keep individual saved summaries accessible from decision
+  traces and remove the scan for the newest summary snapshot.
+- Omit empty page metadata and refresh controls, and return prompt JSON directly
+  without first rendering its HTML view.
+
 ## [0.22.24] - 2026-09-09 @ 22:03
 
 ### Changed
@@ -33,7 +55,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.22.23] - 2026-09-09 @ 21:39
 
+### Changed
+
+- Raise the bundled v2 schema's `epsilon.decay` maximum from `0.99` to `0.999`.
+
 ## [0.22.22] - 2026-09-09 @ 21:35
+
+### Changed
+
+- Raise the bundled v2 schema's `epsilon.initial` maximum from `0.99` to `0.999`.
 
 ## [0.22.21] - 2026-09-09 @ 21:22
 
@@ -43,6 +73,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   configuration directly from MariaDB while Fr3d services are stopped.
 
 ## [0.22.20] - 2026-09-09 @ 21:06
+
+### Changed
+
+- Clarify that continuous parameters may use any untested value within bounds;
+  completed values provide evidence rather than a finite menu of candidates.
+- Reword the comparison prompt to emphasize improving the high score by changing
+  one parameter using matching experiment results.
 
 ## [0.22.19] - 2026-09-09 @ 20:39
 
@@ -127,6 +164,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.22.9] - 2026-09-09 @ 06:10
 
+### Added
+
+- Publish the seed-rotation implementation described under 0.22.8 below, including
+  rotation after three stagnant cycles and gold selection scoped to the new seed.
+  The implementation was released as 0.22.9; 0.22.8 was its planned version.
+
 ## [0.22.8] - 2026-09-09
 
 ### Added
@@ -193,6 +236,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and retain only one prompt sample per parameter across restarts.
 
 ## [0.22.1] - 2026-09-08 @ 19:36
+
+### Added
+
+- Publish the parameter-convergence implementation described under 0.22.0 below:
+  skip dimensions gaining fewer than two high-score points over three completed
+  LLM tweaks, and reopen them when all eligible dimensions have converged.
 
 ## [0.22.0] - 2026-09-08 @ 19:22
 
@@ -355,6 +404,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.15.3] - 2026-09-07 @ 14:30
 
+### Changed
+
+- Publish the Phase II epsilon-decay search described under 0.15.2 below, using
+  the golden learning rate, matching experiment summaries, history-based
+  duplicate checks, and saved report snapshots.
+
 ## [0.15.2] - 2026-09-07
 
 ### Changed
@@ -391,7 +446,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.14.8] - 2026-09-07 @ 13:32
 
+### Fixed
+
+- Restore configured database credentials and `--env-file` support in
+  `scripts/list-experiments.py`, with an optional Unix socket override, replacing
+  the root-only connection introduced in 0.14.7.
+
 ## [0.14.7] - 2026-09-07 @ 13:29
+
+### Fixed
+
+- Change `scripts/list-experiments.py` to connect as MariaDB root through a local
+  Unix socket and explain socket authentication failures. This temporarily removes
+  `--env-file` support; configured credentials are restored in 0.14.8.
 
 ## [0.14.6] - 2026-09-07 @ 12:58
 
