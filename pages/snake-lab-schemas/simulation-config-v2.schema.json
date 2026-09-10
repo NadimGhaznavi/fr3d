@@ -248,7 +248,7 @@
           "type": "number",
           "default": 0.97,
           "minimum": 0.9,
-          "maximum": 0.99,
+          "maximum": 0.999,
           "x-snakelab-unit": "multiplier-per-episode",
           "description": "Per-episode multiplier applied to epsilon."
         }
