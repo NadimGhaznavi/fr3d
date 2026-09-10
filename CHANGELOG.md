@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-09-10 @ 06:10
+
 ### Added
 
 - Add generic append-only event history with versioned, immutable definitions,
