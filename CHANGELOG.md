@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.24] - 2026-09-09 @ 22:03
+
 ### Changed
 
 - Replace `llm-watchdog` with `fr3d-watchdog`, retaining LLM health recovery and
