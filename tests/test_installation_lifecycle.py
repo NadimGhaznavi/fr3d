@@ -34,7 +34,7 @@ class DeploymentConfigurationTest(unittest.TestCase):
             (DEFFILE.FR3D_SERVER_SERVICE, "fr3d.app.whole_config.main_loop"),
             (DEFFILE.FR3D_REPORT_SERVICE, "fr3d.server.ReportServer"),
             (DEFFILE.LLM_SERVER_SERVICE, "fr3d.server.LLMServer"),
-            (DEFFILE.LLM_WATCHDOG_SERVICE, "fr3d.server.LLMWatchdog"),
+            (DEFFILE.FR3D_WATCHDOG_SERVICE, "fr3d.server.Fr3dWatchdog"),
         ):
             with self.subTest(service=filename):
                 text = (PROJECT_ROOT / "systemd" / filename).read_text()
@@ -43,7 +43,7 @@ class DeploymentConfigurationTest(unittest.TestCase):
                     f"ExecStart={DEFDIR.INSTALL_ROOT / DEFDIR.VENV}/bin/python -m {module}\n",
                     text,
                 )
-                if filename != DEFFILE.LLM_WATCHDOG_SERVICE:
+                if filename != DEFFILE.FR3D_WATCHDOG_SERVICE:
                     self.assertIn(f"EnvironmentFile={DDatabase.ENV_FILE}\n", text)
                 if filename == DEFFILE.FR3D_SERVER_SERVICE:
                     self.assertIn('Restart=no\n', text)
@@ -86,7 +86,7 @@ class InstallationLifecycleTest(unittest.TestCase):
             (DEFDIR, "CONFIG", self.config),
             (DDatabase, "ENV_FILE", self.config / "database.env"),
             (DFr3d, "FRED_SERVER_LOG", self.prefix / "logs/fr3d.log"),
-            (DFr3d, "WATCHDOG_LOG", self.prefix / "logs/llm-watchdog.log"),
+            (DFr3d, "WATCHDOG_LOG", self.prefix / "logs/fr3d-watchdog.log"),
             (install, "PROJECT_ROOT", self.source),
             (upgrade, "PROJECT_ROOT", self.source),
             (install, "SYSTEMD_DIRECTORY", self.units),
@@ -182,6 +182,20 @@ class InstallationLifecycleTest(unittest.TestCase):
         self.assertTrue((self.prefix / "fr3d/server/LLMServer.py").is_file())
         self.assertTrue((DEFDIR.SERVER_CONFIG / DEFFILE.MCP_SERVERS_CONFIG).is_file())
 
+    def test_upgrade_retires_legacy_watchdog_before_stopping_servers(self) -> None:
+        legacy = self.write_file(self.units / "llm-watchdog.service")
+        operations = Mock()
+        with patch("scripts.install.run", operations.run), patch("scripts.upgrade.run", operations.run):
+            upgrade.stop_services()
+        self.assertFalse(legacy.exists())
+        self.assertEqual(operations.mock_calls, [
+            call.run("systemctl", "disable", "--now", "llm-watchdog.service"),
+            call.run("systemctl", "daemon-reload"),
+            *[call.run("systemctl", "stop", service, check=False)
+              for service in reversed(DFr3d.SERVICE_NAMES)],
+        ])
+        self.assertEqual(DFr3d.SERVICE_NAMES[-1], DEFFILE.FR3D_WATCHDOG_SERVICE)
+
     def test_upgrade_requires_reinstall_for_old_layout(self) -> None:
         self.write_file(self.prefix / "server/LLMServer.py")
         self.write_file(self.prefix / DEFDIR.VENV / "bin/python")
@@ -204,11 +218,12 @@ class InstallationLifecycleTest(unittest.TestCase):
         self.assertEqual(operations.mock_calls, [
             call.run("systemctl", "daemon-reload"),
             call.run("systemctl", "enable", DEFFILE.FR3D_REPORT_SERVICE),
+            call.run("systemctl", "enable", DEFFILE.FR3D_WATCHDOG_SERVICE),
             call.run("systemctl", "start", DEFFILE.LLM_SERVER_SERVICE),
             call.sleep(7),
-            call.run("systemctl", "start", DEFFILE.LLM_WATCHDOG_SERVICE),
             call.run("systemctl", "start", DEFFILE.FR3D_REPORT_SERVICE),
             call.run("systemctl", "start", DEFFILE.FR3D_SERVER_SERVICE),
+            call.run("systemctl", "start", DEFFILE.FR3D_WATCHDOG_SERVICE),
         ])
 
     def test_upgrade_does_not_start_clients_when_llm_start_fails(self) -> None:

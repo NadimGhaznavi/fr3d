@@ -5,7 +5,7 @@ class DModule:
     FR3D: Final[str] = "Fr3d"
     JOURNAL_TOOL: Final[str] = "JournalTool"
     KB_BROWSER: Final[str] = "KbBrowser"
-    LLMWATCHDOG: Final[str] = "LLMWatchdog"
+    FR3DWATCHDOG: Final[str] = "Fr3dWatchdog"
     LR_LOOP: Final[str] = "LearningRateLoop"
     LR_REPORT: Final[str] = "LearningRateReport"
     SNAKE_LAB_TOOL: Final[str] = "SnakeLabTool"

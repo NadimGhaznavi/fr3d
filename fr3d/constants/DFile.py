@@ -5,7 +5,7 @@ class DFileDef:
     FR3D_SERVER_SERVICE: Final[str] = "fr3d-server.service"
     FR3D_REPORT_SERVICE: Final[str] = "fr3d-report.service"
     LLM_SERVER_SERVICE: Final[str] = "llm-server.service"
-    LLM_WATCHDOG_SERVICE: Final[str] = "llm-watchdog.service"
+    FR3D_WATCHDOG_SERVICE: Final[str] = "fr3d-watchdog.service"
 
     # The LLama server binary
     LLAMA_SERVER: Final[str] = "llama-server"
@@ -28,4 +28,4 @@ class DFileDef:
     LLM_REASONING_LOG: Final[str] = "llm-reasoning.log"
 
     # The watchdog log file
-    WATCHDOG_LOG: Final[str] = "llm-watchdog.log"
+    WATCHDOG_LOG: Final[str] = "fr3d-watchdog.log"

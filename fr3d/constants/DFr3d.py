@@ -20,11 +20,11 @@ class DFr3d:
     # LLM    
     LLM_PORT: Final[int] = 51970
     # Whole prompt conversation, including report tool calls, in seconds.
-    PROMPT_TIMEOUT: Final[int] = 660
+    PROMPT_TIMEOUT: Final[int] = 780
     CONTEXT_SIZE: Final[int] = 24_576
-    REASONING_BUDGET: Final[int] = 4_096
+    REASONING_BUDGET: Final[int] = 6_144
 
-    # LLM Watchdog
+    # Fr3d and LLM watchdog
     HEALTH_CHECK_INTERVAL: Final[int] = 60
     HEALTH_CHECK_TIMEOUT: Final[int] = 5
     WATCHDOG_LOG: Final[Path] = Path(DEFDIR.SERVER_LOGS / DEFFILE.WATCHDOG_LOG)
@@ -32,10 +32,10 @@ class DFr3d:
     # Linux and SystemD
     SERVICE_GROUP: Final[str] = "fr3d"
     SERVICE_NAMES: Final[tuple[str, ...]] = (
-        DEFFILE.FR3D_SERVER_SERVICE,
         DEFFILE.LLM_SERVER_SERVICE,
-        DEFFILE.LLM_WATCHDOG_SERVICE,
         DEFFILE.FR3D_REPORT_SERVICE,
+        DEFFILE.FR3D_SERVER_SERVICE,
+        DEFFILE.FR3D_WATCHDOG_SERVICE,
     )
     SERVICE_USER: Final[str] = "fr3d"
     FRED_SERVER_LOG: Final[Path] = Path(DEFDIR.SERVER_LOGS / DEFFILE.FRED_SERVER_LOG)
