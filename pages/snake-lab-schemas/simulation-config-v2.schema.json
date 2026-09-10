@@ -233,7 +233,7 @@
           "type": "number",
           "default": 0.96,
           "minimum": 0.85,
-          "maximum": 0.99,
+          "maximum": 0.999,
           "x-snakelab-unit": "probability",
           "description": "Starting probability of choosing a random action."
         },
