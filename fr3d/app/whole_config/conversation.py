@@ -11,7 +11,7 @@ from fr3d.app.conversation_context import ConversationContext
 from fr3d.constants.DFr3d import DFr3d
 from fr3d.reporting.formats import to_json
 from .initial_conversation import first_contact
-from .prompts import parameter_instructions, prompt
+from .prompts import continuous_instructions, parameter_instructions, prompt
 from .configuration import PAIR_PATHS
 
 
@@ -36,8 +36,19 @@ class Conversation:
                 instructions = 'Continuous pair bounds (JSON):\n' + to_json(report['constraints'])
             else:
                 instructions = 'Planned grid values (JSON):\n' + to_json(report['allowed_values'])
+            for path in self.configuration.paths(parameter):
+                precision = continuous_instructions(path, self.configuration.fields[path])
+                if precision:
+                    instructions += '\n\n' + precision
         else:
             instructions = parameter_instructions(parameter, self.configuration.parameters[parameter])
+        descriptions = [
+            f'`{path}`: {self.configuration.fields[path]["description"]}'
+            for path in self.configuration.paths(parameter)
+            if self.configuration.fields[path].get('description')
+        ]
+        if descriptions:
+            instructions = '\n'.join(descriptions) + '\n\n' + instructions
         tool = self.configuration.tool(parameter)
         tool_name = tool['function']['name']
         prompt_report = {key: value for key, value in report.items() if key != 'table'}
