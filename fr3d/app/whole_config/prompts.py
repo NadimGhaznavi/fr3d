@@ -20,8 +20,11 @@ def continuous_instructions(parameter, field):
     """Explain precision only for numeric fields without a planned grid."""
     if field['type'] != 'number' or any(key in field for key in ('const', 'enum', 'multipleOf')):
         return ''
-    return (f'`{parameter}` is continuous: you may use more decimal places than shown, '
-            'within the supplied bounds. No fixed step size is required.')
+    return (f'`{parameter}` is continuous: choose any untested value within the supplied bounds. '
+    'No fixed step size is required. Completed values are historical evidence, '
+    'not a grid or menu of candidate values.')
+
+
 
 
 def parameter_instructions(parameter, field):
