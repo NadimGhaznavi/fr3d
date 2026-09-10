@@ -57,7 +57,8 @@ class SeedRotationTests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
         expected = deepcopy(self.baseline)
         expected['seed'] = 1971
         self.assertEqual(candidate, expected)
-        self.assertEqual(self.conversation.run.await_count, 6)
+        # The seventh answer was prepared while busy, then superseded by rotation.
+        self.assertEqual(self.conversation.run.await_count, 7)
         self.assertIn('1970 -> 1971', self.log.info.call_args.args[0])
         candidate = await self.step(9)
         self.assertEqual(candidate['seed'], 1971)

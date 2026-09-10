@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Prepare the next configuration with the LLM while the current parameter
+  simulation runs, retaining one valid candidate for submission as soon as Snake
+  Lab is idle. Keep completion accounting, seed rotation, and submission checks.
+
 ## [0.24.1] - 2026-09-10 @ 17:36
 
 ### Changed

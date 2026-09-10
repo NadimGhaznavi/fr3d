@@ -218,6 +218,91 @@ class LoopTests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
         self.conversation.run.assert_awaited_once()
         self.backend.submit_simulation.assert_called_once_with(config)
 
+    async def start_running_parameter(self):
+        parameter = 'training.sequence_length'
+        self.configuration.parameters = {parameter: self.configuration.parameters[parameter]}
+        self.add_run(1)
+        first = self.configuration.candidate(self.baseline, parameter, {'value': 4})
+        self.conversation.run.return_value = first
+        self.backend.submit_simulation.return_value['run_id'] = '2'
+        self.assertEqual(await self.loop.run_once(), 'submitted')
+        self.add_run(2, first, score=30, status='running')
+        self.backend.is_simulation_running.return_value = True
+        self.backend.submit_simulation.reset_mock()
+        self.conversation.run.reset_mock()
+        next_config = self.configuration.candidate(self.baseline, parameter, {'value': 16})
+        self.conversation.run.return_value = next_config
+        return next_config
+
+    async def test_prepares_once_while_busy_and_submits_after_gold_promotion(self):
+        config = await self.start_running_parameter()
+        active_step = deepcopy(self.loop.step)
+        self.assertEqual(await self.loop.run_once(), 'waiting')
+        self.assertEqual(await self.loop.run_once(), 'waiting')
+        self.conversation.run.assert_awaited_once()
+        self.backend.submit_simulation.assert_not_called()
+        self.assertEqual(self.loop.step, active_step)
+        self.assertEqual(self.loop.pending_run_id, '2')
+
+        self.db.execute("UPDATE simulation_runs SET status = 'completed' WHERE run_id = '2'")
+        self.backend.is_simulation_running.return_value = False
+        self.backend.submit_simulation.return_value['run_id'] = '3'
+        self.assertEqual(await self.loop.run_once(), 'submitted')
+        self.backend.submit_simulation.assert_called_once_with(config)
+        self.conversation.run.assert_awaited_once()
+        self.assertEqual(self.loop.gold['run_id'], '2')
+        self.assertEqual(self.loop.baseline['run_id'], '1')
+
+    async def test_completion_during_conversation_submits_without_another_poll(self):
+        config = await self.start_running_parameter()
+        async def complete(*args):
+            self.backend.submit_simulation.assert_not_called()
+            self.db.execute("UPDATE simulation_runs SET status = 'completed' WHERE run_id = '2'")
+            self.backend.is_simulation_running.return_value = False
+            return config
+        self.conversation.run.side_effect = complete
+        self.backend.submit_simulation.return_value['run_id'] = '3'
+        self.assertEqual(await self.loop.run_once(), 'submitted')
+        self.backend.submit_simulation.assert_called_once_with(config)
+
+    async def test_failed_simulation_does_not_submit_prepared_candidate(self):
+        await self.start_running_parameter()
+        self.assertEqual(await self.loop.run_once(), 'waiting')
+        self.db.execute("UPDATE simulation_runs SET status = 'failed' WHERE run_id = '2'")
+        self.backend.is_simulation_running.return_value = False
+        with self.assertRaises(RuntimeError):
+            await self.loop.run_once()
+        self.backend.submit_simulation.assert_not_called()
+
+    async def test_restart_prepares_while_preserving_pending_submission(self):
+        config = await self.start_running_parameter()
+        self.loop = SearchLoop(self.backend, self.configuration, self.reports, self.conversation,
+                               self.archive, Mock(return_value=Mock()), selector=self.loop.selector,
+                               state_db=self.loop.state_db)
+        self.assertEqual(await self.loop.run_once(), 'waiting')
+        self.assertEqual(self.loop.pending_run_id, '2')
+        self.assertEqual(self.loop.prepared[2], config)
+        self.backend.submit_simulation.assert_not_called()
+
+    async def test_seed_rotation_takes_priority_over_prepared_candidate(self):
+        from fr3d.app.whole_config.selection import RoundRobinSelector
+        self.loop.selector = RoundRobinSelector()
+        await self.start_running_parameter()
+        self.loop.stagnant_cycles = 2
+        self.loop.cycle_improved = False
+        self.db.execute("UPDATE simulation_episodes SET score = 5 WHERE run_id = '2'")
+        self.assertEqual(await self.loop.run_once(), 'waiting')
+        self.assertIsNotNone(self.loop.prepared)
+        self.db.execute("UPDATE simulation_runs SET status = 'completed' WHERE run_id = '2'")
+        self.backend.is_simulation_running.return_value = False
+        self.backend.submit_simulation.return_value['run_id'] = '3'
+        self.loop.event_logger = Mock()
+        self.assertEqual(await self.loop.run_once(), 'submitted')
+        expected = deepcopy(self.baseline)
+        expected['seed'] += 1
+        self.backend.submit_simulation.assert_called_once_with(expected)
+        self.assertIsNone(self.loop.prepared)
+
     async def test_baseline_promotions_ties_and_no_startup_repromotion(self):
         self.assertEqual(await self.loop.run_once(), 'submitted')
         self.backend.submit_simulation.assert_called_once_with(self.baseline)
