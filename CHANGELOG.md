@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.25.1] - 2026-09-10 @ 19:27
+
 ### Added
 
 - Include cross-seed high-score history in finite and continuous parameter reports,
