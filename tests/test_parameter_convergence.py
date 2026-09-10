@@ -68,7 +68,7 @@ class ConvergenceLoopTests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
         parameter = 'training.learning_rate'
         self.configuration.parameters = {parameter: self.configuration.parameters[parameter],
                                          'training.gamma': self.configuration.parameters['training.gamma']}
-        # Keep gamma eligible for the next prepared conversation.
+        # Keep gamma eligible for the next completed-cycle selection.
         self.parameter = parameter
 
     async def test_only_completed_tweaks_count_and_third_result_skips_parameter(self):
@@ -78,8 +78,6 @@ class ConvergenceLoopTests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
             self.assertEqual(await self.loop.run_once(), 'submitted')
             self.assertNotIn(self.parameter, self.loop.selector.convergence.converged)
             candidate = self.backend.submit_simulation.call_args.args[0]
-            # Direct the next speculative turn; only completed runs count below.
-            self.loop.selector.next_index = 0 if identity < 4 else 1
             self.backend.is_simulation_running.return_value = True
             self.assertEqual(await self.loop.run_once(), 'waiting')
             self.assertNotIn(self.parameter, self.loop.selector.convergence.converged)

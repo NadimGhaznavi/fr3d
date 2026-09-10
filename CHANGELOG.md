@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.25.2] - 2026-09-10 @ 19:35
+
+### Changed
+
+- Roll back speculative LLM queries during simulation runs to avoid CPU
+  contention. Wait for Snake Lab to become idle and account for its completed
+  result before selecting the next configuration, including after restart.
+  Remove the speculative candidate cache and use the updated gold baseline.
+
 ## [0.25.1] - 2026-09-10 @ 19:27
 
 ### Added
