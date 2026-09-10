@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add `scripts/export-gold.py` to export the current seed's best completed
+  configuration directly from MariaDB while Fr3d services are stopped.
+
 ## [0.22.20] - 2026-09-09 @ 21:06
 
 ## [0.22.19] - 2026-09-09 @ 20:39
