@@ -24,7 +24,7 @@ its own submission tool and prompt, with shared search and reporting behavior.
    sequence length, batch size, learning rate, gamma, epsilon pair, and reward
    pair, skipping exhausted finite grids. Each selected dimension advances the
    cursor once; dialogue retries stay within that turn. Gold changes preserve
-   the cursor, and restart begins at the first dimension. No cursor is persisted.
+   the cursor. Search checkpoints preserve its position across restarts.
 5. Selection returns the parameter, initial-prompt flag, remaining count, and
    submission arguments when exactly one choice remains. The loop uses this
    result directly. A sole finite value or pair is applied to the active gold
@@ -52,8 +52,8 @@ Previous golds are strict record highs reconstructed in completion order from
 completed runs; tied scores and non-gold runs are not backtracking targets.
 Within each seed, best-ever gold stays unchanged until beaten. The active baseline stays in use
 across iterations, and a new best-ever gold becomes the active baseline.
-Dead-end flags are held for the process lifetime and logged; after restart they
-are recomputed from database history. Once all previous golds are exhausted,
+Dead-end flags and the active backtracking baseline are checkpointed in Fr3d
+and restored after restart. Once all previous golds are exhausted,
 the loop waits until stopped. It does not explore non-gold baselines.
 
 During backtracking the report's `gold` field holds the active baseline used by
@@ -70,9 +70,8 @@ through the existing error flow and never establishes a submitted experiment.
 Snake Lab enforces full configuration validity using its standard validator.
 V2 has no decimal `multipleOf` constraints or custom decimal-step workaround.
 
-Release 0.21.0 deployment is planned as an uninstall/install of both Snake Lab and
-Fr3d, starting with fresh data. This implementation adds no data migration or
-automatic deletion of experiment history.
+Search accounting migrations affect only the Fr3d database. No Snake Lab code,
+schema, simulation data, or API changes are required.
 
 ## Seed rotation
 
@@ -93,6 +92,68 @@ Gold and previous-gold queries use only the active seed. Matching reports and
 duplicate checks include seed. The highest seed in the configurations table is
 the active seed, including queued baseline runs: after restart, existing busy and
 unfinished-run checks prevent searching before that baseline completes. Failures
-retain the existing stop-on-error behavior. The cursor and stagnation counters
-restart at zero; they are not persisted. Snake Lab must deploy the matching v2
-schema permitting nonnegative integer seeds before running this release.
+retain the existing stop-on-error behavior. The cursor, stagnation counters,
+and convergence windows now survive restarts through Fr3d search checkpoints.
+
+
+## Persistent search accounting
+
+`SearchStateDb` uses the normal `FR3D_DB_*` credentials and the Fr3d MariaDB
+schema. `SearchStore` continues its existing read-only queries against Snake Lab.
+Installation and upgrade create these InnoDB tables without clearing existing
+state or changing credentials:
+
+| Table | Contents |
+| --- | --- |
+| `search_state` | Singleton versioned checkpoint: active seed, gold and backtracking baseline snapshots and run IDs, dead ends, parameter order, round-robin cursor, cycle flags, stagnant-cycle count, and pending completion accounting. |
+| `search_parameter_state` | Per-parameter rolling score window and convergence flag. |
+| `search_steps` | Parameter, initial baseline, seed-rotation, and cancellation-recovery attempts: `running` or `completed`, proposed configuration, submission history watermark, run ID, cycle metadata, outcome, and timestamps. |
+
+Fr3d records a running step before calling the model, then records its exact
+configuration and the latest simulation history ID before submitting. On restart,
+it resumes that parameter. If a submission reply was lost, a matching configuration
+recorded after the saved history ID identifies the submitted run. An active
+simulation is allowed to finish; a completed result is accounted for; an attempt
+that never reached Snake Lab is submitted using the saved configuration. If the
+model call was interrupted before producing a configuration, it is rerun for the
+same parameter. A cancelled run is retried with its exact recorded configuration
+and keeps the original pending accounting. Failed runs still stop the loop.
+
+Completing a step saves gold, convergence, cycle accounting, and the step's
+`completed` status in one transaction. Each completed LLM-selected tweak enters
+its parameter's rolling three-tweak window; improvement below two points marks
+it converged. Automatic submissions still count toward cycles but not those
+windows. Reopening all eligible converged parameters and rotation after three
+stagnant cycles retain their existing rules.
+
+A database named lock serializes search decisions across Fr3d processes, and
+checkpoint revisions reject stale writes. A unique key allows only one running
+step; simulation run IDs are unique within the step ledger. They are references,
+not foreign keys into Snake Lab. Gold archive writes are atomic and deduplicated
+by run ID, so replay after a transaction failure does not duplicate promotions.
+Diagnostic trace messages may repeat during recovery; they do not drive accounting.
+
+The first startup with empty accounting tables recovers the current seed and gold
+from existing simulation history and starts fresh counters. Previously lost
+in-memory counters cannot be reconstructed. Later restarts restore saved progress.
+Changing the ordered search dimensions requires an explicit state migration;
+Fr3d stops rather than interpreting an old cursor against a different order.
+
+To add only the accounting schema to an existing DEV install, from the checkout:
+
+```sh
+sudo venv/bin/python -c 'from scripts.install import ensure_search_state_schema; ensure_search_state_schema()'
+```
+
+The account retains its existing journal permissions and receives `SELECT`,
+`INSERT`, and `UPDATE` on the three accounting tables. Runtime needs no schema
+creation or deletion privilege. Normal `upgrade.sh` applies the same additive
+migration. No services are started by the schema-only command.
+
+Restart and rollback tests use fake simulation history. Optional MariaDB tests
+create uniquely named disposable tables only in the DEV `fr3d` schema, use Fr3d's
+credentials for accounting, then remove the test tables and temporary grants:
+
+```sh
+sudo env FR3D_TEST_MARIADB=1 PYTHONPATH=tests:fr3d/mcp-tools venv/bin/python -m unittest test_search_state_mariadb -v
+```

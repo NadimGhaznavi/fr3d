@@ -23,6 +23,10 @@ from fr3d.reporting.snapshots import ReportSnapshots
 
 class HistoryFixture:
     def setup_history(self):
+        from search_state_fixture import MemorySearchStateDb
+        state_patch = patch('fr3d.app.whole_config.main_loop.SearchStateDb', MemorySearchStateDb)
+        state_patch.start()
+        self.addCleanup(state_patch.stop)
         self.configuration = Configuration(getattr(self, 'schema_path', 'pages/snake-lab-schemas/simulation-config-v1.schema.json'))
         self.baseline = self.configuration.baseline()
         self.db = sqlite3.connect(':memory:', check_same_thread=False)
