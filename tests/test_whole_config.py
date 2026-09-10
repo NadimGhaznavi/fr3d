@@ -507,6 +507,51 @@ class ConversationTests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(TimeoutError):
                 await conversation.run(self.report['parameter'], False, self.report, Mock())
 
+    async def test_model_loading_retries_preserve_request_and_correction_history(self):
+        responses = iter([
+            httpx.Response(503, text='Loading model'),
+            httpx.Response(200, json=self.reply('bad')),
+            httpx.Response(503, text='Service unavailable'),
+            httpx.Response(200, json=self.reply(256)),
+        ])
+        sent = []
+
+        def handler(request):
+            sent.append(json.loads(request.content))
+            return next(responses)
+
+        conversation = Conversation(self.configuration, self.reports)
+        trace = Mock()
+        with self.client(handler), patch('fr3d.app.whole_config.conversation.asyncio.sleep',
+                                        new_callable=AsyncMock) as sleep:
+            config = await conversation.run(self.report['parameter'], True, self.report, trace)
+        self.assertEqual(config['model']['hidden_size'], 256)
+        self.assertEqual(sent[0], sent[1])
+        self.assertEqual(sent[2], sent[3])
+        self.assertEqual(len(sent[2]['messages']), 3)
+        self.assertEqual(sleep.await_args_list, [unittest.mock.call(5), unittest.mock.call(5)])
+        self.assertEqual(sum(call.args[0] == 'llm_unavailable' for call in trace.record.call_args_list), 2)
+
+    async def test_unavailable_retry_obeys_deadline_and_cancellation(self):
+        conversation = Conversation(self.configuration, self.reports)
+        with self.client(lambda request: httpx.Response(503)), \
+                patch('fr3d.app.whole_config.conversation.DFr3d.PROMPT_TIMEOUT', .02):
+            with self.assertRaises(TimeoutError):
+                await conversation.run(self.report['parameter'], True, self.report, Mock())
+
+        with self.client(lambda request: httpx.Response(503)), \
+                patch('fr3d.app.whole_config.conversation.asyncio.sleep',
+                      side_effect=asyncio.CancelledError):
+            with self.assertRaises(asyncio.CancelledError):
+                await conversation.run(self.report['parameter'], True, self.report, Mock())
+
+    async def test_other_http_errors_still_propagate(self):
+        for status in (400, 401, 500):
+            with self.subTest(status=status), self.client(lambda request: httpx.Response(status)):
+                conversation = Conversation(self.configuration, self.reports)
+                with self.assertRaises(httpx.HTTPStatusError):
+                    await conversation.run(self.report['parameter'], True, self.report, Mock())
+
     async def test_incomplete_responses_log_errors_and_retry_same_request(self):
         incomplete = self.reply(256)
         incomplete['choices'][0]['finish_reason'] = 'length'
