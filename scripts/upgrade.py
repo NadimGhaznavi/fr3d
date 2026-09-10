@@ -26,6 +26,7 @@ from scripts.install import (  # noqa: E402
     copy_server_configuration,
     ensure_agent_log_directory,
     ensure_snake_lab_read_access,
+    ensure_search_state_schema,
     validate_database_environment,
     validate_paths,
 )
@@ -79,6 +80,7 @@ def ensure_database_configuration() -> None:
             f"database credentials not found: {DDatabase.ENV_FILE}; reinstall Fr3d"
         )
     ensure_snake_lab_read_access()
+    ensure_search_state_schema()
 
 
 def stop_services() -> None:

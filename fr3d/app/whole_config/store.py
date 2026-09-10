@@ -80,6 +80,15 @@ class SearchStore:
         condition, values = self._matching(config)
         return bool(self._query('SELECT c.run_id FROM configurations c WHERE ' + condition + ' LIMIT 1', values))
 
+    def submitted_match(self, config, after):
+        """Recover an acknowledged or interrupted submission using read-only history."""
+        condition, values = self._matching(config)
+        rows = self._query(
+            'SELECT r.id, r.run_id, r.status FROM configurations c '
+            'JOIN simulation_runs r ON r.run_id = c.run_id WHERE ' + condition
+            + ' AND r.id > %s ORDER BY r.id DESC LIMIT 1', (*values, after))
+        return rows[0] if rows else None
+
     def parameter_values(self, gold, parameter):
         """Count matching runs per value without loading episode scores or reports."""
         condition, values = self._matching(gold['config'], excluded=parameter)

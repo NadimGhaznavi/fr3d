@@ -8,19 +8,21 @@ from fr3d.constants.DDir import DDirDef
 from fr3d.constants.DFile import DFileDef
 from fr3d.constants.DFr3d import DFr3d
 from fr3d.reporting.snapshots import ReportSnapshots
+from fr3d.database.SearchStateDb import SearchStateDb
 from fr3d.utils.DecisionTrace import DecisionTrace
 from fr3d.utils.MyLog import MyLog
 from .configuration import Configuration, PAIR_PATHS
 from .archive import GoldArchive
 from .conversation import Conversation
 from .reports import SearchReports
-from .selection import RoundRobinSelector
+from .selection import RoundRobinSelector, ParameterSelection
+from .accounting import SearchAccounting, durable_call
 from .store import SearchStore
 
 
-class SearchLoop:
+class SearchLoop(SearchAccounting):
     def __init__(self, experiments, configuration=None, reports=None, conversation=None,
-                 archive=None, trace_factory=None, selector=None, store=None, event_logger=None):
+                 archive=None, trace_factory=None, selector=None, store=None, event_logger=None, state_db=None):
         self.event_logger = event_logger
         self.experiments = experiments
         self.configuration = configuration if configuration is not None else Configuration()
@@ -32,14 +34,7 @@ class SearchLoop:
         self.archive = archive if archive is not None else GoldArchive()
         self.trace_factory = trace_factory or self._trace
         self.selector = selector if selector is not None else RoundRobinSelector()
-        self.gold = None
-        self.baseline = None
-        self.dead_ends = set()
-        self.pending_run_id = None
-        self.pending_tweak = None
-        self.pending_cycle_end = False
-        self.stagnant_cycles = 0
-        self.cycle_improved = False
+        self.initialize_accounting(state_db if state_db is not None else SearchStateDb())
 
     @staticmethod
     def _trace():
@@ -51,24 +46,54 @@ class SearchLoop:
         if await asyncio.to_thread(self.experiments.is_simulation_running):
             return 'waiting'
         if cancelled_run_id is not None:
-            # Retry the recorded configuration exactly, bypassing duplicate checks
-            # only for this explicit cancellation recovery path.
             config = await asyncio.to_thread(self.store.cancelled_config, cancelled_run_id)
-        elif await asyncio.to_thread(self.store.already_used, config):
+            if self.step is None:
+                await self.begin_step('cancelled_recovery', config=config)
+            if self.step['cancelled_run_id'] != cancelled_run_id:
+                self.step.update(cancelled_run_id=cancelled_run_id, run_id=None, submitted_after=None)
+        elif self.step['submitted_after'] is None and await asyncio.to_thread(self.store.already_used, config):
             trace.record('duplicate_rejected', parameter=parameter)
+            await self.finish_step('duplicate_rejected')
             return 'duplicate_rejected'
-        result = await asyncio.to_thread(self.experiments.submit_simulation, config)
+        self.configuration.validate(config)
+        self.step['config'] = config
+        if self.step['submitted_after'] is None:
+            runs = await asyncio.to_thread(self.store.runs)
+            self.step['submitted_after'] = max((row['id'] for row in runs), default=0)
+        await self.checkpoint()
+        result = await durable_call(self.experiments.submit_simulation, config)
         if result.get('state') != 'queued' or not isinstance(result.get('run_id'), str) or not result['run_id']:
+            if result.get('state') == 'rejected':
+                self.step['submitted_after'] = None
+                if self.step['kind'] == 'parameter' and self.step['automatic_arguments'] is None:
+                    self.step['config'] = None
+                await self.checkpoint()
+            # A malformed response might follow an accepted submission. Keep the
+            # intent so recovery reconciles history before attempting it again.
             raise ValueError(f'Invalid Snake Lab submission confirmation: {result!r}')
-        self.pending_run_id = result['run_id']
+        self.record_pending_submission(result['run_id'])
+        await self.checkpoint()
         if cancelled_run_id is not None:
             trace.record('cancelled_run_resubmitted', cancelled_run_id=cancelled_run_id,
                          run_id=self.pending_run_id)
         pair_values = (self.configuration.pair_arguments(parameter, self.configuration.value(config, parameter))
                        if parameter in PAIR_PATHS else {})
         trace.record('experiment_submitted', parameter=parameter, run_id=self.pending_run_id, **pair_values)
+        if self.step['kind'] == 'seed_rotation':
+            self._record_rotation(trace)
         self.conversation.record_outcome(f'Experiment submitted: run_id={self.pending_run_id}, parameter={parameter}.')
         return 'submitted'
+
+    async def _recover_submission(self):
+        if (self.step is None or self.step['run_id'] is not None
+                or self.step['config'] is None or self.step['submitted_after'] is None):
+            return
+        match = await asyncio.to_thread(self.store.submitted_match,
+                                        self.step['config'], self.step['submitted_after'])
+        if match is not None:
+            self.record_pending_submission(match['run_id'])
+            await self.checkpoint()
+        return match
 
     def _log_seed_event(self, message):
         if self.event_logger is None:
@@ -79,16 +104,17 @@ class SearchLoop:
         config = deepcopy(self.gold['config'])
         config['seed'] += 1
         self.configuration.validate(config)
-        outcome = await self._submit(config, trace)
-        if outcome == 'submitted':
-            self._log_seed_event(
-                f"Seed rotation {self.gold['config']['seed']} -> {config['seed']} after "
-                f"3 stagnant round-robin cycles; rerunning current gold {self.gold['run_id']} "
-                f"unchanged apart from seed, run_id={self.pending_run_id}.")
-            trace.record('seed_rotation_started', old_seed=self.gold['config']['seed'],
-                         seed=config['seed'], gold_run_id=self.gold['run_id'],
-                         run_id=self.pending_run_id)
-        return outcome
+        await self.begin_step('seed_rotation', config=config)
+        return await self._submit(config, trace)
+
+    def _record_rotation(self, trace):
+        seed = self.step['config']['seed']
+        self._log_seed_event(
+            f"Seed rotation {self.gold['config']['seed']} -> {seed} after "
+            f"3 stagnant round-robin cycles; rerunning current gold {self.gold['run_id']} "
+            f"unchanged apart from seed, run_id={self.pending_run_id}.")
+        trace.record('seed_rotation_started', old_seed=self.gold['config']['seed'],
+                     seed=seed, gold_run_id=self.gold['run_id'], run_id=self.pending_run_id)
 
     async def _select_baseline(self, trace):
         if self.baseline is None:
@@ -114,8 +140,21 @@ class SearchLoop:
         return None
 
     async def run_once(self):
+        try:
+            await durable_call(self.state_db.acquire)
+            await self.load_accounting()
+            return await self._run_once()
+        except BaseException:
+            # Reload the last committed checkpoint if this instance is reused.
+            self.accounting_loaded = False
+            raise
+        finally:
+            await durable_call(self.state_db.release)
+
+    async def _run_once(self):
         if await asyncio.to_thread(self.experiments.is_simulation_running):
             return 'waiting'
+        recovered = await self._recover_submission()
         runs = await asyncio.to_thread(self.store.runs)
         if self.pending_run_id is not None:
             pending = next((row for row in runs if row['run_id'] == self.pending_run_id), None)
@@ -129,13 +168,25 @@ class SearchLoop:
 
         trace = self.trace_factory()
         trace.record('decision_started')
+        if recovered is not None:
+            trace.record('submission_recovered', run_id=recovered['run_id'], step_id=self.step['id'])
+            if self.step['kind'] == 'seed_rotation':
+                self._record_rotation(trace)
         outcome = 'failed'
         try:
             if runs and runs[-1]['status'] == 'cancelled':
                 outcome = await self._submit(None, trace, cancelled_run_id=runs[-1]['run_id'])
                 return outcome
+            if self.step is not None and self.step['run_id'] is None:
+                if self.step['kind'] == 'parameter':
+                    outcome = await self._run_parameter(trace)
+                else:
+                    outcome = await self._submit(self.step['config'], trace)
+                return outcome
             if not runs:
-                outcome = await self._submit(self.configuration.baseline(), trace)
+                config = self.configuration.baseline()
+                await self.begin_step('baseline', config=config)
+                outcome = await self._submit(config, trace)
                 return outcome
 
             best = await asyncio.to_thread(self.store.gold)
@@ -146,7 +197,7 @@ class SearchLoop:
                     f"score to beat={best['high_score']}.")
             seed_changed = previous is not None and best['config']['seed'] != previous['config']['seed']
             if seed_changed:
-                await asyncio.to_thread(self.archive.save, best, previous)
+                await durable_call(self.archive.save, best, previous)
                 self.gold = self.baseline = best
                 self.dead_ends.clear()
                 self.selector = RoundRobinSelector()
@@ -163,23 +214,15 @@ class SearchLoop:
                 # Startup selection is not a promotion. A baseline submitted by
                 # this loop is archived when its completion is first observed.
                 if previous is not None or self.pending_run_id == best['run_id']:
-                    await asyncio.to_thread(self.archive.save, best, previous)
+                    await durable_call(self.archive.save, best, previous)
                     trace.record('gold_promoted', run_id=best['run_id'], high_score=best['high_score'])
                 self.gold = best
                 self.baseline = best
                 if previous is not None:
                     self.stagnant_cycles = 0
                     self.cycle_improved = True
-            if self.pending_tweak is not None:
-                parameter, score_before = self.pending_tweak
-                self.selector.convergence.completed(parameter, score_before, self.gold['high_score'], trace)
-                self.pending_tweak = None
-            if self.pending_cycle_end:
-                self.stagnant_cycles = 0 if self.cycle_improved else self.stagnant_cycles + 1
-                self.cycle_improved = False
-                self.pending_cycle_end = False
-                trace.record('round_robin_cycle_completed', stagnant_cycles=self.stagnant_cycles)
-            self.pending_run_id = None
+            self.account_completion(trace)
+            await self.finish_step()
             if self.stagnant_cycles >= 3:
                 outcome = await self._rotate_seed(trace)
                 return outcome
@@ -188,50 +231,52 @@ class SearchLoop:
             cursor_before = self.selector.next_index if isinstance(self.selector, RoundRobinSelector) else None
             selected = await self._select_baseline(trace)
             if selected is None:
+                await self.checkpoint()
                 outcome = 'exhausted'
                 return outcome
-            parameter = selected.parameter
-            source = 'automatic' if selected.automatic_arguments is not None else 'llm'
-            trace.record('parameter_selected', parameter=parameter, baseline_run_id=self.baseline['run_id'],
-                         best_gold_run_id=self.gold['run_id'], remaining_count=selected.remaining_count,
-                         source=source)
-            if selected.automatic_arguments is not None:
-                config = self.configuration.candidate(
-                    self.baseline['config'], parameter, selected.automatic_arguments)
-            else:
-                report = await asyncio.to_thread(self.reports.parameter_report, self.baseline, parameter)
-                if self.baseline['run_id'] != self.gold['run_id']:
-                    report['best_gold'] = self.gold
-                    report['search_context'] = (
-                        'The gold field is the previous gold used as the active search baseline. '
-                        'Best-ever gold is retained separately in best_gold. Change only the '
-                        'selected search dimension from the active search baseline.')
-                config = await self.conversation.run(parameter, selected.initial, report, trace)
-            # Both decision paths must satisfy the same submission boundary.
-            try:
-                self.configuration.validate_changes(self.baseline['config'], config, parameter)
-            except ValueError as error:
-                trace.record('candidate_validation', parameter=parameter, status='invalid', message=str(error),
-                             source=source)
-                raise
-            trace.record('candidate_validation', parameter=parameter, status='valid', source=source,
-                         baseline_run_id=self.baseline['run_id'], best_gold_run_id=self.gold['run_id'])
-            if parameter in PAIR_PATHS:
-                trace.record(f'{parameter}_selected',
-                             **self.configuration.pair_arguments(parameter, self.configuration.value(config, parameter)),
-                             source=source,
-                             baseline_run_id=self.baseline['run_id'], best_gold_run_id=self.gold['run_id'])
-            outcome = await self._submit(config, trace, parameter)
-            if isinstance(self.selector, RoundRobinSelector):
-                if outcome == 'submitted':
-                    self.pending_cycle_end = self.selector.cycle_end
-                    if source == 'llm':
-                        self.pending_tweak = (parameter, self.gold['high_score'])
-                else:
-                    self.selector.next_index = cursor_before
+            await self.begin_step('parameter', selected=selected, cursor_before=cursor_before)
+            outcome = await self._run_parameter(trace)
             return outcome
         finally:
             trace.record('decision_finished', outcome=outcome)
+
+    async def _run_parameter(self, trace):
+        selected = ParameterSelection(self.step['parameter'], self.step['initial'], self.step['remaining_count'],
+                                      self.step['automatic_arguments'])
+        parameter = selected.parameter
+        source = 'automatic' if selected.automatic_arguments is not None else 'llm'
+        trace.record('parameter_selected', parameter=parameter, baseline_run_id=self.baseline['run_id'],
+                     best_gold_run_id=self.gold['run_id'], remaining_count=selected.remaining_count,
+                     source=source)
+        if self.step['config'] is not None:
+            config = self.step['config']
+        elif selected.automatic_arguments is not None:
+            config = self.configuration.candidate(
+                self.baseline['config'], parameter, selected.automatic_arguments)
+        else:
+            report = await asyncio.to_thread(self.reports.parameter_report, self.baseline, parameter)
+            if self.baseline['run_id'] != self.gold['run_id']:
+                report['best_gold'] = self.gold
+                report['search_context'] = (
+                    'The gold field is the previous gold used as the active search baseline. '
+                    'Best-ever gold is retained separately in best_gold. Change only the '
+                    'selected search dimension from the active search baseline.')
+            config = await self.conversation.run(parameter, selected.initial, report, trace)
+        # Both decision paths must satisfy the same submission boundary.
+        try:
+            self.configuration.validate_changes(self.baseline['config'], config, parameter)
+        except ValueError as error:
+            trace.record('candidate_validation', parameter=parameter, status='invalid', message=str(error),
+                         source=source)
+            raise
+        trace.record('candidate_validation', parameter=parameter, status='valid', source=source,
+                     baseline_run_id=self.baseline['run_id'], best_gold_run_id=self.gold['run_id'])
+        if parameter in PAIR_PATHS:
+            trace.record(f'{parameter}_selected',
+                         **self.configuration.pair_arguments(parameter, self.configuration.value(config, parameter)),
+                         source=source,
+                         baseline_run_id=self.baseline['run_id'], best_gold_run_id=self.gold['run_id'])
+        return await self._submit(config, trace, parameter)
 
     async def run(self):
         while True:

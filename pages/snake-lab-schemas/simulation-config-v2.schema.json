@@ -16,7 +16,7 @@
     },
     "seed": {
       "title": "Simulation seed",
-      "description": "Master seed used to derive independent model, exploration, replay, and episode seeds.",
+      "description": "Master seed used to derive model, exploration, replay, and episode seeds.",
       "type": "integer",
       "default": 1970,
       "minimum": 0
@@ -30,22 +30,25 @@
           "type": "integer",
           "const": 20,
           "default": 20,
-          "x-snakelab-unit": "cells"
+          "x-snakelab-unit": "cells",
+          "description": "Width of the Snake board in cells."
         },
         "board_height": {
           "type": "integer",
           "const": 20,
           "default": 20,
-          "x-snakelab-unit": "cells"
+          "x-snakelab-unit": "cells",
+          "description": "Height of the Snake board in cells."
         },
         "initial_snake_length": {
           "type": "integer",
           "const": 3,
           "default": 3,
-          "x-snakelab-unit": "cells"
+          "x-snakelab-unit": "cells",
+          "description": "Snake length at the start of each episode."
         },
         "max_moves_multiplier": {
-          "description": "An episode ends when moves exceed this value times the current snake length.",
+          "description": "Ends an episode when moves exceed this value times the current snake length.",
           "type": "integer",
           "const": 100,
           "default": 100
@@ -57,41 +60,48 @@
             "food": {
               "type": "integer",
               "const": 10,
-              "default": 10
+              "default": 10,
+              "description": "Reward for eating food."
             },
             "wall": {
               "type": "integer",
               "const": -10,
-              "default": -10
+              "default": -10,
+              "description": "Penalty for colliding with a wall."
             },
             "snake": {
               "type": "integer",
               "const": -10,
-              "default": -10
+              "default": -10,
+              "description": "Penalty for colliding with the snake."
             },
             "max_moves": {
               "type": "integer",
               "const": -10,
-              "default": -10
+              "default": -10,
+              "description": "Penalty when the maximum move limit is reached."
             },
             "empty": {
               "type": "integer",
               "const": 0,
-              "default": 0
+              "default": 0,
+              "description": "Reward for a normal move that does not eat food."
             },
             "closer_to_food": {
               "type": "integer",
               "default": 2,
               "minimum": 0,
               "maximum": 6,
-              "multipleOf": 1
+              "multipleOf": 1,
+              "description": "Reward for moving closer to the food."
             },
             "further_from_food": {
               "type": "integer",
               "default": -2,
               "minimum": -6,
               "maximum": 0,
-              "multipleOf": 1
+              "multipleOf": 1,
+              "description": "Penalty for moving farther from the food."
             }
           },
           "required": [
@@ -124,21 +134,28 @@
           "minimum": 64,
           "maximum": 384,
           "multipleOf": 16,
-          "x-snakelab-unit": "neurons"
+          "x-snakelab-unit": "neurons",
+          "description": "Number of neurons in each recurrent hidden layer."
         },
         "layers": {
           "type": "integer",
           "const": 4,
-          "default": 4
+          "default": 4,
+          "description": "Number of recurrent model layers."
         },
         "dropout": {
           "type": "number",
           "const": 0.1,
           "default": 0.1,
-          "x-snakelab-unit": "probability"
+          "x-snakelab-unit": "probability",
+          "description": "Dropout probability between recurrent layers."
         }
       },
-      "required": ["hidden_size", "layers", "dropout"]
+      "required": [
+        "hidden_size",
+        "layers",
+        "dropout"
+      ]
     },
     "training": {
       "title": "Replay and training",
@@ -151,7 +168,8 @@
           "minimum": 4,
           "maximum": 48,
           "multipleOf": 4,
-          "x-snakelab-unit": "frames"
+          "x-snakelab-unit": "frames",
+          "description": "Number of consecutive frames used in each training sequence."
         },
         "batch_size": {
           "type": "integer",
@@ -159,34 +177,40 @@
           "minimum": 8,
           "maximum": 64,
           "multipleOf": 8,
-          "x-snakelab-unit": "sequences"
+          "x-snakelab-unit": "sequences",
+          "description": "Number of sequences sampled for each training update."
         },
         "replay_max_frames": {
           "type": "integer",
           "const": 100000,
-          "default": 100000
+          "default": 100000,
+          "description": "Maximum number of frames retained in replay memory."
         },
         "learning_rate": {
           "type": "number",
           "default": 0.0021,
           "minimum": 0.0005,
-          "maximum": 0.0050
+          "maximum": 0.005,
+          "description": "Optimizer learning rate; controls the size of gradient updates."
         },
         "gamma": {
           "type": "number",
           "default": 0.96,
-          "minimum": 0.90,
-          "maximum": 0.99
+          "minimum": 0.9,
+          "maximum": 0.99,
+          "description": "Discount factor controlling the value of future rewards."
         },
         "tau": {
           "type": "number",
           "const": 0.001,
-          "default": 0.001
+          "default": 0.001,
+          "description": "Soft-update rate for the target network."
         },
         "max_gradient_norm": {
           "type": "number",
           "const": 1.0,
-          "default": 1.0
+          "default": 1.0,
+          "description": "Maximum gradient norm used for gradient clipping."
         }
       },
       "required": [
@@ -210,24 +234,38 @@
           "default": 0.96,
           "minimum": 0.85,
           "maximum": 0.99,
-          "x-snakelab-unit": "probability"
+          "x-snakelab-unit": "probability",
+          "description": "Starting probability of choosing a random action."
         },
         "minimum": {
           "type": "number",
           "default": 0.0,
           "const": 0.0,
-          "x-snakelab-unit": "probability"
+          "x-snakelab-unit": "probability",
+          "description": "Minimum epsilon value allowed during exploration."
         },
         "decay": {
           "type": "number",
           "default": 0.97,
-          "minimum": 0.90,
+          "minimum": 0.9,
           "maximum": 0.99,
-          "x-snakelab-unit": "multiplier-per-episode"
+          "x-snakelab-unit": "multiplier-per-episode",
+          "description": "Per-episode multiplier applied to epsilon."
         }
       },
-      "required": ["initial", "minimum", "decay"]
+      "required": [
+        "initial",
+        "minimum",
+        "decay"
+      ]
     }
   },
-  "required": ["epochs", "seed", "game", "model", "training", "epsilon"]
+  "required": [
+    "epochs",
+    "seed",
+    "game",
+    "model",
+    "training",
+    "epsilon"
+  ]
 }

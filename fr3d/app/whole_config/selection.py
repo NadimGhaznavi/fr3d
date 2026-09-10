@@ -60,7 +60,7 @@ def assess_parameters(configuration, store, gold, trace=None):
 
 
 class ParameterConvergence:
-    """Rolling three-tweak windows, retained across baseline changes in one process."""
+    """Rolling three-tweak windows, checkpointed with search completion accounting."""
 
     def __init__(self):
         self.windows = {}
@@ -87,7 +87,7 @@ class ParameterConvergence:
 
 
 class RoundRobinSelector:
-    """One in-memory cursor per search loop; baseline changes preserve position."""
+    """One checkpointed cursor per search loop; baseline changes preserve position."""
 
     def __init__(self, convergence=None):
         self.next_index = 0

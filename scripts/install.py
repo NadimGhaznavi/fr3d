@@ -273,6 +273,19 @@ GRANT SELECT, INSERT ON `{DDatabase.DB_NAME}`.*
     )
     ensure_snake_lab_read_access()
     write_database_environment(password)
+    ensure_search_state_schema()
+
+
+def ensure_search_state_schema() -> None:
+    """Add Fr3d accounting tables without altering simulation data or credentials."""
+    from fr3d.database.search_schema import SCHEMA, TABLES
+
+    sql = f'USE `{DDatabase.DB_NAME}`;\n' + ';\n'.join(SCHEMA) + ';\n'
+    sql += '\n'.join(
+        f"GRANT SELECT, INSERT, UPDATE ON `{DDatabase.DB_NAME}`.`{table}` "
+        f"TO '{DDatabase.USERNAME}'@'{DDatabase.HOST}';" for table in TABLES)
+    subprocess.run([mariadb_client(), '--protocol=socket', '--batch'],
+                   input=sql, text=True, check=True)
 
 
 def ensure_agent_log_directory() -> None:
