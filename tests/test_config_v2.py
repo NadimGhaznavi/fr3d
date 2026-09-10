@@ -54,7 +54,7 @@ class V2Tests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
         self.assertEqual(config.baseline(), self.baseline)
         self.assertEqual(list(config.parameters), ORDER)
         self.assertEqual([availability(config.parameters[p], set())[0] for p in ORDER[:5]],
-                     [21, 16, 16, None, None])
+                         [21, 12, 8, None, None])
         self.assertIsNone(config.legal_pairs(self.baseline))
         self.assertEqual(len(config.legal_pairs(self.baseline, 'reward_pair')), 49)
         for path in ('training.gamma', 'epsilon.initial', 'epsilon.decay'):

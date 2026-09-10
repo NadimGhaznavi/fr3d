@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.18] - 2026-09-09 @ 20:29
+
+### Changed
+
+- Persist search progress, parameter convergence, and seed-rotation accounting in
+  Fr3d's MariaDB database. Resume interrupted parameter work and reconcile saved
+  submissions after restart; commit completed steps and their accounting together.
+- Add the search-state tables during install and upgrade. Preserve existing
+  tuning and rotation rules, and make gold archive replay safe after recovery.
+  Snake Lab's code, schema, data, and API remain unchanged.
+
 ## [0.22.17] - 2026-09-09 @ 19:16
 
 ### Changed

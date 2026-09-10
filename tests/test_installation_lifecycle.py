@@ -158,7 +158,8 @@ class InstallationLifecycleTest(unittest.TestCase):
         self.assertEqual(DDatabase.ENV_FILE.stat().st_mode & 0o777, 0o640)
         self.assertEqual(self.config.stat().st_mode & 0o777, 0o750)
         self.assertFalse((self.prefix / "server/database.env").exists())
-        self.assertIn("GRANT SELECT ON `snakelab`.*", run.call_args.kwargs["input"])
+        self.assertIn("GRANT SELECT ON `snakelab`.*", run.call_args_list[1].kwargs["input"])
+        self.assertIn('CREATE TABLE IF NOT EXISTS search_state', run.call_args_list[2].kwargs['input'])
 
     def test_upgrade_preserves_credentials_venv_models_logs_and_journal(self) -> None:
         install.recreate_installation()

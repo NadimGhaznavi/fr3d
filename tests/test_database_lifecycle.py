@@ -40,7 +40,7 @@ class DatabaseLifecycleTest(unittest.TestCase):
             ):
                 install.provision_database()
 
-            self.assertEqual(run.call_count, 2)
+            self.assertEqual(run.call_count, 3)
             sql = run.call_args_list[0].kwargs["input"]
             self.assertIn("CREATE DATABASE IF NOT EXISTS `fr3d`", sql)
             self.assertIn("CREATE USER IF NOT EXISTS 'fr3d'@'localhost'", sql)
@@ -50,6 +50,12 @@ class DatabaseLifecycleTest(unittest.TestCase):
                 run.call_args_list[1].kwargs["input"].strip(),
                 "GRANT SELECT ON `snakelab`.*\n    TO 'fr3d'@'localhost';",
             )
+            accounting_sql = run.call_args_list[2].kwargs['input']
+            self.assertIn('USE `fr3d`;', accounting_sql)
+            for table in ('search_state', 'search_parameter_state', 'search_steps'):
+                self.assertIn(f'CREATE TABLE IF NOT EXISTS {table}', accounting_sql)
+                self.assertIn(f'GRANT SELECT, INSERT, UPDATE ON `fr3d`.`{table}`', accounting_sql)
+            self.assertNotIn('snakelab', accounting_sql)
             environment = environment_file.read_text(encoding="utf-8")
             self.assertIn("FR3D_DB_NAME=fr3d\n", environment)
             self.assertIn("FR3D_DB_USER=fr3d\n", environment)
@@ -90,12 +96,15 @@ class DatabaseLifecycleTest(unittest.TestCase):
                 upgrade.ensure_database_configuration()
                 upgrade.ensure_database_configuration()
             self.assertEqual(environment_file.read_text(encoding="utf-8"), "existing")
-            self.assertEqual(run.call_count, 2)
-            for grant_call in run.call_args_list:
+            self.assertEqual(run.call_count, 4)
+            for grant_call in run.call_args_list[::2]:
                 self.assertEqual(
                     grant_call.kwargs["input"].strip(),
                     "GRANT SELECT ON `snakelab`.*\n    TO 'fr3d'@'localhost';",
                 )
+            for schema_call in run.call_args_list[1::2]:
+                self.assertIn('CREATE TABLE IF NOT EXISTS search_state', schema_call.kwargs['input'])
+                self.assertNotIn('ALTER USER', schema_call.kwargs['input'])
 
     def test_upgrade_rejects_missing_database_configuration(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
