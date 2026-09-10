@@ -69,9 +69,9 @@ class SearchStore:
                 previous = row
         raise ValueError(f'Gold run is missing from completed history: {gold["run_id"]}')
 
-    def _matching(self, config, excluded=None):
+    def _matching(self, config, excluded=None, *, exclude_seed=False):
         excluded_paths = self.configuration.paths(excluded) if excluded is not None else ()
-        paths = [path for path in self.configuration.fields if path not in excluded_paths]
+        paths = [path for path in self.configuration.fields if path not in excluded_paths and not (exclude_seed and path == 'seed')]
         # Identifiers come only from the bundled schema; values are bound parameters.
         condition = ' AND '.join(f'c.`{path.replace(".", "_")}` = %s' for path in paths)
         return condition, tuple(get_value(config, path) for path in paths)
