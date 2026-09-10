@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.21] - 2026-09-09 @ 21:22
+
 ### Added
 
 - Add `scripts/export-gold.py` to export the current seed's best completed
