@@ -118,7 +118,15 @@ submissions do not count. A promotion immediately resets stagnation and marks it
 cycle improved. Existing convergence reopening continues within a seed. Rotation
 clears convergence windows, dead ends, and the cursor after the baseline completes.
 
-Gold and previous-gold queries use only the active seed. Matching reports and
+All parameter reports include `value_results`: finite dimensions list their grid,
+while continuous dimensions list values observed on the current seed or in qualifying
+history. Each entry keeps current-seed `results` (or `UNTESTED`) separate from
+`history`, an ascending list of completed-run high scores from other seeds with
+all settings outside the selected dimension matching. Missing scores are omitted;
+zero and repeated scores are retained. Historical observations do not change
+eligibility or restrict continuous choices to the observed values.
+
+Gold and previous-gold queries use only the active seed. Current results and
 duplicate checks include seed. The highest seed in the configurations table is
 the active seed, including queued baseline runs: after restart, existing busy and
 unfinished-run checks prevent searching before that baseline completes. Failures

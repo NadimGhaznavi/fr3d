@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Include cross-seed high-score history in finite and continuous parameter reports,
+  including epsilon and reward pairs. Match all other settings, retain completed
+  runs with scores, and sort historical scores lowest to highest, including zero
+  and repeats. Continuous reports list observed values without imposing a grid.
+- Keep current-seed results and eligibility separate: values seen only on other
+  seeds remain `UNTESTED` and available for the LLM to select.
+
 ## [0.25.0] - 2026-09-10 @ 18:58
 
 ## [0.24.3] - 2026-09-10 @ 18:50

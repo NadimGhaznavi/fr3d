@@ -89,12 +89,14 @@ class UntestedGridReportTests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
                          sorted(self.configuration.legal_pairs(self.baseline, parameter)))
         self.assertEqual(report['eligible_pairs'], expected)
 
-    def test_continuous_parameters_have_no_grid_list(self):
+    def test_continuous_parameters_list_only_observed_values(self):
         for parameter in ('training.learning_rate', 'training.gamma', 'epsilon_pair'):
             with self.subTest(parameter=parameter):
                 report = self.reports.parameter_report(self.gold, parameter)
                 self.assertNotIn('untested_grid_values', report)
-                self.assertNotIn('value_results', report)
+                self.assertEqual(len(report['value_results']), 1)
+                self.assertTrue(report['value_results'][0]['results'][0]['baseline'])
+                self.assertEqual(report['value_results'][0]['history'], [])
 
     async def test_grid_list_reaches_model_as_json_for_both_openings(self):
         parameter = 'model.hidden_size'
