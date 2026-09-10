@@ -153,6 +153,29 @@ not foreign keys into Snake Lab. Gold archive writes are atomic and deduplicated
 by run ID, so replay after a transaction failure does not duplicate promotions.
 Diagnostic trace messages may repeat during recovery; they do not drive accounting.
 
+### Event history
+
+When a completed seed rotation establishes the new golden seed, `SearchStateDb`
+writes `seed_generated` through `fr3d.app.event_log.EventLog` in the same transaction
+as the accounting checkpoint. Its payload contains `seed`, `reason` (currently
+`no_new_high_score`), and `rounds_without_high_score`, taken from the saved cycle
+count before it resets. Candidate calculation and submission do not emit this
+event. An event insertion failure rolls back the checkpoint and propagates to
+the caller.
+
+Install and upgrade create `event_type`, `event_log`, and `event_log_data` in
+Fr3d's database. Definitions are immutable: repeat installation accepts an
+identical definition and rejects a conflicting definition. Runtime uses the
+existing database-wide SELECT/INSERT grants; application code never updates or
+deletes history or creates definitions. Existing file logs remain available.
+
+`EventLog(database, provider='fr3d', version=1).write(...)` resolves the exact
+provider/name/version and accepts JSON-compatible payload values. Occurrence
+timestamps are UTC. Without a session, it commits its own transaction; with
+`session=...`, it leaves commit and rollback to the caller. The caller must roll
+back after a database failure, and returned IDs are provisional until commit.
+Duplicate occurrences are allowed; reading and browsing are outside v1 scope.
+
 The first startup with empty accounting tables recovers the current seed and gold
 from existing simulation history and starts fresh counters. Previously lost
 in-memory counters cannot be reconstructed. Later restarts restore saved progress.

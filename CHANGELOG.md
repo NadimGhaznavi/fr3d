@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add generic append-only event history with versioned, immutable definitions,
+  JSON payload validation, and support for caller-owned database transactions.
+- Record `seed_generated` alongside the committed golden seed after a completed
+  seed rotation. Install and upgrade create the history tables and verify the
+  initial definition without modifying existing definitions.
+
 ## [0.22.25] - 2026-09-10 @ 04:32
 
 ## [0.22.24] - 2026-09-09 @ 22:03

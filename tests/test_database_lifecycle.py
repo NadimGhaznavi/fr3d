@@ -40,7 +40,7 @@ class DatabaseLifecycleTest(unittest.TestCase):
             ):
                 install.provision_database()
 
-            self.assertEqual(run.call_count, 3)
+            self.assertEqual(run.call_count, 4)
             sql = run.call_args_list[0].kwargs["input"]
             self.assertIn("CREATE DATABASE IF NOT EXISTS `fr3d`", sql)
             self.assertIn("CREATE USER IF NOT EXISTS 'fr3d'@'localhost'", sql)
@@ -56,6 +56,7 @@ class DatabaseLifecycleTest(unittest.TestCase):
                 self.assertIn(f'CREATE TABLE IF NOT EXISTS {table}', accounting_sql)
                 self.assertIn(f'GRANT SELECT, INSERT, UPDATE ON `fr3d`.`{table}`', accounting_sql)
             self.assertNotIn('snakelab', accounting_sql)
+            self.assertIn('Conflicting event definition', run.call_args_list[3].kwargs['input'])
             environment = environment_file.read_text(encoding="utf-8")
             self.assertIn("FR3D_DB_NAME=fr3d\n", environment)
             self.assertIn("FR3D_DB_USER=fr3d\n", environment)
@@ -96,15 +97,27 @@ class DatabaseLifecycleTest(unittest.TestCase):
                 upgrade.ensure_database_configuration()
                 upgrade.ensure_database_configuration()
             self.assertEqual(environment_file.read_text(encoding="utf-8"), "existing")
-            self.assertEqual(run.call_count, 4)
-            for grant_call in run.call_args_list[::2]:
+            self.assertEqual(run.call_count, 6)
+            for grant_call in run.call_args_list[::3]:
                 self.assertEqual(
                     grant_call.kwargs["input"].strip(),
                     "GRANT SELECT ON `snakelab`.*\n    TO 'fr3d'@'localhost';",
                 )
-            for schema_call in run.call_args_list[1::2]:
+            for schema_call in run.call_args_list[1::3]:
                 self.assertIn('CREATE TABLE IF NOT EXISTS search_state', schema_call.kwargs['input'])
                 self.assertNotIn('ALTER USER', schema_call.kwargs['input'])
+
+    def test_event_schema_migration_is_shared_and_repeatable(self):
+        with patch('scripts.install.mariadb_client', return_value='mariadb'), \
+                patch('scripts.install.subprocess.run') as run:
+            install.ensure_event_history_schema()
+            upgrade.ensure_event_history_schema()
+        self.assertEqual(run.call_args_list[0], run.call_args_list[1])
+        sql = run.call_args.kwargs['input']
+        for table in ('event_type', 'event_log', 'event_log_data'):
+            self.assertIn(f'CREATE TABLE IF NOT EXISTS {table}', sql)
+        self.assertIn('SIGNAL SQLSTATE', sql)
+        self.assertNotIn('ALTER USER', sql)
 
     def test_upgrade_rejects_missing_database_configuration(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
