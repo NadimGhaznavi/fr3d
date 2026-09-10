@@ -73,6 +73,26 @@ V2 has no decimal `multipleOf` constraints or custom decimal-step workaround.
 Search accounting migrations affect only the Fr3d database. No Snake Lab code,
 schema, simulation data, or API changes are required.
 
+## Export current gold
+
+From the checkout, with MariaDB running:
+
+```sh
+sudo venv/bin/python scripts/export-gold.py --output /tmp/golden-config.json
+```
+
+Fr3d, the report server, and the LLM services can be stopped. The script reads
+the database directly and does not manage services or submit a simulation.
+It exports only the simulation configuration, using `SearchStore.gold()`:
+the best completed run for the highest recorded seed, with the usual tie breakers.
+This is the best gold for that seed, even if search has backtracked to an older
+baseline. If that seed has no completed scored run, the command fails without
+writing the output file.
+
+Omit `--output` to print JSON to stdout. Run ID, seed, and score go to stderr.
+`--env-file` and `--unix-socket` override the usual database connection settings.
+The output file is replaced on a successful export.
+
 ## Seed rotation
 
 After three complete round-robin cycles without a strict gold improvement, submit
