@@ -1,8 +1,7 @@
-"""Show the latest saved parameter summary supplied to Fr3d's LLM."""
+"""Browse saved Fr3d reports and LLM requests."""
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from html import escape
 import logging
 import json
@@ -52,60 +51,52 @@ def prompt_matrix(snapshots, parameters):
     return content + '</tbody></table>'
 
 
-def page_response(*, title, metadata, content, refresh_url='/', status=200,
-                  description='The saved summary report supplied to Fr3d for parameter exploration.',
-                  refresh_label='Refresh report'):
+def page_response(*, title, content, metadata='', description='', refresh_url=None,
+                  refresh_label='Refresh report', status=200):
     return HTMLResponse(
         PAGE.substitute(
-            title=escape(title),
-            description=escape(description),
-            metadata=escape(metadata), content=content,
-            refresh_url=escape(refresh_url, quote=True), refresh_label=escape(refresh_label),
+            title=escape(title), content=content,
+            description=f'<p class="description">{escape(description)}</p>' if description else '',
+            metadata=f'<p class="metadata">{escape(metadata)}</p>' if metadata else '',
+            refresh=(f'<a class="refresh" href="{escape(refresh_url, quote=True)}">'
+                     f'{escape(refresh_label)}</a>') if refresh_url else '',
         ), status_code=status, headers=HEADERS,
     )
 
 
+def welcome(request):
+    return page_response(
+        title='Welcome to Fr3d reports',
+        content='<p>Explore Fr3d’s saved reports to see how it evaluates experiments and chooses what to try next.</p>'
+                '<p>Visit <a href="/prompts/">Latest prompts</a> to inspect the instructions and data supplied to the LLM.</p>',
+    )
+
+
 def summary_report(request):
-    """Load snapshots in Starlette's worker thread; no database or LLM calls."""
-    identity = request.path_params.get('identity')
-    title = 'Summary report' if identity else 'Latest summary report'
+    """Open a fixed snapshot linked from a decision trace."""
+    identity = request.path_params['identity']
+    title = 'Summary report'
     wants_json = request.query_params.get('format') == 'json'
     refresh_url = request.url.path
     try:
         snapshots = ReportSnapshots()
-        if identity:
-            data = snapshots.load(identity)
-            metadata = f'Saved report {identity}'
-        else:
-            identity, data, modified = snapshots.latest_summary()
-            saved = datetime.fromtimestamp(modified, timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
-            metadata = f'Saved {saved} · Report {identity}'
+        if not snapshots.valid_identity(identity):
+            raise FileNotFoundError
+        data = snapshots.load(identity)
         if wants_json:
             return JSONResponse(data, headers=HEADERS)
         content = '<pre>' + escape(json.dumps(data, ensure_ascii=False, allow_nan=False, indent=2)) + '</pre>'
     except FileNotFoundError:
-        if request.path_params.get('identity'):
-            status, message = 404, 'This saved report could not be found.'
-        else:
-            status, message = 200, 'No summary report has been saved yet. Refresh after Fr3d starts its next parameter exploration.'
+        message = 'This saved report could not be found.'
         if wants_json:
             return JSONResponse({'detail': message}, status_code=404, headers=HEADERS)
         return page_response(title=title, metadata='No saved report',
-                             content='<p>' + escape(message) + '</p>',
-                             refresh_url=refresh_url, status=status)
-    except ValueError:
-        # A malformed ID is a missing page; malformed saved JSON is a service error.
-        if request.path_params.get('identity') and not snapshots.valid_identity(identity):
-            if wants_json:
-                return JSONResponse({'detail': 'Report not found'}, status_code=404, headers=HEADERS)
-            return page_response(title=title, metadata='Report unavailable',
-                                 content='<p>Report not found</p>', refresh_url='/', status=404)
-        LOG.exception('Could not read saved summary report')
-        return unavailable(title, wants_json, refresh_url)
+                             content='<p>' + message + '</p>', status=404)
     except Exception:
         LOG.exception('Could not read saved summary report')
         return unavailable(title, wants_json, refresh_url)
-    return page_response(title=title, metadata=metadata, content=content, refresh_url=refresh_url)
+    return page_response(title=title, metadata=f'Saved report {identity}',
+                         content=content, refresh_url=refresh_url)
 
 
 def unavailable(title, wants_json, refresh_url):
@@ -114,6 +105,28 @@ def unavailable(title, wants_json, refresh_url):
         return JSONResponse({'detail': message}, status_code=503, headers=HEADERS)
     return page_response(title=title, metadata='Report unavailable',
                          content='<p>' + message + '</p>', refresh_url=refresh_url, status=503)
+
+
+def prompt_content(snapshots, parameter, data):
+    payload = data['payload']
+    content = '<p><a href="/prompts/">All parameters</a></p>'
+    types = snapshots.prompt_types(parameter)
+    if types:
+        content += '<h2>Prompt types</h2><ul>' + ''.join(
+            f'<li><a href="/prompts/{escape(parameter, quote=True)}/{escape(kind, quote=True)}/">{escape(kind.replace("_", " ").capitalize())}</a></li>'
+            for kind in types) + '</ul>'
+    content += '<h2>Messages</h2>'
+    for message in payload['messages']:
+        content += '<h3>' + escape(message['role']) + '</h3>'
+        content += message_samples(message.get('content') or '')
+        if message.get('tool_calls'):
+            content += '<pre>' + escape(json.dumps(message['tool_calls'], indent=2)) + '</pre>'
+            content += markdown_companion(message['tool_calls'])
+    content += '<h2>Complete request body</h2><pre>' + escape(
+        json.dumps(payload, ensure_ascii=False, allow_nan=False, indent=2)) + '</pre>'
+    content += markdown_companion(payload)
+    content += '<p><a href="?format=json">View JSON sample</a></p>'
+    return content
 
 
 def latest_prompts(request):
@@ -130,32 +143,17 @@ def latest_prompts(request):
         if parameter:
             data = snapshots.load_prompt(parameter, prompt_type)
             metadata = f"Saved {data['saved_at']} · {parameter} · {data.get('prompt_type') or 'unclassified'}"
-            payload = data['payload']
-            content = '<p><a href="/prompts/">All parameters</a></p>'
-            types = snapshots.prompt_types(parameter)
-            if types:
-                content += '<h2>Prompt types</h2><ul>' + ''.join(
-                    f'<li><a href="/prompts/{escape(parameter, quote=True)}/{escape(kind, quote=True)}/">{escape(kind.replace("_", " ").capitalize())}</a></li>'
-                    for kind in types) + '</ul>'
-            content += '<h2>Messages</h2>'
-            for message in payload['messages']:
-                content += '<h3>' + escape(message['role']) + '</h3>'
-                content += message_samples(message.get('content') or '')
-                if message.get('tool_calls'):
-                    content += '<pre>' + escape(json.dumps(message['tool_calls'], indent=2)) + '</pre>'
-                    content += markdown_companion(message['tool_calls'])
-            content += '<h2>Complete request body</h2><pre>' + escape(
-                json.dumps(payload, ensure_ascii=False, allow_nan=False, indent=2)) + '</pre>'
-            content += markdown_companion(payload)
-            content += '<p><a href="?format=json">View JSON sample</a></p>'
+            if wants_json:
+                return JSONResponse(data, headers=HEADERS)
+            content = prompt_content(snapshots, parameter, data)
         else:
             parameters = snapshots.prompt_parameters()
             data = {'parameters': parameters}
+            if wants_json:
+                return JSONResponse(data, headers=HEADERS)
             content = prompt_matrix(snapshots, parameters)
             if not parameters:
                 content += '<p>No prompts have been saved yet. Samples appear as Fr3d sends parameter requests to the LLM.</p>'
-        if wants_json:
-            return JSONResponse(data, headers=HEADERS)
     except FileNotFoundError:
         status = 404
         content = '<p>No prompt has been saved for this parameter.</p>'
@@ -174,7 +172,7 @@ def latest_prompts(request):
 
 
 app = Starlette(routes=[
-    Route('/', summary_report, methods=['GET']),
+    Route('/', welcome, methods=['GET']),
     Route('/prompts/', latest_prompts, methods=['GET']),
     Route('/prompts/{parameter:str}/{prompt_type:str}/', latest_prompts, methods=['GET']),
     Route('/prompts/{parameter:str}/', latest_prompts, methods=['GET']),
