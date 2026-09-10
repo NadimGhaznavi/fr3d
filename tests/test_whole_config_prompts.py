@@ -8,7 +8,7 @@ import httpx
 
 from fr3d.app.whole_config.configuration import Configuration
 from fr3d.app.whole_config.conversation import Conversation
-from fr3d.app.whole_config.prompts import parameter_instructions
+from fr3d.app.whole_config.prompts import continuous_instructions, parameter_instructions
 from fr3d.app.whole_config.selection import select_parameter
 from fr3d.app.whole_config.value_space import exhausted
 from fr3d.app.whole_config.validation import submission_schema
@@ -82,6 +82,17 @@ class SchemaPromptTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('greater than 0.', text)
         self.assertIn('less than 1.', text)
 
+    def test_precision_guidance_only_applies_to_continuous_fields(self):
+        for field in ({'type': 'integer'}, {'type': 'number', 'const': .5},
+                      {'type': 'number', 'enum': [.1, .2]},
+                      {'type': 'number', 'multipleOf': .01}):
+            with self.subTest(field=field):
+                self.assertEqual(continuous_instructions('value', field), '')
+        text = parameter_instructions('rate', {'type': 'number', 'minimum': .001, 'maximum': .005})
+        self.assertIn('more decimal places', text)
+        self.assertIn('within the supplied bounds', text)
+        self.assertNotIn('Use the planned grid', text)
+
     async def test_schema_wording_reaches_both_opening_prompts(self):
         for initial in (True, False):
             for parameter, value, phrases in (
@@ -109,3 +120,45 @@ class SchemaPromptTests(unittest.IsolatedAsyncioTestCase):
                         self.assertIn(phrase, content)
                     self.assertEqual(sent[0]['tools'][0]['function']['parameters']['properties']['value'],
                                      submission_schema(self.configuration.parameters[parameter]))
+
+    async def test_v2_descriptions_reach_single_and_pair_requests(self):
+        configuration = Configuration()
+        for initial in (True, False):
+            for parameter, arguments, constraints in (
+                ('training.batch_size', {'value': 48}, 'Please choose a value'),
+                ('training.learning_rate', {'value': .002137}, 'Please choose a value'),
+                ('training.gamma', {'value': .96317}, 'Please choose a value'),
+                ('epsilon_pair', {'initial': .95123, 'decay': .97865}, 'Continuous pair bounds (JSON):'),
+                ('reward_pair', {'closer_to_food': 4, 'further_from_food': -4}, 'Planned grid values (JSON):'),
+            ):
+                with self.subTest(initial=initial, parameter=parameter):
+                    sent = []
+                    tool_name = configuration.tool(parameter)['function']['name']
+
+                    def handler(request):
+                        sent.append(json.loads(request.content))
+                        return httpx.Response(200, json={'choices': [{'finish_reason': 'tool_calls', 'message': {
+                            'role': 'assistant', 'tool_calls': [{'id': 'choice', 'type': 'function', 'function': {
+                                'name': tool_name, 'arguments': json.dumps(arguments)}}]}}]})
+
+                    reports = Mock()
+                    reports.already_used.return_value = False
+                    report = {'parameter': parameter, 'gold': {'config': configuration.baseline()},
+                              'allowed_values': [] if parameter == 'reward_pair' else None,
+                              'constraints': configuration.parameters[parameter]}
+                    real_client = httpx.AsyncClient
+                    with patch('fr3d.app.whole_config.conversation.httpx.AsyncClient',
+                               side_effect=lambda **kw: real_client(transport=httpx.MockTransport(handler), **kw)):
+                        await Conversation(configuration, reports).run(parameter, initial, report, Mock())
+                    content = sent[0]['messages'][0]['content']
+                    for path in configuration.paths(parameter):
+                        description = f'`{path}`: {configuration.fields[path]["description"]}'
+                        self.assertIn(description, content)
+                        self.assertLess(content.index(description), content.index(constraints))
+                    self.assertNotIn(configuration.fields['seed']['description'], content)
+                    if parameter in ('training.learning_rate', 'training.gamma', 'epsilon_pair'):
+                        for path in configuration.paths(parameter):
+                            self.assertIn(f'`{path}` is continuous: you may use more decimal places', content)
+                        self.assertIn('within the supplied bounds', content)
+                    else:
+                        self.assertNotIn('more decimal places', content)

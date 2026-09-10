@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Include schema parameter descriptions in initial and comparison LLM prompts,
+  including both components of epsilon and reward pairs.
+- Clarify that continuous parameters allow additional decimal precision within
+  their bounds, without a step size implied by displayed values.
+
 ## [0.22.18] - 2026-09-09 @ 20:29
 
 ### Changed
