@@ -6,8 +6,11 @@ from .value_space import availability, finite_values
 
 
 class SearchReports(SearchStore):
-    def history(self, gold, parameter):
-        condition, values = self._matching(gold['config'], excluded=parameter)
+    def history(self, gold, parameter, *, other_seeds=False):
+        condition, values = self._matching(gold['config'], excluded=parameter, exclude_seed=other_seeds)
+        if other_seeds:
+            condition += ' AND c.seed <> %s AND r.status = %s'
+            values = (*values, gold['config']['seed'], 'completed')
         columns = [f'c.`{path.replace(".", "_")}`' for path in self.configuration.paths(parameter)]
         selected = ', '.join(f'{column} AS value_{index}' for index, column in enumerate(columns))
         rows = self._query(
@@ -36,12 +39,16 @@ class SearchReports(SearchStore):
         }
 
         field = self.configuration.parameters[parameter]
-        if availability(field, set())[0] is not None:
-            report['value_results'] = self.value_results(gold, history, parameter, finite_values(field))
+        values = finite_values(field) if availability(field, set())[0] is not None else None
+        report['value_results'] = self.value_results(gold, history, parameter, values)
         return report
 
     def value_results(self, gold, history, parameter, values):
-        """Pair every planned value with its recorded results in numeric order."""
+        """Show current-seed results and sorted cross-seed scores for each value."""
+        historical = {}
+        for row in self.history(gold, parameter, other_seeds=True):
+            if row['high_score'] is not None:
+                historical.setdefault(row['value'], []).append(row['high_score'])
         baseline = self.configuration.value(gold['config'], parameter)
         grouped = {}
         for row in history:
@@ -56,10 +63,13 @@ class SearchReports(SearchStore):
                 'run_id': gold['run_id'], 'status': 'completed',
                 'high_score': gold['high_score'], 'baseline': True,
             })
+        if values is None:
+            values = set(grouped) | set(historical)
         return [
             {'value': self.configuration.pair_arguments(parameter, value)
              if parameter in PAIR_PATHS else value,
-             'results': grouped.get(value, 'UNTESTED')}
+             'results': grouped.get(value, 'UNTESTED'),
+             'history': sorted(historical.get(value, []))}
             for value in sorted(values)
         ]
 
@@ -131,5 +141,6 @@ class SearchReports(SearchStore):
         return {
             'parameter': parameter, 'constraints': self.configuration.parameters[parameter],
             'gold': gold, 'allowed_values': None, 'eligible_pairs': None,
+            'value_results': self.value_results(gold, history, parameter, None),
             'table': '\n'.join(table), 'experiments': experiments,
         }
