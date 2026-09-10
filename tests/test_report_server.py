@@ -35,27 +35,23 @@ class ReportServerTest(unittest.TestCase):
     def rendered_json(self, response):
         return json.loads(html.unescape(response.text.split('<pre>', 1)[1].split('</pre>', 1)[0]))
 
-    def test_latest_json_is_exact_and_refresh_picks_up_new_summary(self):
-        self.save(self.data, 100)
-        result = self.client.get('/')
+    def test_welcome_links_to_prompts_without_loading_snapshots(self):
+        with patch('fr3d.server.ReportServer.ReportSnapshots', side_effect=AssertionError('Unexpected snapshot read')):
+            result = self.client.get('/')
         self.assertEqual(result.status_code, 200)
-        self.assertEqual(self.rendered_json(result), self.data)
-        self.assertIn('href="/">Refresh report</a>', result.text)
+        self.assertIn('Welcome to Fr3d reports', result.text)
+        self.assertIn('href="/prompts/">Latest prompts</a>', result.text)
+        self.assertNotIn('Refresh report', result.text)
+        self.assertNotIn('<pre>', result.text)
         self.assertIn('no-store', result.headers['cache-control'])
-        self.assertNotIn('<table>', result.text)
-        self.assertNotIn('Journal', result.text)
-        self.assertEqual(self.client.get('/?format=json').json(), self.data)
-        newer = {**self.data, 'parameter': 'epsilon.decay', 'search_context': 'Use previous gold', 'best_gold': {'high_score': 50}}
-        self.save(newer, 200)
-        self.assertEqual(self.rendered_json(self.client.get('/')), newer)
 
-    def test_legacy_snapshots_and_partial_writes_do_not_replace_latest_summary(self):
-        identity = self.save(self.data, 100)
-        self.save({'learning_rate': .001, 'experiments': []}, 200)
-        (self.store.directory / 'partial.tmp').write_text('{')
-        (self.store.directory / 'invalid-name.json').write_text('{')
-        self.assertEqual(self.store.latest_summary()[0], identity)
-        self.assertEqual(self.client.get('/?format=json').json(), self.data)
+    def test_prompt_json_does_not_depend_on_html_rendering(self):
+        payload = {'messages': [{'role': 'user', 'content': 'sample'}]}
+        self.store.save_prompt('training.gamma', payload, 'initial')
+        with patch('fr3d.server.ReportServer.prompt_content', side_effect=AssertionError('Unexpected rendering')), \
+             patch('fr3d.server.ReportServer.prompt_matrix', side_effect=AssertionError('Unexpected rendering')):
+            self.assertEqual(self.client.get('/prompts/training.gamma/initial/?format=json').json()['payload'], payload)
+            self.assertEqual(self.client.get('/prompts/?format=json').json(), {'parameters': ['training.gamma']})
 
     def test_snapshot_links_stay_fixed_and_keep_nulls(self):
         identity = self.save(self.data, 100)
@@ -67,33 +63,31 @@ class ReportServerTest(unittest.TestCase):
     def test_empty_state_and_removed_pages(self):
         response = self.client.get('/')
         self.assertEqual(response.status_code, 200)
-        self.assertIn('No summary report has been saved yet', response.text)
-        self.assertIn('Refresh report', response.text)
+        self.assertIn('Welcome to Fr3d reports', response.text)
         for path in ('/experiments/', '/experiments/1/', '/legacy/', '/best-worst/', '/journal/', '/reports/bad/'):
             self.assertEqual(self.client.get(path).status_code, 404)
-        self.assertEqual(self.client.get('/?format=json').status_code, 404)
         self.assertEqual(self.client.get('/reports/' + 'a' * 32 + '/').status_code, 404)
 
     def test_json_text_is_escaped_not_interpreted_as_html(self):
         data = {**self.data, 'search_context': '</pre><script>alert(1)</script>&'}
-        self.save(data, 100)
-        response = self.client.get('/')
+        identity = self.save(data, 100)
+        response = self.client.get(f'/reports/{identity}/')
         self.assertNotIn('<script>', response.text)
         self.assertEqual(self.rendered_json(response), data)
 
-    def test_corrupt_latest_report_shows_error_instead_of_silently_serving_old_data(self):
+    def test_corrupt_saved_report_shows_error(self):
         self.save(self.data, 100)
         identity = self.save(self.data, 200)
         (self.store.directory / (identity + '.json')).write_text('{broken')
         with self.assertLogs('fr3d.server.ReportServer', level='ERROR'):
-            response = self.client.get('/')
+            response = self.client.get(f'/reports/{identity}/')
         self.assertEqual(response.status_code, 503)
         self.assertNotIn('{broken', response.text)
 
     def test_load_failure_does_not_expose_internal_details(self):
-        with patch.object(self.store, 'latest_summary', side_effect=RuntimeError('private credentials')):
+        with patch.object(self.store, 'load', side_effect=RuntimeError('private credentials')):
             with self.assertLogs('fr3d.server.ReportServer', level='ERROR'):
-                response = self.client.get('/?format=json')
+                response = self.client.get('/reports/' + 'a' * 32 + '/?format=json')
         self.assertEqual(response.status_code, 503)
         self.assertNotIn('private credentials', response.text)
 
