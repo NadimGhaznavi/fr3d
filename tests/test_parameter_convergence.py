@@ -60,14 +60,15 @@ class ConvergenceLoopTests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
 
         async def propose(parameter, initial, report, trace):
             self.proposals += 1
+            base = .94 if parameter == 'training.gamma' else .0021
             return self.configuration.candidate(report['gold']['config'], parameter,
-                                                {'value': .0021 + self.proposals * .00001})
+                                                {'value': base + self.proposals * .00001})
 
         self.conversation.run.side_effect = propose
         parameter = 'training.learning_rate'
         self.configuration.parameters = {parameter: self.configuration.parameters[parameter],
                                          'training.gamma': self.configuration.parameters['training.gamma']}
-        # Keep gamma eligible but never reach its conversation during setup.
+        # Keep gamma eligible for the next prepared conversation.
         self.parameter = parameter
 
     async def test_only_completed_tweaks_count_and_third_result_skips_parameter(self):
@@ -77,8 +78,11 @@ class ConvergenceLoopTests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
             self.assertEqual(await self.loop.run_once(), 'submitted')
             self.assertNotIn(self.parameter, self.loop.selector.convergence.converged)
             candidate = self.backend.submit_simulation.call_args.args[0]
+            # Direct the next speculative turn; only completed runs count below.
+            self.loop.selector.next_index = 0 if identity < 4 else 1
             self.backend.is_simulation_running.return_value = True
             self.assertEqual(await self.loop.run_once(), 'waiting')
+            self.assertNotIn(self.parameter, self.loop.selector.convergence.converged)
             self.backend.is_simulation_running.return_value = False
             self.add_run(identity, candidate)
         self.conversation.run.side_effect = None
