@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.24.3] - 2026-09-10 @ 18:50
+
 ### Fixed
 
 - Retry LLM HTTP 503 responses every five seconds within the conversation timeout,
