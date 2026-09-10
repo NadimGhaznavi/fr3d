@@ -81,6 +81,14 @@ class Conversation:
                 trace.record('llm_response', request_number=number,
                              elapsed_s=round(time.monotonic() - started, 3),
                              http_status=response.status_code, body=response.text)
+                if response.status_code == 503:
+                    # llama-server accepts HTTP while its model is still loading.
+                    # Preserve the request and keep retries within this deadline.
+                    trace.record('llm_unavailable', request_number=number,
+                                 http_status=503, retry_after_s=DFr3d.FR3D_POLL_INTERVAL,
+                                 message='LLM unavailable; waiting before retrying')
+                    await asyncio.sleep(DFr3d.FR3D_POLL_INTERVAL)
+                    continue
                 response.raise_for_status()
                 body = response.json()
                 self.context.observe(body, payload, trace)
