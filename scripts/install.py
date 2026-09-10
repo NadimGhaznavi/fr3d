@@ -284,6 +284,17 @@ GRANT SELECT, INSERT ON `{DDatabase.DB_NAME}`.*
     ensure_snake_lab_read_access()
     write_database_environment(password)
     ensure_search_state_schema()
+    ensure_event_history_schema()
+
+
+def ensure_event_history_schema() -> None:
+    """Install append-only history and verify immutable definitions."""
+    from fr3d.database.event_schema import SCHEMA, SEED_SQL
+
+    sql = f'USE `{DDatabase.DB_NAME}`;\n' + ';\n'.join(SCHEMA) + ';\n'
+    sql += 'DELIMITER //\n' + SEED_SQL + '//\nDELIMITER ;\n'
+    subprocess.run([mariadb_client(), '--protocol=socket', '--batch'],
+                   input=sql, text=True, check=True)
 
 
 def ensure_search_state_schema() -> None:
