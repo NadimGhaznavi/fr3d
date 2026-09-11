@@ -123,6 +123,12 @@ all settings outside the selected dimension matching. Missing scores are omitted
 zero and repeated scores are retained. Historical observations do not change
 eligibility or restrict continuous choices to the observed values.
 
+Epsilon reports additionally end with `epsilon_pair_history`, a list of all scored
+completed runs sorted by initial epsilon, decay, then run order. It includes older
+baselines and all seeds, with each run's ID, seed, score, and values of other
+settings that differ from the active baseline. This broader context does not
+change the matching results or candidate eligibility.
+
 Gold and previous-gold queries use only the active seed. Current results and
 duplicate checks include seed. The highest seed in the configurations table is
 the active seed, including queued baseline runs: after restart, existing busy and
