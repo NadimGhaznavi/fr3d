@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.25.3] - 2026-09-11 @ 18:44
+
+### Added
+
+- Add the same broader history list to reward-pair reports, sorted by
+  `closer_to_food` then `further_from_food`, with seeds, scores, and differing
+  baseline settings. New saved reports and prompts include this list.
+
+- Append an epsilon-pair history list after the existing report fields, sorted by
+  initial epsilon and decay. Include scored completed runs across seeds and older
+  baselines, with run IDs and differing settings to contextualize their scores.
+  Keep matching results and current-seed eligibility unchanged.
+
 ## [0.25.2] - 2026-09-10 @ 19:35
 
 ### Changed

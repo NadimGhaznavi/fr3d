@@ -115,6 +115,30 @@ class PairHistoryTests(HistoryFixture, unittest.TestCase):
         self.assertNotIn('999', report['table'])
         self.assertNotIn('4', [row['run_id'] for row in report['experiments']])
 
+    def test_broader_history_follows_report_and_preserves_runs_after_promotion(self):
+        self.add_run(2, self.pair(.99, .95), score=0)
+        self.add_run(3, self.pair(.91, .99), score=22)
+        self.add_run(4, self.pair(.91, .95), score=22)
+        other_seed = self.pair(.91, .95)
+        other_seed['seed'] -= 1
+        self.add_run(5, other_seed, score=22)
+        self.add_run(6, self.pair(.91, .95), status='failed', score=999)
+        self.add_run(7, self.pair(.91, .95), score=None)
+        promoted = self.pair(.96, .97)
+        set_value(promoted, 'training.learning_rate', .002)
+        self.add_run(8, promoted, score=48)
+
+        report = self.reports.parameter_report(self.reports.gold(), EPSILON_PAIR)
+        self.assertEqual(list(report)[-1], 'epsilon_pair_history')
+        self.assertEqual([row['run_id'] for row in report['experiments']], ['8'])
+        history = report['epsilon_pair_history']
+        self.assertEqual([row['run_id'] for row in history], ['4', '5', '3', '1', '8', '2'])
+        self.assertEqual(history[-1]['high_score'], 0)
+        self.assertEqual(history[0]['other_setting_differences'],
+                         {'training.learning_rate': self.baseline['training']['learning_rate']})
+        self.assertEqual(history[4]['other_setting_differences'], {})
+        self.assertEqual(history[1]['seed'], other_seed['seed'])
+
     def test_all_statuses_reserve_pairs_and_multiple_results_are_labeled(self):
         for identity, (status, pair) in enumerate(zip(
                 ('queued', 'running', 'failed', 'cancelled', 'completed'),

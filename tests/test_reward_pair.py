@@ -14,6 +14,7 @@ from fr3d.app.whole_config.configuration import Configuration, EPSILON_PAIR, REW
 from fr3d.app.whole_config.conversation import Conversation
 from fr3d.app.whole_config.main_loop import SearchLoop
 from fr3d.app.whole_config.selection import assess_parameters, select_parameter
+from fr3d.reporting.snapshots import ReportSnapshots
 
 
 class RewardPairTests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
@@ -87,6 +88,36 @@ class RewardPairTests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
         assessments = {a.parameter: a for a in assess_parameters(self.configuration, self.reports, gold)}
         self.assertEqual(len(assessments[REWARD_PAIR].completed), 2)
         self.assertEqual(len(assessments[EPSILON_PAIR].completed), 1)
+
+    def test_broader_reward_history_survives_gold_change_and_snapshot(self):
+        self.add_run(2, self.candidate(4, -4), score=0)
+        self.add_run(3, self.candidate(0, 0), score=22)
+        self.add_run(4, self.candidate(0, -4), score=22)
+        previous_seed = self.candidate(0, -4)
+        previous_seed['seed'] -= 1
+        self.add_run(5, previous_seed, score=22)
+        self.add_run(6, self.candidate(0, -4), status='failed', score=999)
+        self.add_run(7, self.candidate(0, -4), score=None)
+        promoted = self.candidate(2, -2)
+        set_value(promoted, 'epsilon.decay', .99)
+        self.add_run(8, promoted, score=48)
+
+        report = self.reports.parameter_report(self.reports.gold(), REWARD_PAIR)
+        self.assertEqual(list(report)[-1], 'reward_pair_history')
+        self.assertEqual([row['run_id'] for row in report['experiments']], ['8'])
+        self.assertEqual(len(report['eligible_pairs']), 8)
+        history = report['reward_pair_history']
+        self.assertEqual([row['run_id'] for row in history], ['4', '5', '3', '1', '8', '2'])
+        self.assertEqual(history[0]['closer_to_food'], 0)
+        self.assertEqual(history[0]['further_from_food'], -4)
+        self.assertEqual(history[-1]['high_score'], 0)
+        self.assertEqual(history[0]['other_setting_differences'], {'epsilon.decay': .97})
+        self.assertEqual(history[4]['other_setting_differences'], {})
+        self.assertEqual(history[1]['seed'], previous_seed['seed'])
+        with tempfile.TemporaryDirectory() as directory:
+            snapshots = ReportSnapshots(directory)
+            saved = snapshots.load(snapshots.save(report))
+        self.assertEqual(saved['reward_pair_history'], history)
 
     async def test_sole_pair_is_automatic_and_duplicate_check_is_shared(self):
         self.fill()
