@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.25.3] - 2026-09-11 @ 18:44
+
 ### Added
 
 - Add the same broader history list to reward-pair reports, sorted by
