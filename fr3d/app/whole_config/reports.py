@@ -28,8 +28,7 @@ class SearchReports(SearchStore):
         history = self.history(gold, parameter)
         if parameter in PAIR_PATHS:
             report = self.pair_report(gold, history, parameter)
-            if parameter == EPSILON_PAIR:
-                report['epsilon_pair_history'] = self.epsilon_pair_history(gold)
+            report[f'{parameter}_history'] = self.pair_history(gold, parameter)
             return report
         report = {
             'parameter': parameter,
@@ -46,20 +45,22 @@ class SearchReports(SearchStore):
         report['value_results'] = self.value_results(gold, history, parameter, values)
         return report
 
-    def epsilon_pair_history(self, gold):
+    def pair_history(self, gold, parameter):
         """All scored completed runs, including experiments under older baselines."""
         paths = list(self.configuration.fields)
         columns = ', '.join(f'c.`{path.replace(".", "_")}` AS `{path}`' for path in paths)
+        pair_paths = self.configuration.paths(parameter)
+        ordering = ', '.join(f'c.`{path.replace(".", "_")}`' for path in pair_paths)
         rows = self._query(
             f'SELECT r.run_id, {columns}, '
             '(SELECT MAX(e.score) FROM simulation_episodes e WHERE e.run_id = r.run_id) AS high_score '
             'FROM configurations c JOIN simulation_runs r ON r.run_id = c.run_id '
-            'WHERE r.status = %s ORDER BY c.epsilon_initial, c.epsilon_decay, r.id',
+            f'WHERE r.status = %s ORDER BY {ordering}, r.id',
             ('completed',),
         )
-        excluded = {*self.configuration.paths(EPSILON_PAIR), 'seed'}
+        excluded = {*pair_paths, 'seed'}
         return [
-            {'initial': row['epsilon.initial'], 'decay': row['epsilon.decay'],
+            {**self.configuration.pair_arguments(parameter, tuple(row[path] for path in pair_paths)),
              'run_id': row['run_id'], 'seed': row['seed'], 'high_score': row['high_score'],
              'other_setting_differences': {
                  path: row[path] for path in paths

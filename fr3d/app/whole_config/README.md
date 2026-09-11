@@ -129,6 +129,10 @@ baselines and all seeds, with each run's ID, seed, score, and values of other
 settings that differ from the active baseline. This broader context does not
 change the matching results or candidate eligibility.
 
+Reward reports likewise end with `reward_pair_history`, sorted by `closer_to_food`,
+then `further_from_food`, then run order, with the same metadata and eligibility
+rules. Saved reports and model requests both include these lists.
+
 Gold and previous-gold queries use only the active seed. Current results and
 duplicate checks include seed. The highest seed in the configurations table is
 the active seed, including queued baseline runs: after restart, existing busy and
