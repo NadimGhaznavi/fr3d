@@ -1,7 +1,7 @@
 """Build the conversation report after a parameter has been selected."""
 
 from .store import SearchStore
-from .configuration import EPSILON_PAIR, PAIR_PATHS
+from .configuration import EPSILON_PAIR, PAIR_PATHS, get_value
 from .value_space import availability, finite_values
 
 
@@ -27,7 +27,9 @@ class SearchReports(SearchStore):
     def parameter_report(self, gold, parameter):
         history = self.history(gold, parameter)
         if parameter in PAIR_PATHS:
-            return self.pair_report(gold, history, parameter)
+            report = self.pair_report(gold, history, parameter)
+            report[f'{parameter}_history'] = self.pair_history(gold, parameter)
+            return report
         report = {
             'parameter': parameter,
             'constraints': self.configuration.parameters[parameter],
@@ -42,6 +44,30 @@ class SearchReports(SearchStore):
         values = finite_values(field) if availability(field, set())[0] is not None else None
         report['value_results'] = self.value_results(gold, history, parameter, values)
         return report
+
+    def pair_history(self, gold, parameter):
+        """All scored completed runs, including experiments under older baselines."""
+        paths = list(self.configuration.fields)
+        columns = ', '.join(f'c.`{path.replace(".", "_")}` AS `{path}`' for path in paths)
+        pair_paths = self.configuration.paths(parameter)
+        ordering = ', '.join(f'c.`{path.replace(".", "_")}`' for path in pair_paths)
+        rows = self._query(
+            f'SELECT r.run_id, {columns}, '
+            '(SELECT MAX(e.score) FROM simulation_episodes e WHERE e.run_id = r.run_id) AS high_score '
+            'FROM configurations c JOIN simulation_runs r ON r.run_id = c.run_id '
+            f'WHERE r.status = %s ORDER BY {ordering}, r.id',
+            ('completed',),
+        )
+        excluded = {*pair_paths, 'seed'}
+        return [
+            {**self.configuration.pair_arguments(parameter, tuple(row[path] for path in pair_paths)),
+             'run_id': row['run_id'], 'seed': row['seed'], 'high_score': row['high_score'],
+             'other_setting_differences': {
+                 path: row[path] for path in paths
+                 if path not in excluded and row[path] != get_value(gold['config'], path)
+             }}
+            for row in rows if row['high_score'] is not None
+        ]
 
     def value_results(self, gold, history, parameter, values):
         """Show current-seed results and sorted cross-seed scores for each value."""
