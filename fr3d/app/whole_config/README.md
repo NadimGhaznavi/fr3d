@@ -143,7 +143,12 @@ All seeds contribute to aggregate statistics. Existing `value_results` and
 
 Reward reports likewise end with `reward_pair_history`, sorted by `closer_to_food`,
 then `further_from_food`, then run order, with the same metadata and eligibility
-rules. Saved reports and model requests both include the full reward history list.
+rules. Saved reports retain the full list, while model requests replace it with
+`reward_pair_summary`. It shares epsilon's grouping, statistics, coverage limits,
+selection reasons, and omission counts. Reward distance counts adjacent configured
+grid values as one step on each axis, including uneven grids. Off-grid historical
+values are interpolated; values outside the grid use the nearest edge spacing.
+Axes without two grid values fall back to raw units. Eligibility is unchanged.
 
 Gold and previous-gold queries use only the active seed. Current results and
 duplicate checks include seed. The highest seed in the configurations table is

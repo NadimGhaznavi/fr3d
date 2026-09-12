@@ -4,6 +4,7 @@ from .store import SearchStore
 from .configuration import EPSILON_PAIR, PAIR_PATHS, get_value
 from .value_space import availability, finite_values
 from .epsilon_history import summarize_epsilon_history
+from .reward_history import summarize_reward_history
 
 
 class SearchReports(SearchStore):
@@ -32,6 +33,8 @@ class SearchReports(SearchStore):
             broader_history = self.pair_history(gold, parameter)
             if parameter == EPSILON_PAIR:
                 report['epsilon_pair_summary'] = summarize_epsilon_history(broader_history, gold)
+            else:
+                report['reward_pair_summary'] = summarize_reward_history(broader_history, gold, self.configuration)
             report[f'{parameter}_history'] = broader_history
             return report
         report = {
