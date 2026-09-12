@@ -6,7 +6,7 @@ from fr3d.constants.DFile import DFileDef as DEFFILE
 
 class DFr3d:
     # Project version
-    VERSION: Final[str] = "0.25.6"
+    VERSION: Final[str] = "0.27.7"
 
     # Fr3d ZMQ network info
     HOST: Final[str] = "0.0.0.0"
@@ -22,7 +22,7 @@ class DFr3d:
     # Whole prompt conversation, including report tool calls, in seconds.
     PROMPT_TIMEOUT: Final[int] = 780
     CONTEXT_SIZE: Final[int] = 24_576
-    REASONING_BUDGET: Final[int] = 8_192
+    REASONING_BUDGET: Final[int] = 12_288
 
     # Fr3d and LLM watchdog
     HEALTH_CHECK_INTERVAL: Final[int] = 60
