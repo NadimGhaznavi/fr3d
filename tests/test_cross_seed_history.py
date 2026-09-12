@@ -84,5 +84,10 @@ class CrossSeedHistoryTests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
             await Conversation(self.configuration, self.reports).run(parameter, True, report, Mock())
         data = json.loads(sent[0]['messages'][0]['content'].split('Summary report (JSON):\n')[1])
         self.assertEqual(data['value_results'][0], {'value': pair, 'results': 'UNTESTED', 'history': [37]})
-        self.assertEqual(list(data)[-1], 'epsilon_pair_history')
-        self.assertEqual([row['run_id'] for row in data['epsilon_pair_history']], ['2', '1'])
+        self.assertNotIn('epsilon_pair_history', data)
+        summary = data['epsilon_pair_summary']
+        self.assertEqual(summary['total_runs'], 2)
+        alternative = next(row for row in summary['groups'] if row['initial'] == pair['initial'])
+        self.assertIsNone(alternative['current_seed_results'])
+        self.assertEqual(alternative['seed_results'][0]['seed'], 1900)
+        self.assertEqual(alternative['mean_score'], 37)

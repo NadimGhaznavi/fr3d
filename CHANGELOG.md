@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.25.4] - 2026-09-11 @ 20:10
+
+### Changed
+
+- Summarize broader epsilon history in model prompts with at most 12 comparable
+  evidence groups covering gold, nearby alternatives, local poor performers,
+  strong comparable performers, and broader historical results. Preserve separate
+  background configurations, seed statistics, selection reasons, and omission
+  counts. Keep full run history in saved reports and existing eligibility checks.
+
 ## [0.25.3] - 2026-09-11 @ 18:44
 
 ### Added
