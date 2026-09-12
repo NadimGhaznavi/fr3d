@@ -127,11 +127,23 @@ Epsilon reports additionally end with `epsilon_pair_history`, a list of all scor
 completed runs sorted by initial epsilon, decay, then run order. It includes older
 baselines and all seeds, with each run's ID, seed, score, and values of other
 settings that differ from the active baseline. This broader context does not
-change the matching results or candidate eligibility.
+change the matching results or candidate eligibility. Saved reports retain this
+full list, but epsilon model requests replace it with `epsilon_pair_summary`.
+The summary groups by pair and all background settings except seed, preserving
+configuration differences, per-run high-score statistics, seed counts, and
+current-seed statistics. Performance selection uses the mean of seed means.
+At most 12 groups cover gold (1), nearest alternatives (3), weakest among the
+nearest 12 alternatives (3), strongest comparable alternatives (3), and strongest
+broader groups (2). Overlaps have multiple selection reasons and are not repeated.
+Distance is Euclidean in raw initial/decay parameter space; ties use numeric pair
+order and canonical background-setting JSON. Each group shows the current seed
+when available and the first three other seeds numerically, with omitted counts.
+All seeds contribute to aggregate statistics. Existing `value_results` and
+`experiments` remain complete; this bounds only the broader history supplement.
 
 Reward reports likewise end with `reward_pair_history`, sorted by `closer_to_food`,
 then `further_from_food`, then run order, with the same metadata and eligibility
-rules. Saved reports and model requests both include these lists.
+rules. Saved reports and model requests both include the full reward history list.
 
 Gold and previous-gold queries use only the active seed. Current results and
 duplicate checks include seed. The highest seed in the configurations table is

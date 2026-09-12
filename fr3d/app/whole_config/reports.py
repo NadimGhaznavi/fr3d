@@ -3,6 +3,7 @@
 from .store import SearchStore
 from .configuration import EPSILON_PAIR, PAIR_PATHS, get_value
 from .value_space import availability, finite_values
+from .epsilon_history import summarize_epsilon_history
 
 
 class SearchReports(SearchStore):
@@ -28,7 +29,10 @@ class SearchReports(SearchStore):
         history = self.history(gold, parameter)
         if parameter in PAIR_PATHS:
             report = self.pair_report(gold, history, parameter)
-            report[f'{parameter}_history'] = self.pair_history(gold, parameter)
+            broader_history = self.pair_history(gold, parameter)
+            if parameter == EPSILON_PAIR:
+                report['epsilon_pair_summary'] = summarize_epsilon_history(broader_history, gold)
+            report[f'{parameter}_history'] = broader_history
             return report
         report = {
             'parameter': parameter,
