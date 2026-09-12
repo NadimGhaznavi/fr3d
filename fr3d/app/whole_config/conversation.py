@@ -52,7 +52,7 @@ class Conversation:
         tool = self.configuration.tool(parameter)
         tool_name = tool['function']['name']
         prompt_report = {key: value for key, value in report.items()
-                         if key not in ('table', 'epsilon_pair_history')}
+                         if key not in ('table', 'epsilon_pair_history', 'reward_pair_history')}
         current = {'role': 'user', 'content': opening.text + '\n\n' + instructions
                    + '\n\nSummary report (JSON):\n' + to_json(prompt_report)}
         self.context.messages.append(current)
