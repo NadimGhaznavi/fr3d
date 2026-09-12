@@ -113,6 +113,16 @@ class RewardPairTests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
         self.assertEqual(history[-1]['high_score'], 0)
         self.assertEqual(history[0]['other_setting_differences'], {'epsilon.decay': .97})
         self.assertEqual(history[4]['other_setting_differences'], {})
+        summary = report['reward_pair_summary']
+        self.assertEqual(summary['total_runs'], 6)
+        self.assertEqual(summary['total_groups'], 5)
+        gold_group = next(row for row in summary['groups']
+                          if 'active_gold_pair' in row['selection_reasons'])
+        self.assertEqual(gold_group['other_setting_differences'], {})
+        self.assertEqual(gold_group['mean_score'], 48)
+        repeated = next(row for row in summary['groups'] if row['closer_to_food'] == 0)
+        self.assertEqual((repeated['run_count'], repeated['seed_count']), (2, 2))
+        self.assertEqual(repeated['other_setting_differences'], {'epsilon.decay': .97})
         self.assertEqual(history[1]['seed'], previous_seed['seed'])
         with tempfile.TemporaryDirectory() as directory:
             snapshots = ReportSnapshots(directory)
@@ -192,7 +202,10 @@ class RewardPairTests(HistoryFixture, unittest.IsolatedAsyncioTestCase):
         summary = json.loads(content.split('Summary report (JSON):\n', 1)[1])
         self.assertNotIn('table', summary)
         self.assertEqual(summary, json.loads(json.dumps(
-            {key: value for key, value in report.items() if key != 'table'})))
+            {key: value for key, value in report.items()
+             if key not in ('table', 'reward_pair_history')})))
+        self.assertIn('reward_pair_summary', summary)
+        self.assertNotIn('reward_pair_history', summary)
         self.assertEqual(sent[0]['tools'][0]['function']['name'], 'submit_reward_pair')
         for request in sent[1:]:
             self.assertIn('submit_reward_pair', request['messages'][-1]['content'])

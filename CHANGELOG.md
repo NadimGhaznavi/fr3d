@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.25.5] - 2026-09-11 @ 20:43
+
+### Changed
+
+- Extend compact historical evidence summaries to reward-pair prompts, sharing
+  epsilon's grouping, seed statistics, and coverage rules. Measure reward
+  proximity in configured grid steps. Keep full reward history in saved reports
+  and preserve current-seed eligibility and duplicate checks.
+
 ## [0.25.4] - 2026-09-11 @ 20:10
 
 ### Changed
