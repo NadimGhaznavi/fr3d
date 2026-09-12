@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.25.4] - 2026-09-11 @ 20:10
+
 ### Changed
 
 - Summarize broader epsilon history in model prompts with at most 12 comparable
