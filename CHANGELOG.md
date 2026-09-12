@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.25.6] - 2026-09-11 @ 21:37
+
+- Increased reasing budget to 8k
+
 ## [0.25.5] - 2026-09-11 @ 20:43
 
 ### Changed
